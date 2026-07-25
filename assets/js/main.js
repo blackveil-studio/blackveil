@@ -129,6 +129,7 @@ function initHeroMotion(){
       opacity:0,y:-60,scale:.96,ease:'none',
       scrollTrigger:{trigger:hero,start:'top top',end:'bottom top',scrub:true}
     });
+    window.addEventListener('load',function(){ ScrollTrigger.refresh(); });
   }
 
   var navEl=nav;
@@ -148,24 +149,20 @@ function initHeroMotion(){
   },{passive:true});
 }
 
-/* ---------- scroll reveal ---------- */
+/* ---------- scroll reveal ----------
+   Deliberately plain IntersectionObserver, not ScrollTrigger: these are simple
+   one-shot fade-ins with no pinning/scrubbing, and ScrollTrigger's trigger
+   positions are calculated once and go stale when web fonts or lazy images
+   shift page height afterwards, which silently leaves content at opacity:0
+   forever. IntersectionObserver has no such staleness problem. */
 function initReveal(){
   var els=document.querySelectorAll('.reveal-up, .reveal-card');
   if(!els.length) return;
   if(reduceMotion){ els.forEach(function(el){el.classList.add('visible');}); return; }
-  if(hasGSAP && window.ScrollTrigger){
-    els.forEach(function(el){
-      ScrollTrigger.create({
-        trigger:el, start:'top 85%',
-        onEnter:function(){el.classList.add('visible');}
-      });
-    });
-  }else{
-    var observer=new IntersectionObserver(function(entries){
-      entries.forEach(function(e){ if(e.isIntersecting){e.target.classList.add('visible'); observer.unobserve(e.target);} });
-    },{threshold:0.25,rootMargin:'0px 0px -40px 0px'});
-    els.forEach(function(el){observer.observe(el);});
-  }
+  var observer=new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(e.isIntersecting){e.target.classList.add('visible'); observer.unobserve(e.target);} });
+  },{threshold:0.15,rootMargin:'0px 0px -40px 0px'});
+  els.forEach(function(el){observer.observe(el);});
 }
 
 /* ---------- portfolio card tilt ---------- */
