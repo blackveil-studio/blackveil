@@ -154,12 +154,14 @@ nav.scrolled::before{opacity:1}
 .mq-fade-l{left:0;background:linear-gradient(to right,var(--ink-900),transparent)}
 .mq-fade-r{right:0;background:linear-gradient(to left,var(--ink-900),transparent)}
 
-/* =============== REVEAL (GSAP-driven, class toggled by ScrollTrigger) =============== */
-/* visible by default: only hidden once JS confirms it can reveal them (progressive enhancement) */
-html.js-ready .reveal-up{opacity:0;transform:translateY(28px)}
+/* =============== REVEAL (IntersectionObserver-driven) =============== */
+.reveal-up{opacity:0;transform:translateY(28px)}
 .reveal-up.visible{opacity:1;transform:translateY(0);transition:opacity 1s var(--ease),transform 1s var(--ease);transition-delay:var(--d,0ms)}
-html.js-ready .reveal-card{opacity:0;transform:translateY(20px)}
+.reveal-card{opacity:0;transform:translateY(20px)}
 .reveal-card.visible{opacity:1;transform:translateY(0);transition:opacity .9s var(--ease),transform .9s var(--ease);transition-delay:var(--d,0ms)}
+/* if JS never runs at all, force content visible rather than permanently hidden */
+html:not(.js-ready) .reveal-up,
+html:not(.js-ready) .reveal-card{opacity:1!important;transform:none!important}
 
 /* =============== PORTFOLIO =============== */
 .pf-section{background:var(--paper);padding:28px 0 32px;position:relative;overflow:hidden}
