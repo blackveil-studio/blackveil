@@ -75,6 +75,31 @@ body{background:var(--ink-950)}
   .stack-info{padding:32px 28px}
   .v2-nav{display:none}
 }
+
+/* ===== sticky-scroll "why" section ===== */
+.v2-why{background:var(--ink-950);padding:100px 0 60px;position:relative}
+.v2-why-inner{max-width:1180px;margin:0 auto;padding:0 24px;display:grid;grid-template-columns:.85fr 1.15fr;gap:80px}
+.v2-why-sticky{position:sticky;top:110px;align-self:start;height:fit-content}
+.v2-why-eyebrow{font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:20px}
+.v2-why-title{font-family:var(--serif);font-size:clamp(28px,3.4vw,44px);font-weight:600;line-height:1.15;color:var(--cream);margin-bottom:36px}
+.v2-why-title em{color:var(--gold-light);font-style:italic}
+.v2-why-nav{display:flex;flex-direction:column;border-top:1px solid rgba(255,255,255,.1)}
+.v2-why-step{display:flex;align-items:center;gap:14px;text-align:left;background:none;border:none;border-bottom:1px solid rgba(255,255,255,.08);padding:16px 0;cursor:pointer;font-family:var(--sans);font-size:15px;font-weight:600;color:rgba(240,237,232,.4);transition:color .35s}
+.v2-why-step-num{font-family:var(--serif);font-style:italic;font-size:14px;color:rgba(201,168,76,.35);transition:color .35s;flex-shrink:0;width:20px}
+.v2-why-step.active{color:var(--cream)}
+.v2-why-step.active .v2-why-step-num{color:var(--gold)}
+.v2-why-cards{display:flex;flex-direction:column;gap:28px;padding:6px 0}
+.v2-why-card{display:flex;align-items:flex-start;gap:24px;padding:32px;background:var(--ink-900);border:1px solid var(--gold-12);border-radius:20px;opacity:0;transform:translateX(48px);transition:opacity .8s cubic-bezier(.22,1,.36,1),transform .8s cubic-bezier(.22,1,.36,1)}
+.v2-why-card.in{opacity:1;transform:translateX(0)}
+.v2-why-icon{width:56px;height:56px;border-radius:14px;background:var(--gold-08);border:1px solid var(--gold-20);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--gold)}
+.v2-why-icon svg{width:26px;height:26px;stroke:var(--gold);fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.v2-why-card-title{font-family:var(--serif);font-size:22px;font-weight:600;color:var(--cream);margin-bottom:8px}
+.v2-why-card-text{font-size:14px;line-height:1.7;color:rgba(240,237,232,.68)}
+@media(max-width:900px){
+  .v2-why-inner{grid-template-columns:1fr;gap:32px}
+  .v2-why-sticky{position:static}
+  .v2-why-nav{display:none}
+}
 </style>
 </head>
 <body>
@@ -178,6 +203,44 @@ body{background:var(--ink-950)}
       </div>
     </div>
 
+  </div>
+</section>
+
+<section class="v2-why" id="why">
+  <div class="v2-why-inner">
+    <div class="v2-why-sticky">
+      <div class="v2-why-eyebrow">The problem</div>
+      <h2 class="v2-why-title">Every day someone searches for your business. <em>And finds nothing.</em></h2>
+      <div class="v2-why-nav" id="v2WhyNav">
+        <button class="v2-why-step active" data-step="0"><span class="v2-why-step-num">01</span>No website at all</button>
+        <button class="v2-why-step" data-step="1"><span class="v2-why-step-num">02</span>Only on Instagram</button>
+        <button class="v2-why-step" data-step="2"><span class="v2-why-step-num">03</span>Outdated website</button>
+        <button class="v2-why-step" data-step="3"><span class="v2-why-step-num">04</span>Broken on mobile</button>
+        <button class="v2-why-step" data-step="4"><span class="v2-why-step-num">05</span>No time to fix it</button>
+      </div>
+    </div>
+    <div class="v2-why-cards" id="v2WhyCards">
+      <div class="v2-why-card" data-step="0">
+        <div class="v2-why-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><line x1="3" y1="3" x2="21" y2="21"/></svg></div>
+        <div><div class="v2-why-card-title">No website at all</div><p class="v2-why-card-text">You're invisible online. A potential client Googles you and finds nothing. They move on to someone else.</p></div>
+      </div>
+      <div class="v2-why-card" data-step="1">
+        <div class="v2-why-icon"><svg viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="3"/><circle cx="12" cy="18" r="1"/></svg></div>
+        <div><div class="v2-why-card-title">Only on Instagram</div><p class="v2-why-card-text">Social media works, until the algorithm changes or the account gets restricted. A website is something you own.</p></div>
+      </div>
+      <div class="v2-why-card" data-step="2">
+        <div class="v2-why-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+        <div><div class="v2-why-card-title">Outdated website</div><p class="v2-why-card-text">Built years ago and it shows. Slow, hard to navigate, looks unprofessional, quietly pushing visitors away every day.</p></div>
+      </div>
+      <div class="v2-why-card" data-step="3">
+        <div class="v2-why-icon"><svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="10" y1="19" x2="14" y2="19"/><line x1="9" y1="8" x2="15" y2="14"/><line x1="15" y1="8" x2="9" y2="14"/></svg></div>
+        <div><div class="v2-why-card-title">Broken on mobile</div><p class="v2-why-card-text">Over 70% of visitors browse on their phone. A site that breaks on mobile means you're losing most of your audience.</p></div>
+      </div>
+      <div class="v2-why-card" data-step="4">
+        <div class="v2-why-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg></div>
+        <div><div class="v2-why-card-title">No time to fix it</div><p class="v2-why-card-text">It's always "next month". Meanwhile, competitors are getting the clients and bookings that should be yours.</p></div>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -287,6 +350,36 @@ window.addEventListener('load', function(){
   });
   ScrollTrigger.refresh();
 });
+
+/* "why" sticky-scroll: reveal cards + track active nav step */
+(function(){
+  var cards = document.querySelectorAll('.v2-why-card');
+  var navSteps = document.querySelectorAll('.v2-why-step');
+  if(!cards.length) return;
+
+  var revealObs = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add('in'); revealObs.unobserve(e.target); } });
+  }, {threshold:.15, rootMargin:'0px 0px -60px 0px'});
+  cards.forEach(function(c){ revealObs.observe(c); });
+
+  var activeObs = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(e.isIntersecting){
+        var step = e.target.getAttribute('data-step');
+        navSteps.forEach(function(n){ n.classList.toggle('active', n.getAttribute('data-step')===step); });
+      }
+    });
+  }, {threshold:.6});
+  cards.forEach(function(c){ activeObs.observe(c); });
+
+  navSteps.forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var step = btn.getAttribute('data-step');
+      var target = document.querySelector('.v2-why-card[data-step="'+step+'"]');
+      if(target) target.scrollIntoView({behavior:'smooth', block:'center'});
+    });
+  });
+})();
 </script>
 </body>
 </html>
