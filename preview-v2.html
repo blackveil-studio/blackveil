@@ -54,11 +54,13 @@ body{background:var(--ink-950)}
 .v2-pf-title{font-family:var(--serif);font-size:clamp(34px,4.5vw,58px);font-weight:600;color:var(--cream);line-height:1.05}
 .v2-pf-title em{color:var(--gold);font-style:italic}
 .stack-wrap{max-width:1120px;margin:0 auto;padding:40px 24px 120px}
-.stack-card{position:sticky;top:96px;min-height:78vh;display:flex;align-items:center;margin-bottom:28px}
-.stack-card-inner{width:100%;background:var(--ink-900);border:1px solid var(--gold-20);border-radius:28px;overflow:hidden;box-shadow:0 40px 100px rgba(0,0,0,.5);display:grid;grid-template-columns:1fr 1fr;min-height:60vh}
+.stack-card{position:sticky;top:96px;min-height:78vh;display:flex;align-items:center;margin-bottom:28px;transform-origin:center top;will-change:transform}
+.stack-card-inner{position:relative;width:100%;background:var(--ink-900);border:1px solid var(--gold-20);border-radius:28px;overflow:hidden;box-shadow:0 40px 100px rgba(0,0,0,.6);display:grid;grid-template-columns:1fr 1fr;min-height:60vh;isolation:isolate}
 .stack-media{position:relative;overflow:hidden}
 .stack-media img{width:100%;height:100%;object-fit:cover;object-position:top center}
 .stack-media::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(11,10,8,.15),transparent 30%)}
+/* darkens as the card recedes under the next one -- opaque scrim, never touches the card's own alpha so it can't show through to whatever is behind it */
+.stack-scrim{position:absolute;inset:0;background:var(--ink-950);opacity:0;pointer-events:none;z-index:5}
 .stack-info{padding:56px 52px;display:flex;flex-direction:column;justify-content:center}
 .stack-num{font-family:var(--serif);font-size:15px;font-style:italic;color:var(--gold);margin-bottom:18px}
 .stack-tag{font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-light);font-weight:700;margin-bottom:16px}
@@ -108,6 +110,7 @@ body{background:var(--ink-950)}
 
     <div class="stack-card">
       <div class="stack-card-inner">
+        <div class="stack-scrim"></div>
         <div class="stack-media"><img src="img/portfolio/elastyczna.jpg" alt="Elastyczna Studio"></div>
         <div class="stack-info">
           <div class="stack-num">01</div>
@@ -121,6 +124,7 @@ body{background:var(--ink-950)}
 
     <div class="stack-card">
       <div class="stack-card-inner">
+        <div class="stack-scrim"></div>
         <div class="stack-media"><img src="img/portfolio/gueros-barbershop.jpg" alt="Guero's Barber Shop"></div>
         <div class="stack-info">
           <div class="stack-num">02</div>
@@ -134,6 +138,7 @@ body{background:var(--ink-950)}
 
     <div class="stack-card">
       <div class="stack-card-inner">
+        <div class="stack-scrim"></div>
         <div class="stack-media"><img src="img/portfolio/cleanplicity.jpg" alt="Cleanplicity"></div>
         <div class="stack-info">
           <div class="stack-num">03</div>
@@ -147,6 +152,7 @@ body{background:var(--ink-950)}
 
     <div class="stack-card">
       <div class="stack-card-inner">
+        <div class="stack-scrim"></div>
         <div class="stack-media"><img src="img/portfolio/innovative-ink.jpg" alt="Innovative Ink"></div>
         <div class="stack-info">
           <div class="stack-num">04</div>
@@ -160,6 +166,7 @@ body{background:var(--ink-950)}
 
     <div class="stack-card">
       <div class="stack-card-inner">
+        <div class="stack-scrim"></div>
         <div class="stack-media"><img src="img/portfolio/fresh-pets.jpg" alt="Fresh Pets Day Spa"></div>
         <div class="stack-info">
           <div class="stack-num">05</div>
@@ -253,6 +260,9 @@ window.addEventListener('load', function(){
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if(reduce) return;
   var cards = gsap.utils.toArray('.stack-card');
+  /* z-index via JS, not CSS nth-child: GSAP's pin wraps pinned cards in
+     their own .pin-spacer, which breaks nth-child counting against .stack-wrap */
+  cards.forEach(function(card, i){ card.style.zIndex = i + 1; });
   cards.forEach(function(card, i){
     if(i === cards.length - 1) return;
     ScrollTrigger.create({
@@ -260,10 +270,20 @@ window.addEventListener('load', function(){
       endTrigger: cards[cards.length - 1], end: 'top top',
       pin: true, pinSpacing: false
     });
+    var scrim = card.querySelector('.stack-scrim');
+    /* only scale + darken via an opaque scrim -- never fade the card's own
+       alpha, or the covered card becomes literally see-through and every
+       later card bleeds through it as the deck stacks up. */
     gsap.to(card, {
-      scale: .93, opacity: .5, ease: 'none',
+      scale: .94, ease: 'none',
       scrollTrigger: { trigger: cards[i+1], start: 'top bottom', end: 'top top', scrub: true }
     });
+    if(scrim){
+      gsap.to(scrim, {
+        opacity: .55, ease: 'none',
+        scrollTrigger: { trigger: cards[i+1], start: 'top bottom', end: 'top 85%', scrub: true }
+      });
+    }
   });
   ScrollTrigger.refresh();
 });
