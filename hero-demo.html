@@ -630,11 +630,22 @@
         let portfolioHeightCached = 0;
         let skillsTopCached = 0;
         let skillsHeightCached = 0;
+        // Each column's own content height, so its scroll-through distance is
+        // driven by what's actually in it rather than a fixed guess — with
+        // asymmetric constants (-1300 vs -650) tuned for the old 6-card
+        // columns, equal 4-card columns now, the left column ran fully off
+        // the top with cards still left to show on the right (empty gap,
+        // screenshot-confirmed). Both columns now travel the same fraction
+        // of their own height, so neither depletes before the other.
+        let colLeftHeightCached = 0;
+        let colRightHeightCached = 0;
         function cacheSectionGeometry() {
             portfolioTopCached = portfolioSection.offsetTop;
             portfolioHeightCached = portfolioSection.offsetHeight;
             skillsTopCached = skillsSection.offsetTop;
             skillsHeightCached = skillsSection.offsetHeight;
+            colLeftHeightCached = colLeft.scrollHeight;
+            colRightHeightCached = colRight.scrollHeight;
         }
         cacheSectionGeometry();
 
@@ -751,11 +762,20 @@
             const skillsApproach = Math.max(0, Math.min(1, (scrollY - skillsApproachStart) / 400));
             const asteroidVisibility = skillsApproach;
 
-            // The whole star field — dust + hero stars + explosion — as ONE
-            // envelope: fully present through the entire burst, then dissolves
-            // over the 500-750px stretch, giving the "coast to the edges and
+            // The burst's own dense field: fully present through the burst,
+            // dissolves over 500-750px, giving the "coast to the edges and
             // fade" its own room even if you stop scrolling right at 500.
             const universeAlpha = Math.max(0, Math.min(1, 1 - (scrollY - 500) / 250));
+
+            // Without this, the portfolio backdrop was nebula clouds alone —
+            // which reads as a flat colored gradient, not space. A dim, calm
+            // starfield stays present the whole way through the corridor
+            // (same drift + cursor-repulsion, no explosion — that's already
+            // spent) so there's real depth and sparkle behind the cards, not
+            // just a smooth color wash. Cheap: no explosion streaks, no halo,
+            // just flat dots.
+            const portfolioStarAlpha = 0.4 * (1 - skillsApproach);
+            const starVisibility = Math.max(universeAlpha, portfolioStarAlpha);
 
             // --- background: forced dark theme, always ---
             ctx.clearRect(0, 0, width, height);
@@ -765,8 +785,14 @@
             // --- Zone 2 corridor: orbital arc motion, strictly scroll-driven ---
             let progress = (scrollY - portfolioTopCached) / (portfolioHeightCached - window.innerHeight);
             progress = Math.max(0, Math.min(1, progress));
-            const targetLeftY = -progress * 1300;
-            const targetRightY = -progress * 650;
+            // Each column travels a little past its own content height (1.1x)
+            // so the last card clears the viewport by the end of the scroll —
+            // same relative overshoot for both, so they run out together
+            // instead of one draining early. A small 1.15/0.95 split keeps a
+            // touch of the original asymmetric parallax feel without letting
+            // either column empty out first.
+            const targetLeftY = -progress * colLeftHeightCached * 1.15;
+            const targetRightY = -progress * colRightHeightCached * 0.95;
             currentLeftY = lerp(currentLeftY, targetLeftY, 0.35);
             currentRightY = lerp(currentRightY, targetRightY, 0.35);
             // cards bow outward mid-scroll and return near-center at both ends —
@@ -843,10 +869,11 @@
 
             // --- The one and only particle pass: drift, friction-based cursor
             // repulsion, and scroll-explosion impulse, all in a single forEach.
-            // Gated by universeAlpha so once you're deep in the portfolio
-            // corridor this ~3500-particle loop is skipped entirely, not just
-            // drawn at alpha 0. ---
-            if (universeAlpha > 0.001) {
+            // Gated by starVisibility, which stays > 0 through the whole
+            // portfolio corridor (dim ambient sparkle) and only truly zeroes
+            // out approaching the asteroid belt — so this loop is skipped
+            // entirely there, not just drawn at alpha 0. ---
+            if (starVisibility > 0.001) {
                 particles.forEach(p => {
                     // constant ambient wander — never damped, always present,
                     // exactly what keeps the field "alive" at rest
@@ -896,9 +923,9 @@
                     if (p.y < -20) p.y = height + 20;
                     if (p.y > height + 20) p.y = -20;
 
-                    let currentAlpha = p.baseAlpha * universeAlpha;
+                    let currentAlpha = p.baseAlpha * starVisibility;
                     if (p.isHero) {
-                        currentAlpha = p.baseAlpha * universeAlpha * (0.35 + Math.sin(time * p.twinkleSpeed + p.seed) * 0.65);
+                        currentAlpha = p.baseAlpha * starVisibility * (0.35 + Math.sin(time * p.twinkleSpeed + p.seed) * 0.65);
                     }
 
                     let coreRgb;
