@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Blackveil Studio — cosmic hero preview</title>
-    <meta name="robots" content="noindex, nofollow">
+    <title>Blackveil Studio | Creative Experience</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:ital,opsz,wght@0,12..96,400..800;1,12..96,400..800&family=DM+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -461,16 +460,12 @@
 
         const darkBg = hexToRgb('020208');
 
-        // Two independent universes, per the architectural split:
-        //   heroParticles — the pristine, classic Hero cosmos. Drift + verbatim
-        //     cursor repulsion ONLY. Never touched by explosion math, ever, which
-        //     is exactly what guarantees scrolling back to 0 is bit-for-bit clean.
-        //   explosionParticles — invisible and entirely unprocessed at the top
-        //     (skipped from the render loop outright, not just alpha-zeroed),
-        //     wakes up only inside the transition zone, owns all the impulse /
-        //     streak / "crossing dance" physics.
-        const heroParticles = [];
-        const explosionParticles = [];
+        // One universe, one array, one pass. Every particle carries drift,
+        // cursor-repulsion and explosion-impulse fields at all times — there is
+        // no second pool to keep in sync and nothing to skip-vs-not-skip.
+        // Visibility is a single alpha envelope (universeAlpha, computed once
+        // per frame in render()), not an architectural fork.
+        const particles = [];
         const nebulaClouds = [];
         const shootingStars = []; // additive-only feature — own array, own draw pass, touches nothing else
         let shootingCooldown = 200;
@@ -500,33 +495,21 @@
             });
         }
 
+        // 3500 total — ~12% bright foreground "hero" stars, the rest fine
+        // background dust. Every particle can play both roles (calm drift at
+        // rest, radial burst on scroll) since there's only one pool now.
         for (let i = 0; i < 3500; i++) {
             const isHeroStar = Math.random() > 0.88;
-            heroParticles.push({
+            particles.push({
                 x: Math.random() * width,
                 y: Math.random() * height,
                 vx: (Math.random() - 0.5) * 0.25,
                 vy: (Math.random() - 0.5) * 0.25,
+                repVx: 0, repVy: 0,   // friction-damped cursor-repulsion velocity
+                explVx: 0, explVy: 0, // friction-damped scroll-explosion velocity (hero subset only)
                 size: isHeroStar ? Math.random() * 1.6 + 1.1 : Math.random() * 0.6 + 0.2,
                 baseAlpha: isHeroStar ? Math.random() * 0.5 + 0.5 : Math.random() * 0.4 + 0.15,
                 isHero: isHeroStar,
-                twinkleSpeed: Math.random() * 0.003 + 0.001,
-                seed: Math.random() * 100,
-                colorType: Math.random()
-            });
-        }
-
-        for (let i = 0; i < 1800; i++) {
-            const isHeroStar = Math.random() > 0.88;
-            explosionParticles.push({
-                x: Math.random() * width,
-                y: Math.random() * height,
-                vx: (Math.random() - 0.5) * 0.25,
-                vy: (Math.random() - 0.5) * 0.25,
-                size: isHeroStar ? Math.random() * 1.6 + 1.1 : Math.random() * 0.6 + 0.2,
-                baseAlpha: isHeroStar ? Math.random() * 0.5 + 0.5 : Math.random() * 0.4 + 0.15,
-                isHero: isHeroStar,
-                explVx: 0, explVy: 0, // the radial impulse — hero subset only, ever
                 twinkleSpeed: Math.random() * 0.003 + 0.001,
                 seed: Math.random() * 100,
                 colorType: Math.random()
@@ -631,7 +614,8 @@
             });
         }
 
-        // raw cursor position, no smoothing/lerp — matches the old site's Hero exactly
+        // raw cursor position, no smoothing/lerp on the mouse itself — the
+        // "smoothness" now comes entirely from the particles' own friction
         document.addEventListener('mousemove', function(e){ mouse.x = e.clientX; mouse.y = e.clientY; });
 
         // --- Portfolio: sticky centered text, two columns of real projects
@@ -746,14 +730,14 @@
         cacheSectionGeometry();
 
         // The whole hero -> portfolio handoff — burst, title exit, text-in,
-        // cards-in — now lives in one compact, fixed 0-500px window. No spacer,
-        // no viewport-relative floor: these are the only two numbers that decide
-        // when the portfolio starts revealing.
-        const TEXT_REVEAL_AT = 400;
-        const CARDS_REVEAL_AT = 470; // close behind the text on purpose — cards
-                                      // should already be sliding in while the
-                                      // title is still animating into its lock,
-                                      // not wait for it to finish settling.
+        // cards-in — lives in one compact, fixed 0-500px window driven by a
+        // single scrollPercent value (computed in render()). No spacer, no
+        // viewport-relative floor.
+        const TEXT_REVEAL_AT = 500;  // portfolio starts revealing exactly as the burst finishes
+        const CARDS_REVEAL_AT = 560; // close behind the text — cards are already
+                                      // sliding in while the title is still
+                                      // animating into its lock, not waiting
+                                      // for it to finish settling.
         const SKILLS_REVEAL_LEAD = 250;
 
         // Explosion energy — a real accumulator with its own momentum, NOT a
@@ -773,7 +757,7 @@
             const newScrollY = window.scrollY;
             const deltaScroll = newScrollY - lastScrollYForEnergy;
             lastScrollYForEnergy = newScrollY;
-            if (deltaScroll > 0 && newScrollY < 550) {
+            if (deltaScroll > 0 && newScrollY < 500) {
                 explosionEnergy += deltaScroll * 0.06;
                 explosionEnergy = Math.min(6, explosionEnergy);
             }
@@ -801,45 +785,54 @@
             cacheSectionGeometry();
         });
 
+        // Edge-triggered — the position reshuffle below must fire exactly once
+        // per arrival at the top, not every frame you happen to be sitting there.
+        let wasAtTop = true;
+
         function render(time) {
 
             const scrollY = window.scrollY;
 
-            // energy decays every single frame, independent of whether a scroll
+            // Energy decays every single frame, independent of whether a scroll
             // event ever arrives again — this is what lets the streaks keep
             // shrinking and the stars keep coasting outward after you stop.
-            // Near the very top, force it clean instantly rather than letting it
-            // coast the rest of the way down — the Hero must read as pristine
-            // the moment you're back near scrollY 0, not a frame later. A small
-            // threshold (not a literal === 0) so this is robust to sub-pixel
-            // scroll positions, not just an exact bounce-to-top.
+            // Hard reset at the top: energy to 0, AND every particle's position
+            // reshuffled fresh via Math.random(). Explosion residue can leave
+            // stars parked out near the edges after a burst — without a real
+            // position reset, scrolling back up would settle into that leftover
+            // scatter instead of the pristine opening field. Fires once on
+            // arrival (wasAtTop edge trigger), not every frame at rest, so nothing
+            // visibly teleports while you're actually looking at the calm top.
             if (scrollY < 5) {
                 explosionEnergy = 0;
+                if (!wasAtTop) {
+                    particles.forEach(p => {
+                        p.x = Math.random() * width;
+                        p.y = Math.random() * height;
+                        p.explVx = 0; p.explVy = 0;
+                        p.repVx = 0; p.repVy = 0;
+                    });
+                    wasAtTop = true;
+                }
             } else {
-                explosionEnergy *= 0.92;
+                explosionEnergy *= 0.93;
+                wasAtTop = false;
             }
 
             // --- Zone math, all pure functions of window.scrollY, all continuous.
-            // Everything below lives inside one compact 0-550px handoff window —
-            // no dead spacer, no viewport-relative floor. ---
+            // One scrollPercent drives the entire 0-500px hero->portfolio burst —
+            // no separate wake/sleep/peak windows to keep in sync by hand. ---
+            const scrollPercent = Math.min(scrollY / 500, 1);
 
-            // Zone 1 hyperspace: nebula swells from the very first pixel of
-            // scroll (the burst has to feel instant, not delayed), peaks at
-            // 250px, eases back to 0 by 500px as the portfolio backdrop takes over.
-            const HYPERSPACE_PEAK = 250;
-            const HYPERSPACE_END = 500;
-            let hyperspaceProgress;
-            if (scrollY <= HYPERSPACE_PEAK) {
-                hyperspaceProgress = scrollY / HYPERSPACE_PEAK;
-            } else {
-                hyperspaceProgress = Math.max(0, 1 - (scrollY - HYPERSPACE_PEAK) / (HYPERSPACE_END - HYPERSPACE_PEAK));
-            }
-            const hyperspaceEase = Math.sin(hyperspaceProgress * Math.PI / 2);
+            // Nebula swell: a single sine hump over scrollPercent — 0 at the top,
+            // peaks exactly halfway through the burst, back to 0 as it completes.
+            const hyperspaceEase = Math.sin(scrollPercent * Math.PI);
 
-            // Galaxy core (and the ambient prism rings behind the cards) fade in
-            // right as the burst settles, fully present by the time the cards are
-            // revealed, then fade back out in the 400px approaching the asteroid belt.
-            const galaxyFadeIn = Math.max(0, Math.min(1, (scrollY - 380) / 200));
+            // Galaxy core + ambient prism rings fade in starting partway through
+            // the burst (350px) and are fully present by 700px — overlapping the
+            // star field's own outro below so the cosmos is never empty for a
+            // single frame. Fades back out approaching the asteroid belt as before.
+            const galaxyFadeIn = Math.max(0, Math.min(1, (scrollY - 350) / 350));
             const galaxyFadeOutStart = skillsTopCached - 400;
             const galaxyFadeOut = Math.max(0, Math.min(1, (scrollY - galaxyFadeOutStart) / 400));
             const galaxyAlpha = galaxyFadeIn * (1 - galaxyFadeOut);
@@ -850,23 +843,11 @@
             const skillsProgress = galaxyFadeOut;
             const asteroidVisibility = skillsProgress;
 
-            // heroParticles: visible only in a tight 0-320px window at the very
-            // top. Nothing about them is ever touched by explosion math, so this
-            // is the ONLY thing that determines whether the classic cosmos shows —
-            // scrolling back to exactly 0 always lands on alpha 1, untouched state.
-            const heroAlpha = Math.max(0, Math.min(1, 1 - scrollY / 320));
-
-            // explosionParticles: wakes almost instantly (a fast 20px ramp, just
-            // enough to avoid a hard pop on frame one), holds through the burst,
-            // then dissolves over the same window the galaxy backdrop fades in —
-            // so the cosmos never visibly empties, one system hands off to the next.
-            const EXPL_WAKE_END = 20;
-            const EXPL_SLEEP_START = 350, EXPL_SLEEP_END = 550;
-            let explosionVisibility;
-            if (scrollY < EXPL_WAKE_END) explosionVisibility = scrollY / EXPL_WAKE_END;
-            else if (scrollY < EXPL_SLEEP_START) explosionVisibility = 1;
-            else if (scrollY < EXPL_SLEEP_END) explosionVisibility = 1 - (scrollY - EXPL_SLEEP_START) / (EXPL_SLEEP_END - EXPL_SLEEP_START);
-            else explosionVisibility = 0;
+            // The whole star field — dust + hero stars + explosion — as ONE
+            // envelope: fully present through the entire burst, then dissolves
+            // over the 500-750px stretch, giving the "coast to the edges and
+            // fade" its own room even if you stop scrolling right at 500.
+            const universeAlpha = Math.max(0, Math.min(1, 1 - (scrollY - 500) / 250));
 
             // --- background: forced dark theme, always ---
             ctx.clearRect(0, 0, width, height);
@@ -876,8 +857,8 @@
             // --- Zone 2 corridor: orbital arc motion, strictly scroll-driven ---
             let progress = (scrollY - portfolioTopCached) / (portfolioHeightCached - window.innerHeight);
             progress = Math.max(0, Math.min(1, progress));
-            const targetLeftY = -progress * 1500;
-            const targetRightY = -progress * 800;
+            const targetLeftY = -progress * 1300;
+            const targetRightY = -progress * 650;
             currentLeftY = lerp(currentLeftY, targetLeftY, 0.35);
             currentRightY = lerp(currentRightY, targetRightY, 0.35);
             // cards bow outward mid-scroll and return near-center at both ends —
@@ -969,99 +950,49 @@
 
             ctx.globalCompositeOperation = 'screen';
 
-            // --- heroParticles: the pristine classic cosmos. Drift + verbatim
-            // old-site cursor repulsion, nothing else — no explosion fields even
-            // exist on these objects. Gated by heroAlpha so once you're scrolled
-            // well past the top, this ~1100-particle loop is skipped entirely. ---
-            if (heroAlpha > 0.001) {
-                heroParticles.forEach(p => {
-                    // movement + cursor interaction — verbatim from the old site's
-                    // Hero: constant drift, direct position nudge while within
-                    // 150px, no velocity damping, no force accumulation, no
-                    // return-to-origin. Locked, untouched by anything below.
+            // --- The one and only particle pass: drift, friction-based cursor
+            // repulsion, and scroll-explosion impulse, all in a single forEach.
+            // Gated by universeAlpha so once you're deep in the portfolio
+            // corridor this ~3500-particle loop is skipped entirely, not just
+            // drawn at alpha 0. ---
+            if (universeAlpha > 0.001) {
+                particles.forEach(p => {
+                    // constant ambient wander — never damped, always present,
+                    // exactly what keeps the field "alive" at rest
                     p.x += p.vx; p.y += p.vy;
+
+                    // cursor repulsion — inertial, not a magnet: the cursor adds
+                    // to a dedicated velocity channel, friction (0.96) coasts it
+                    // back to rest, so stars glide away and settle instead of
+                    // snapping to a fixed offset from the pointer.
                     const dx = p.x - mouse.x;
                     const dy = p.y - mouse.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     if (dist < 150 && dist > 0) {
                         const f = (150 - dist) / 150;
-                        p.x += (dx / dist) * f * 2;
-                        p.y += (dy / dist) * f * 2;
+                        p.repVx += (dx / dist) * f * 0.9;
+                        p.repVy += (dy / dist) * f * 0.9;
                     }
-                    if (p.x < -20) p.x = width + 20;
-                    if (p.x > width + 20) p.x = -20;
-                    if (p.y < -20) p.y = height + 20;
-                    if (p.y > height + 20) p.y = -20;
+                    p.repVx *= 0.96;
+                    p.repVy *= 0.96;
+                    p.x += p.repVx;
+                    p.y += p.repVy;
 
-                    let currentAlpha = p.baseAlpha * heroAlpha;
+                    // scroll-explosion impulse — hero subset only (~12%). Its own
+                    // velocity channel so its friction never touches the ambient
+                    // drift or the cursor-repulsion channel above.
                     if (p.isHero) {
-                        currentAlpha = p.baseAlpha * heroAlpha * (0.35 + Math.sin(time * p.twinkleSpeed + p.seed) * 0.65);
-                    }
-
-                    let coreRgb;
-                    if (p.isHero) {
-                        coreRgb = '255, 255, 255';
-                    } else {
-                        if (p.colorType > 0.65) coreRgb = '0, 191, 255';
-                        else if (p.colorType > 0.35) coreRgb = '255, 20, 147';
-                        else coreRgb = '255, 255, 255';
-                    }
-
-                    if (p.isHero) {
-                        const haloR = p.size * 9;
-                        const haloGrad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, haloR);
-                        haloGrad.addColorStop(0, `rgba(255, 255, 255, ${currentAlpha * 0.4})`);
-                        haloGrad.addColorStop(0.25, `rgba(255, 255, 255, ${currentAlpha * 0.12})`);
-                        haloGrad.addColorStop(0.6, `rgba(255, 255, 255, ${currentAlpha * 0.03})`);
-                        haloGrad.addColorStop(1, `rgba(255, 255, 255, 0)`);
-                        ctx.beginPath();
-                        ctx.arc(p.x, p.y, haloR, 0, Math.PI * 2);
-                        ctx.fillStyle = haloGrad;
-                        ctx.fill();
-                    }
-
-                    ctx.beginPath();
-                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(${coreRgb}, ${currentAlpha})`;
-                    ctx.fill();
-                });
-            }
-
-            // --- explosionParticles: fully skipped below scrollY 200 — not just
-            // invisible, literally never iterated, which is the actual fix for
-            // "the page hitches on the first scroll." Owns all impulse physics. ---
-            if (explosionVisibility > 0.001) {
-                explosionParticles.forEach(p => {
-                    p.x += p.vx; p.y += p.vy;
-                    const dx = p.x - mouse.x;
-                    const dy = p.y - mouse.y;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < 150 && dist > 0) {
-                        const f = (150 - dist) / 150;
-                        p.x += (dx / dist) * f * 2;
-                        p.y += (dy / dist) * f * 2;
-                    }
-
-                    // Explosion impulse — hero subset only (~215 of the 1800).
-                    // Separate velocity from the ambient drift above, so friction
-                    // here never damps the base drift to a stop.
-                    if (p.isHero) {
-                        if (scrollY < 5) {
-                            p.explVx = 0;
-                            p.explVy = 0;
-                        } else {
-                            const rdx = p.x - width / 2;
-                            const rdy = p.y - height / 2;
-                            const rdist = Math.sqrt(rdx * rdx + rdy * rdy) || 1;
-                            p.explVx += (rdx / rdist) * explosionEnergy;
-                            p.explVy += (rdy / rdist) * explosionEnergy;
-                            p.explVx *= 0.93;
-                            p.explVy *= 0.93;
-                            const explSpeed = Math.hypot(p.explVx, p.explVy);
-                            if (explSpeed > 18) {
-                                p.explVx = (p.explVx / explSpeed) * 18;
-                                p.explVy = (p.explVy / explSpeed) * 18;
-                            }
+                        const rdx = p.x - width / 2;
+                        const rdy = p.y - height / 2;
+                        const rdist = Math.sqrt(rdx * rdx + rdy * rdy) || 1;
+                        p.explVx += (rdx / rdist) * explosionEnergy;
+                        p.explVy += (rdy / rdist) * explosionEnergy;
+                        p.explVx *= 0.93;
+                        p.explVy *= 0.93;
+                        const explSpeed = Math.hypot(p.explVx, p.explVy);
+                        if (explSpeed > 18) {
+                            p.explVx = (p.explVx / explSpeed) * 18;
+                            p.explVy = (p.explVy / explSpeed) * 18;
                         }
                         p.x += p.explVx;
                         p.y += p.explVy;
@@ -1072,9 +1003,9 @@
                     if (p.y < -20) p.y = height + 20;
                     if (p.y > height + 20) p.y = -20;
 
-                    let currentAlpha = p.baseAlpha * explosionVisibility;
+                    let currentAlpha = p.baseAlpha * universeAlpha;
                     if (p.isHero) {
-                        currentAlpha = p.baseAlpha * explosionVisibility * (0.35 + Math.sin(time * p.twinkleSpeed + p.seed) * 0.65);
+                        currentAlpha = p.baseAlpha * universeAlpha * (0.35 + Math.sin(time * p.twinkleSpeed + p.seed) * 0.65);
                     }
 
                     let coreRgb;
@@ -1125,7 +1056,7 @@
             }
 
             // rare shooting stars — only in the pristine top-of-page moment
-            if (heroAlpha > 0.5) {
+            if (universeAlpha > 0.5) {
                 shootingCooldown--;
                 if (shootingCooldown <= 0) {
                     spawnShootingStar();
@@ -1141,8 +1072,8 @@
                 const tailX = s.x - (s.vx / mag) * s.len;
                 const tailY = s.y - (s.vy / mag) * s.len;
                 const trailGrad = ctx.createLinearGradient(s.x, s.y, tailX, tailY);
-                trailGrad.addColorStop(0, `rgba(255, 255, 255, ${s.life * heroAlpha})`);
-                trailGrad.addColorStop(0.4, `rgba(200, 220, 255, ${s.life * 0.4 * heroAlpha})`);
+                trailGrad.addColorStop(0, `rgba(255, 255, 255, ${s.life * universeAlpha})`);
+                trailGrad.addColorStop(0.4, `rgba(200, 220, 255, ${s.life * 0.4 * universeAlpha})`);
                 trailGrad.addColorStop(1, `rgba(255, 255, 255, 0)`);
                 ctx.strokeStyle = trailGrad;
                 ctx.lineWidth = 2;
@@ -1151,7 +1082,7 @@
                 ctx.moveTo(s.x, s.y);
                 ctx.lineTo(tailX, tailY);
                 ctx.stroke();
-                ctx.fillStyle = `rgba(255, 255, 255, ${s.life * heroAlpha})`;
+                ctx.fillStyle = `rgba(255, 255, 255, ${s.life * universeAlpha})`;
                 ctx.beginPath();
                 ctx.arc(s.x, s.y, 1.8, 0, Math.PI * 2);
                 ctx.fill();
