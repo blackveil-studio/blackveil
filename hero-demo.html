@@ -887,61 +887,105 @@
             }
             ctx.restore();
 
-            // --- Event Horizon: the portfolio's entire "wow" now, replacing
-            // nebula/rings/grid. A handful of huge, soft glows anchored just
-            // outside each edge, cycling the site's own established gradient
-            // colors (the same blue-violet/purple/pink used in the hero and
-            // playground headline text — brand-consistent, not a new
-            // palette), breathing on a slow sine pulse. Cards float in matte
-            // black, lit only by this contour. Cheap on purpose: 4 gradient
-            // fills replace what used to be 34 nebula clouds + 6 prism rings
-            // + a 558-node mesh. ---
+            // --- Event Horizon v2: a genuine eclipse-corona rim, not a soft
+            // color wash. Her original spec called for "a thin, ultra-bright
+            // neon line, like the sun's corona during an eclipse" — the first
+            // version drew four huge blob gradients instead, which is exactly
+            // why it read as "just a blue background." This uses Canvas's
+            // native shadowBlur for real glow on a THIN stroked ellipse —
+            // one path, one glowing line, center of the frame stays true
+            // black. A rotating 3-color gradient keeps it alive, plus small
+            // sparks traveling along the rim itself. ---
             if (horizonAlpha > 0.001) {
                 ctx.globalCompositeOperation = 'screen';
-                const pulse = 0.75 + 0.25 * Math.sin(time * 0.0007);
-                const edgeGlowR = Math.max(width, height) * 0.55;
-                const edges = [
-                    { x: width / 2, y: -edgeGlowR * 0.3, color: horizonColors[0] },
-                    { x: width / 2, y: height + edgeGlowR * 0.3, color: horizonColors[1] },
-                    { x: -edgeGlowR * 0.3, y: height / 2, color: horizonColors[2] },
-                    { x: width + edgeGlowR * 0.3, y: height / 2, color: horizonColors[0] }
-                ];
-                edges.forEach(edge => {
-                    const a = horizonAlpha * pulse * 0.5;
-                    const grad = ctx.createRadialGradient(edge.x, edge.y, 0, edge.x, edge.y, edgeGlowR);
-                    grad.addColorStop(0, `rgba(${edge.color.r}, ${edge.color.g}, ${edge.color.b}, ${a})`);
-                    grad.addColorStop(0.6, `rgba(${edge.color.r}, ${edge.color.g}, ${edge.color.b}, ${a * 0.25})`);
-                    grad.addColorStop(1, `rgba(${edge.color.r}, ${edge.color.g}, ${edge.color.b}, 0)`);
-                    ctx.beginPath();
-                    ctx.arc(edge.x, edge.y, edgeGlowR, 0, Math.PI * 2);
-                    ctx.fillStyle = grad;
-                    ctx.fill();
-                });
+                const pulse = 0.8 + 0.2 * Math.sin(time * 0.0009);
+                const rimRx = width * 0.5;
+                const rimRy = height * 0.5;
+                const cx = width / 2, cy = height / 2;
 
-                // Mouse echo — a soft ring spawns where the cursor moves,
-                // expands and fades. Throttled by both a cooldown and a
-                // minimum-movement threshold so resting the mouse spawns
-                // nothing; only real movement does.
+                // slowly rotating aurora gradient across the rim
+                const rot = (time * 0.00003) % (Math.PI * 2);
+                const gx1 = cx + Math.cos(rot) * rimRx, gy1 = cy + Math.sin(rot) * rimRy;
+                const gx2 = cx - Math.cos(rot) * rimRx, gy2 = cy - Math.sin(rot) * rimRy;
+                const rimGrad = ctx.createLinearGradient(gx1, gy1, gx2, gy2);
+                const a = horizonAlpha * pulse;
+                rimGrad.addColorStop(0, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, ${a})`);
+                rimGrad.addColorStop(0.5, `rgba(${horizonColors[1].r}, ${horizonColors[1].g}, ${horizonColors[1].b}, ${a})`);
+                rimGrad.addColorStop(1, `rgba(${horizonColors[2].r}, ${horizonColors[2].g}, ${horizonColors[2].b}, ${a})`);
+
+                // A single shadowBlur pass reads as barely-there (verified:
+                // ~15 brightness units above background, not a visible glow).
+                // Real neon-tube rendering stacks multiple passes — wide/dim
+                // outer passes build up the bloom, a tight/bright core pass
+                // on top reads as the actual light source. 4 strokes total,
+                // still just an ellipse each — nowhere near the old grid's
+                // per-node cost.
+                const rimPath = () => { ctx.beginPath(); ctx.ellipse(cx, cy, rimRx, rimRy, 0, 0, Math.PI * 2); };
+                ctx.save();
+                for (let pass = 0; pass < 3; pass++) {
+                    ctx.shadowBlur = (28 + pass * 26) * horizonAlpha;
+                    ctx.shadowColor = `rgba(180, 160, 255, ${a * 0.7})`;
+                    ctx.strokeStyle = `rgba(180, 160, 255, ${a * 0.35})`;
+                    ctx.lineWidth = 3 + pass * 3;
+                    rimPath();
+                    ctx.stroke();
+                }
+                ctx.shadowBlur = 14 * horizonAlpha;
+                ctx.shadowColor = `rgba(255, 255, 255, ${a})`;
+                ctx.strokeStyle = rimGrad;
+                ctx.lineWidth = 2;
+                rimPath();
+                ctx.stroke();
+                ctx.restore();
+
+                // 4 sparks traveling along the rim, evenly spaced, each its
+                // own small glowing point — the "living" detail on top of the
+                // static corona.
+                ctx.save();
+                ctx.shadowBlur = 20 * horizonAlpha;
+                for (let s = 0; s < 4; s++) {
+                    const sAngle = rot * 3 + (s / 4) * Math.PI * 2 + time * 0.0006;
+                    const sx = cx + Math.cos(sAngle) * rimRx;
+                    const sy = cy + Math.sin(sAngle) * rimRy;
+                    const sc = horizonColors[s % horizonColors.length];
+                    ctx.shadowColor = `rgba(${sc.r}, ${sc.g}, ${sc.b}, ${a})`;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, 2.2, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255, 255, 255, ${a})`;
+                    ctx.fill();
+                }
+                ctx.restore();
+
+                // Mouse echo — a soft glowing ring spawns where the cursor
+                // moves, expands and fades, cycling through the same 3
+                // brand colors. Throttled by both a cooldown and a minimum-
+                // movement threshold so resting the mouse spawns nothing.
                 if (horizonAlpha > 0.5 && mouse.x > -900) {
                     rippleCooldown--;
                     const moved = Math.hypot(mouse.x - lastRippleX, mouse.y - lastRippleY);
                     if (moved > 40 && rippleCooldown <= 0) {
-                        horizonRipples.push({ x: mouse.x, y: mouse.y, radius: 4, alpha: 0.35 });
+                        const c = horizonColors[horizonRipples.length % horizonColors.length];
+                        horizonRipples.push({ x: mouse.x, y: mouse.y, radius: 4, alpha: 0.5, r: c.r, g: c.g, b: c.b });
                         lastRippleX = mouse.x; lastRippleY = mouse.y;
-                        rippleCooldown = 10;
+                        rippleCooldown = 8;
                     }
                 }
+                ctx.save();
+                ctx.shadowBlur = 12;
                 for (let i = horizonRipples.length - 1; i >= 0; i--) {
                     const r = horizonRipples[i];
-                    r.radius += 3.2;
-                    r.alpha *= 0.94;
+                    r.radius += 3.4;
+                    r.alpha *= 0.93;
                     if (r.alpha < 0.01) { horizonRipples.splice(i, 1); continue; }
+                    const ra = r.alpha * horizonAlpha;
+                    ctx.shadowColor = `rgba(${r.r}, ${r.g}, ${r.b}, ${ra})`;
                     ctx.beginPath();
                     ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
-                    ctx.strokeStyle = `rgba(190, 205, 255, ${r.alpha * horizonAlpha})`;
-                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = `rgba(${r.r}, ${r.g}, ${r.b}, ${ra})`;
+                    ctx.lineWidth = 1.2;
                     ctx.stroke();
                 }
+                ctx.restore();
             }
 
             ctx.globalCompositeOperation = 'screen';
