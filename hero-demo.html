@@ -346,20 +346,24 @@
                             <div class="playground-card-media"><iframe src="https://blackveil-studio.github.io/ustefanow/" tabindex="-1" scrolling="no" title="U Stefanów"></iframe></div>
                             <div class="card-label">U Stefan&oacute;w &middot; <span>03</span></div>
                         </a>
+                        <a href="https://blackveil-studio.github.io/Mari-sweets/" target="_blank" rel="noopener" class="playground-card">
+                            <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2FMari-sweets%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Mari Sweets"></div>
+                            <div class="card-label">Mari Sweets &middot; <span>04</span></div>
+                        </a>
                     </div>
 
                     <div class="portfolio-col-right" id="col-right">
                         <a href="https://blackveil-studio.github.io/Elastyczna/" target="_blank" rel="noopener" class="playground-card">
                             <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2FElastyczna%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Elastyczna Studio"></div>
-                            <div class="card-label">Elastyczna &middot; <span>04</span></div>
+                            <div class="card-label">Elastyczna &middot; <span>05</span></div>
                         </a>
                         <a href="https://blackveil-studio.github.io/lavie-club/" target="_blank" rel="noopener" class="playground-card">
                             <div class="playground-card-media"><iframe src="https://blackveil-studio.github.io/lavie-club/" tabindex="-1" scrolling="no" title="La Vie Club"></iframe></div>
-                            <div class="card-label">La Vie Club &middot; <span>05</span></div>
+                            <div class="card-label">La Vie Club &middot; <span>06</span></div>
                         </a>
                         <a href="https://blackveil-studio.github.io/top-dessert-bialystok/" target="_blank" rel="noopener" class="playground-card">
                             <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2Ftop-dessert-bialystok%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="TOP dessert"></div>
-                            <div class="card-label">TOP dessert &middot; <span>06</span></div>
+                            <div class="card-label">TOP dessert &middot; <span>07</span></div>
                         </a>
                     </div>
                 </div>
@@ -426,24 +430,36 @@
         const shootingStars = []; // additive-only feature — own array, own draw pass, touches nothing else
         let shootingCooldown = 200;
 
-        // forced dark theme — the canvas background never lifts, so nebula
-        // clouds only ever need their one cosmic hue, no light counterpart
-        const cloudColors = [
+        // One continuous nebula system for the whole page — it never vanishes
+        // and nothing else takes over the backdrop after it. Instead, each
+        // cloud carries TWO colors (its Hero hue and its Portfolio hue) and
+        // render() lerps between them as scrollPercent crosses 0.5-1, so the
+        // violet/magenta Hero sky melts into deep teal/indigo/platinum rather
+        // than fading to black and handing off to a separate system.
+        const heroCloudColors = [
             { r: 138, g: 43,  b: 226 }, // violet
             { r: 255, g: 0,   b: 127 }, // magenta
             { r: 0,   g: 71,  b: 255 }, // blue
             { r: 255, g: 105, b: 180 }  // pink
         ];
+        const portfolioCloudColors = [
+            { r: 0,   g: 128, b: 128 }, // deep teal
+            { r: 75,  g: 0,   b: 130 }, // cosmic indigo
+            { r: 63,  g: 81,  b: 181 }, // indigo-blue
+            { r: 210, g: 215, b: 230 }  // platinum flash
+        ];
 
         for (let i = 0; i < 34; i++) {
-            const color = cloudColors[Math.floor(Math.random() * cloudColors.length)];
+            const heroColor = heroCloudColors[Math.floor(Math.random() * heroCloudColors.length)];
+            const portfolioColor = portfolioCloudColors[Math.floor(Math.random() * portfolioCloudColors.length)];
             nebulaClouds.push({
                 x: Math.random() * width,
                 y: Math.random() * height,
                 baseX: Math.random() * width,
                 baseY: Math.random() * height,
                 radius: Math.random() * 220 + 260,
-                r: color.r, g: color.g, b: color.b,
+                r: heroColor.r, g: heroColor.g, b: heroColor.b,
+                r2: portfolioColor.r, g2: portfolioColor.g, b2: portfolioColor.b,
                 baseAlpha: Math.random() * 0.15 + 0.09,
                 alpha: 0,
                 angle: Math.random() * Math.PI * 2,
@@ -471,33 +487,6 @@
                 colorType: Math.random()
             });
         }
-
-        // Zone 2 backdrop — a huge, lazily-rotating galaxy core / planet, built
-        // from a handful of giant soft radial gradients (ultramarine + platinum),
-        // never more than 5 of them so it stays cheap.
-        const galaxyCoreBlobs = [];
-        const galaxyPalette = [
-            { r: 45,  g: 60,  b: 200 }, // deep ultramarine
-            { r: 90,  g: 110, b: 230 }, // lighter ultramarine
-            { r: 200, g: 205, b: 220 }  // platinum
-        ];
-        for (let i = 0; i < 5; i++) {
-            const color = galaxyPalette[i % galaxyPalette.length];
-            galaxyCoreBlobs.push({
-                angleOffset: (i / 5) * Math.PI * 2,
-                orbitRadius: 80 + i * 40,
-                radius: 420 + i * 90,
-                r: color.r, g: color.g, b: color.b,
-                // dialed way down — at the old 0.14-0.19, 5 overlapping blobs in
-                // 'screen' mode summed into a flat ultramarine wash covering most
-                // of the frame ("тупо синяя заливка"). Cut again to the same
-                // order of magnitude as the prism rings — this is background
-                // texture now, not a color the zone is defined by.
-                baseAlpha: 0.025 + (i % 2) * 0.01,
-                speed: 0.00008 + i * 0.00002
-            });
-        }
-        let galaxyRotation = 0;
 
         // Ambient portfolio backdrop — huge, barely-there pearlescent lenses and
         // rings drifting behind the cards, so the corridor never reads as a flat
@@ -725,20 +714,19 @@
             // peaks exactly halfway through the burst, back to 0 as it completes.
             const hyperspaceEase = Math.sin(scrollPercent * Math.PI);
 
-            // Galaxy core + ambient prism rings fade in starting partway through
-            // the burst (350px) and are fully present by 700px — overlapping the
-            // star field's own outro below so the cosmos is never empty for a
-            // single frame. Fades back out approaching the asteroid belt as before.
-            const galaxyFadeIn = Math.max(0, Math.min(1, (scrollY - 350) / 350));
-            const galaxyFadeOutStart = skillsTopCached - 400;
-            const galaxyFadeOut = Math.max(0, Math.min(1, (scrollY - galaxyFadeOutStart) / 400));
-            const galaxyAlpha = galaxyFadeIn * (1 - galaxyFadeOut);
+            // The nebula never leaves — it only changes color. How far we've
+            // crossfaded from the Hero palette to the Portfolio palette, driven
+            // by the same scrollPercent that drives the burst itself so the
+            // color shift completes exactly as the burst does (by 500px).
+            const nebulaColorMix = Math.max(0, Math.min(1, (scrollPercent - 0.5) / 0.5));
 
-            // Skills/asteroid zone: same 400px approach window as the galaxy's own
-            // fade-out, so the handoff between "orbital space" and "asteroid belt"
-            // is a single continuous crossfade, not two independently-tuned ones.
-            const skillsProgress = galaxyFadeOut;
-            const asteroidVisibility = skillsProgress;
+            // The one and only "approaching the next zone" fade in the whole
+            // page: 400px out from the asteroid belt, everything above it
+            // (nebula, prism rings) dims out together as the belt's own visuals
+            // take over. Nothing else fades the cosmos out before this.
+            const skillsApproachStart = skillsTopCached - 400;
+            const skillsApproach = Math.max(0, Math.min(1, (scrollY - skillsApproachStart) / 400));
+            const asteroidVisibility = skillsApproach;
 
             // The whole star field — dust + hero stars + explosion — as ONE
             // envelope: fully present through the entire burst, then dissolves
@@ -765,15 +753,18 @@
             colLeft.style.transform = `translate3d(${-arcSwing}px, ${currentLeftY}px, 0)`;
             colRight.style.transform = `translate3d(${arcSwing}px, ${currentRightY}px, 0)`;
 
-            // --- neon nebula clouds — dark 'screen' mode always, swell through
-            // hyperspace, fade out as the galaxy core takes over the backdrop ---
+            // --- nebula clouds — the ONE backdrop system for the entire page.
+            // 'screen' mode always, swells through the burst, then just changes
+            // color (violet/magenta Hero hues -> teal/indigo/platinum Portfolio
+            // hues) via nebulaColorMix. Full presence all the way through the
+            // portfolio corridor — only fades approaching the asteroid belt. ---
             ctx.globalCompositeOperation = 'screen';
             const cloudScale = 1 + hyperspaceEase * 0.5;
             ctx.save();
             ctx.translate(width / 2, height / 2);
             ctx.scale(cloudScale, cloudScale);
             ctx.translate(-width / 2, -height / 2);
-            const cloudVisibility = 1 - galaxyFadeIn;
+            const cloudVisibility = 1 - skillsApproach;
             if (cloudVisibility > 0.001) {
                 nebulaClouds.forEach(cloud => {
                     cloud.angle += cloud.speed;
@@ -782,10 +773,13 @@
                     cloud.alpha = cloud.baseAlpha * cloudVisibility;
 
                     if (cloud.alpha > 0.001) {
+                        const cr = Math.round(lerp(cloud.r, cloud.r2, nebulaColorMix));
+                        const cg = Math.round(lerp(cloud.g, cloud.g2, nebulaColorMix));
+                        const cb = Math.round(lerp(cloud.b, cloud.b2, nebulaColorMix));
                         const gradient = ctx.createRadialGradient(cloud.x, cloud.y, 5, cloud.x, cloud.y, cloud.radius);
-                        gradient.addColorStop(0, `rgba(${cloud.r}, ${cloud.g}, ${cloud.b}, ${cloud.alpha})`);
-                        gradient.addColorStop(0.5, `rgba(${cloud.r}, ${cloud.g}, ${cloud.b}, ${cloud.alpha * 0.35})`);
-                        gradient.addColorStop(1, `rgba(${cloud.r}, ${cloud.g}, ${cloud.b}, 0)`);
+                        gradient.addColorStop(0, `rgba(${cr}, ${cg}, ${cb}, ${cloud.alpha})`);
+                        gradient.addColorStop(0.5, `rgba(${cr}, ${cg}, ${cb}, ${cloud.alpha * 0.35})`);
+                        gradient.addColorStop(1, `rgba(${cr}, ${cg}, ${cb}, 0)`);
 
                         ctx.beginPath();
                         ctx.arc(cloud.x, cloud.y, cloud.radius, 0, Math.PI * 2);
@@ -796,35 +790,13 @@
             }
             ctx.restore();
 
-            // --- Zone 2 backdrop: galaxy core / planet, lazily rotating, built from
-            // a handful of giant soft gradients — cheap on purpose (max 5 blobs) ---
-            if (galaxyAlpha > 0.001) {
-                galaxyRotation += 0.00015;
-                ctx.globalCompositeOperation = 'screen';
-                const cx = width / 2, cy = height / 2;
-                galaxyCoreBlobs.forEach(blob => {
-                    const a = galaxyRotation * (0.3 + blob.speed * 4000) + blob.angleOffset;
-                    const bx = cx + Math.cos(a) * blob.orbitRadius;
-                    const by = cy + Math.sin(a) * blob.orbitRadius * 0.6;
-                    const alpha = blob.baseAlpha * galaxyAlpha;
-                    const grad = ctx.createRadialGradient(bx, by, 0, bx, by, blob.radius);
-                    grad.addColorStop(0, `rgba(${blob.r}, ${blob.g}, ${blob.b}, ${alpha})`);
-                    grad.addColorStop(0.6, `rgba(${blob.r}, ${blob.g}, ${blob.b}, ${alpha * 0.3})`);
-                    grad.addColorStop(1, `rgba(${blob.r}, ${blob.g}, ${blob.b}, 0)`);
-                    ctx.beginPath();
-                    ctx.arc(bx, by, blob.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = grad;
-                    ctx.fill();
-                });
-            }
-
             // Ambient pearlescent light behind the cards — pure soft radial glow,
             // deliberately no stroked edge of any kind (a stroked shape at this
             // alpha reads as a hard grey ring/spiral once composited, not light).
             // Fades in once the burst is past its midpoint, stays through the
-            // whole portfolio corridor, fades out the same way the galaxy does
+            // whole portfolio corridor, fades out the same way the nebula does
             // approaching the asteroid belt.
-            const prismAlpha = Math.max(0, Math.min(1, (scrollPercent - 0.5) / 0.5)) * (1 - galaxyFadeOut);
+            const prismAlpha = Math.max(0, Math.min(1, (scrollPercent - 0.5) / 0.5)) * (1 - skillsApproach);
             if (prismAlpha > 0.001) {
                 ctx.globalCompositeOperation = 'screen';
                 const parallaxX = (mouse.x - width / 2) * 0.03;
