@@ -47,6 +47,8 @@
             padding: 0 40px;
         }
         .hero-title {
+            position: relative; /* must out-stack .ambient-glow (z-index:0) behind it */
+            z-index: 1;
             font-family: 'Bricolage Grotesque', 'DM Sans', sans-serif;
             font-size: clamp(48px, 8vw, 128px);
             font-weight: 700;
@@ -67,6 +69,73 @@
             -webkit-text-fill-color: transparent;
             padding-bottom: 0.08em;
             display: inline-block;
+        }
+        /* Ambient "wow" glow — the nebula that used to be 34 Canvas radial
+           gradients recomputed every frame is now a handful of blurred CSS
+           circles. GPU-composited (opacity/transform/filter only), zero
+           per-frame JS cost. Canvas is left to draw only stars and rings. */
+        .ambient-glow {
+            position: absolute;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+            overflow: hidden;
+        }
+        .glow-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(120px);
+            will-change: transform;
+        }
+        @keyframes glowDriftA {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(60px, -40px); }
+        }
+        @keyframes glowDriftB {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(-55px, 45px); }
+        }
+        .hero-glow .glow-1 {
+            top: -10%; left: -5%; width: 700px; height: 700px;
+            background: radial-gradient(circle, rgba(138,43,226,0.16) 0%, transparent 70%);
+            animation: glowDriftA 42s ease-in-out infinite;
+        }
+        .hero-glow .glow-2 {
+            bottom: -15%; right: -5%; width: 800px; height: 800px;
+            background: radial-gradient(circle, rgba(232,84,140,0.14) 0%, transparent 70%);
+            animation: glowDriftB 50s ease-in-out infinite;
+        }
+        .hero-glow .glow-3 {
+            top: 30%; left: 40%; width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(107,140,245,0.12) 0%, transparent 70%);
+            animation: glowDriftA 60s ease-in-out infinite reverse;
+        }
+        .portfolio-glow {
+            opacity: 0;
+            transition: opacity 1.2s ease;
+        }
+        #portfolio.scrolled .portfolio-glow {
+            opacity: 1;
+        }
+        .portfolio-glow .glow-1 {
+            top: 0%; left: 5%; width: 800px; height: 800px;
+            background: radial-gradient(circle, rgba(0,128,128,0.15) 0%, transparent 70%);
+            animation: glowDriftA 40s ease-in-out infinite;
+        }
+        .portfolio-glow .glow-2 {
+            bottom: -10%; right: 0%; width: 900px; height: 900px;
+            background: radial-gradient(circle, rgba(75,0,130,0.14) 0%, transparent 70%);
+            animation: glowDriftB 48s ease-in-out infinite;
+        }
+        .portfolio-glow .glow-3 {
+            top: 45%; left: 42%; width: 650px; height: 650px;
+            background: radial-gradient(circle, rgba(210,215,230,0.08) 0%, transparent 70%);
+            animation: glowDriftA 55s ease-in-out infinite reverse;
+        }
+        .portfolio-glow .glow-4 {
+            top: 60%; right: 20%; width: 700px; height: 700px;
+            background: radial-gradient(circle, rgba(63,81,181,0.12) 0%, transparent 70%);
+            animation: glowDriftB 45s ease-in-out infinite;
         }
         #portfolio {
             position: relative;
@@ -319,6 +388,11 @@
 
     <div class="page-wrapper" id="content">
         <section class="hero-section">
+            <div class="ambient-glow hero-glow" aria-hidden="true">
+                <span class="glow-blob glow-1"></span>
+                <span class="glow-blob glow-2"></span>
+                <span class="glow-blob glow-3"></span>
+            </div>
             <h1 class="hero-title" id="main-title">
                 Small business.<br>Big-studio <em>sites.</em>
             </h1>
@@ -326,6 +400,12 @@
 
         <section id="portfolio">
             <div class="portfolio-sticky-zone">
+                <div class="ambient-glow portfolio-glow" aria-hidden="true">
+                    <span class="glow-blob glow-1"></span>
+                    <span class="glow-blob glow-2"></span>
+                    <span class="glow-blob glow-3"></span>
+                    <span class="glow-blob glow-4"></span>
+                </div>
                 <div class="playground-center-content">
                     <span class="playground-eyebrow">Explorations</span>
                     <h2 class="playground-title">Visual <span>playground.</span></h2>
@@ -365,6 +445,10 @@
                             <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2Ftop-dessert-bialystok%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="TOP dessert"></div>
                             <div class="card-label">TOP dessert &middot; <span>07</span></div>
                         </a>
+                        <a href="https://blackveil-studio.github.io/Innovative-Ink/" target="_blank" rel="noopener" class="playground-card">
+                            <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2FInnovative-Ink%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Innovative Ink"></div>
+                            <div class="card-label">Innovative Ink &middot; <span>08</span></div>
+                        </a>
                     </div>
                 </div>
             </div>
@@ -398,11 +482,6 @@
             return (1 - amt) * start + amt * end;
         }
 
-        function hexToRgb(hex) {
-            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-            return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : { r: 0, g: 0, b: 0 };
-        }
-
         function spawnShootingStar() {
             const startX = Math.random() * width * 0.7 + width * 0.15;
             const startY = Math.random() * height * 0.35;
@@ -418,54 +497,20 @@
             });
         }
 
-        const darkBg = hexToRgb('020208');
-
         // One universe, one array, one pass. Every particle carries drift,
         // cursor-repulsion and explosion-impulse fields at all times — there is
         // no second pool to keep in sync and nothing to skip-vs-not-skip.
         // Visibility is a single alpha envelope (universeAlpha, computed once
         // per frame in render()), not an architectural fork.
+        // The nebula clouds that used to live here are gone — 34 radial
+        // gradients recomputed every frame across almost the entire scroll
+        // range was real, sustained GPU/CPU cost. That entire "wow" layer is
+        // now a handful of blurred CSS radial-gradient divs behind the Hero
+        // and Portfolio sections (see <style>) — compositor-handled, zero
+        // per-frame JS cost. Canvas now only draws stars and the prism rings.
         const particles = [];
-        const nebulaClouds = [];
         const shootingStars = []; // additive-only feature — own array, own draw pass, touches nothing else
         let shootingCooldown = 200;
-
-        // One continuous nebula system for the whole page — it never vanishes
-        // and nothing else takes over the backdrop after it. Instead, each
-        // cloud carries TWO colors (its Hero hue and its Portfolio hue) and
-        // render() lerps between them as scrollPercent crosses 0.5-1, so the
-        // violet/magenta Hero sky melts into deep teal/indigo/platinum rather
-        // than fading to black and handing off to a separate system.
-        const heroCloudColors = [
-            { r: 138, g: 43,  b: 226 }, // violet
-            { r: 255, g: 0,   b: 127 }, // magenta
-            { r: 0,   g: 71,  b: 255 }, // blue
-            { r: 255, g: 105, b: 180 }  // pink
-        ];
-        const portfolioCloudColors = [
-            { r: 0,   g: 128, b: 128 }, // deep teal
-            { r: 75,  g: 0,   b: 130 }, // cosmic indigo
-            { r: 63,  g: 81,  b: 181 }, // indigo-blue
-            { r: 210, g: 215, b: 230 }  // platinum flash
-        ];
-
-        for (let i = 0; i < 34; i++) {
-            const heroColor = heroCloudColors[Math.floor(Math.random() * heroCloudColors.length)];
-            const portfolioColor = portfolioCloudColors[Math.floor(Math.random() * portfolioCloudColors.length)];
-            nebulaClouds.push({
-                x: Math.random() * width,
-                y: Math.random() * height,
-                baseX: Math.random() * width,
-                baseY: Math.random() * height,
-                radius: Math.random() * 220 + 260,
-                r: heroColor.r, g: heroColor.g, b: heroColor.b,
-                r2: portfolioColor.r, g2: portfolioColor.g, b2: portfolioColor.b,
-                baseAlpha: Math.random() * 0.15 + 0.09,
-                alpha: 0,
-                angle: Math.random() * Math.PI * 2,
-                speed: (Math.random() * 0.0015 + 0.0005) / 3
-            });
-        }
 
         // 3500 total — ~12% bright foreground "hero" stars, the rest fine
         // background dust. Every particle can play both roles (calm drift at
@@ -488,27 +533,24 @@
             });
         }
 
-        // Ambient portfolio backdrop — huge, barely-there pearlescent lenses and
-        // rings drifting behind the cards, so the corridor never reads as a flat
-        // black gap once the galaxy core is the only other thing back there.
-        // Pure soft glow only — no stroked outlines. A stroked ellipse at low
-        // alpha still reads as a hard grey ring/spiral once composited over
-        // near-black; a huge, edgeless radial gradient is what actually looks
-        // like light, not geometry.
+        // Ambient portfolio backdrop — huge, barely-there pearlescent ring
+        // outlines drifting behind the cards. Thin hairline contours
+        // (lineWidth 1) at ultra-low alpha, not filled glow — the only Canvas
+        // decoration left in the portfolio zone besides the stars.
         const prismColors = [
-            { r: 255, g: 182, b: 193 }, // pearl pink
-            { r: 135, g: 206, b: 250 }, // sky opal
-            { r: 255, g: 221, b: 140 }  // liquid gold
+            { r: 255, g: 221, b: 140 }, // pale gold
+            { r: 216, g: 191, b: 255 }, // lavender
+            { r: 190, g: 255, b: 240 }  // opal
         ];
         const prismRings = [];
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < 7; i++) {
             const color = prismColors[i % prismColors.length];
             prismRings.push({
                 baseX: Math.random() * width,
                 baseY: Math.random() * height,
                 radius: 400 + Math.random() * 250,
                 r: color.r, g: color.g, b: color.b,
-                baseAlpha: 0.02 + Math.random() * 0.02,
+                baseAlpha: 0.02 + Math.random() * 0.01,
                 angle: Math.random() * Math.PI * 2,
                 speed: 0.00006 + Math.random() * 0.00006
             });
@@ -710,16 +752,6 @@
             // no separate wake/sleep/peak windows to keep in sync by hand. ---
             const scrollPercent = Math.min(scrollY / 500, 1);
 
-            // Nebula swell: a single sine hump over scrollPercent — 0 at the top,
-            // peaks exactly halfway through the burst, back to 0 as it completes.
-            const hyperspaceEase = Math.sin(scrollPercent * Math.PI);
-
-            // The nebula never leaves — it only changes color. How far we've
-            // crossfaded from the Hero palette to the Portfolio palette, driven
-            // by the same scrollPercent that drives the burst itself so the
-            // color shift completes exactly as the burst does (by 500px).
-            const nebulaColorMix = Math.max(0, Math.min(1, (scrollPercent - 0.5) / 0.5));
-
             // The one and only "approaching the next zone" fade in the whole
             // page: 400px out from the asteroid belt, everything above it
             // (nebula, prism rings) dims out together as the belt's own visuals
@@ -753,49 +785,12 @@
             colLeft.style.transform = `translate3d(${-arcSwing}px, ${currentLeftY}px, 0)`;
             colRight.style.transform = `translate3d(${arcSwing}px, ${currentRightY}px, 0)`;
 
-            // --- nebula clouds — the ONE backdrop system for the entire page.
-            // 'screen' mode always, swells through the burst, then just changes
-            // color (violet/magenta Hero hues -> teal/indigo/platinum Portfolio
-            // hues) via nebulaColorMix. Full presence all the way through the
-            // portfolio corridor — only fades approaching the asteroid belt. ---
-            ctx.globalCompositeOperation = 'screen';
-            const cloudScale = 1 + hyperspaceEase * 0.5;
-            ctx.save();
-            ctx.translate(width / 2, height / 2);
-            ctx.scale(cloudScale, cloudScale);
-            ctx.translate(-width / 2, -height / 2);
-            const cloudVisibility = 1 - skillsApproach;
-            if (cloudVisibility > 0.001) {
-                nebulaClouds.forEach(cloud => {
-                    cloud.angle += cloud.speed;
-                    cloud.x = cloud.baseX + Math.cos(cloud.angle) * 35;
-                    cloud.y = cloud.baseY + Math.sin(cloud.angle) * 35;
-                    cloud.alpha = cloud.baseAlpha * cloudVisibility;
-
-                    if (cloud.alpha > 0.001) {
-                        const cr = Math.round(lerp(cloud.r, cloud.r2, nebulaColorMix));
-                        const cg = Math.round(lerp(cloud.g, cloud.g2, nebulaColorMix));
-                        const cb = Math.round(lerp(cloud.b, cloud.b2, nebulaColorMix));
-                        const gradient = ctx.createRadialGradient(cloud.x, cloud.y, 5, cloud.x, cloud.y, cloud.radius);
-                        gradient.addColorStop(0, `rgba(${cr}, ${cg}, ${cb}, ${cloud.alpha})`);
-                        gradient.addColorStop(0.5, `rgba(${cr}, ${cg}, ${cb}, ${cloud.alpha * 0.35})`);
-                        gradient.addColorStop(1, `rgba(${cr}, ${cg}, ${cb}, 0)`);
-
-                        ctx.beginPath();
-                        ctx.arc(cloud.x, cloud.y, cloud.radius, 0, Math.PI * 2);
-                        ctx.fillStyle = gradient;
-                        ctx.fill();
-                    }
-                });
-            }
-            ctx.restore();
-
-            // Ambient pearlescent light behind the cards — pure soft radial glow,
-            // deliberately no stroked edge of any kind (a stroked shape at this
-            // alpha reads as a hard grey ring/spiral once composited, not light).
-            // Fades in once the burst is past its midpoint, stays through the
-            // whole portfolio corridor, fades out the same way the nebula does
-            // approaching the asteroid belt.
+            // --- prism rings — thin hairline contours only (lineWidth 1), the
+            // one remaining ambient decoration on Canvas. Fades in past the
+            // burst's midpoint, fades out the same way everything else does
+            // approaching the asteroid belt. The deep teal/indigo glow itself
+            // is CSS now (see .portfolio-glow in <style>) — Canvas never draws
+            // a filled shape for it. ---
             const prismAlpha = Math.max(0, Math.min(1, (scrollPercent - 0.5) / 0.5)) * (1 - skillsApproach);
             if (prismAlpha > 0.001) {
                 ctx.globalCompositeOperation = 'screen';
@@ -807,13 +802,11 @@
                     const ry = ring.baseY + Math.sin(ring.angle) * 60 + parallaxY;
                     const ringAlpha = ring.baseAlpha * prismAlpha;
                     if (ringAlpha <= 0.0005) return;
-                    const ringGrad = ctx.createRadialGradient(rx, ry, 0, rx, ry, ring.radius);
-                    ringGrad.addColorStop(0, `rgba(${ring.r}, ${ring.g}, ${ring.b}, ${ringAlpha})`);
-                    ringGrad.addColorStop(1, `rgba(${ring.r}, ${ring.g}, ${ring.b}, 0)`);
                     ctx.beginPath();
-                    ctx.arc(rx, ry, ring.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = ringGrad;
-                    ctx.fill();
+                    ctx.ellipse(rx, ry, ring.radius, ring.radius * 0.6, ring.angle, 0, Math.PI * 2);
+                    ctx.strokeStyle = `rgba(${ring.r}, ${ring.g}, ${ring.b}, ${ringAlpha})`;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
                 });
             }
 
