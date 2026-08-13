@@ -393,8 +393,23 @@
         const skillsSection = document.getElementById('skills');
         const skillsStickyZone = document.querySelector('.skills-sticky-zone');
 
-        let width = canvas.width = window.innerWidth;
-        let height = canvas.height = window.innerHeight;
+        // width/height stay in CSS-pixel space — every particle's x/y and all
+        // the layout math throughout this file assumes that. The canvas's
+        // own backing-store resolution is separately scaled to
+        // devicePixelRatio below; without this, on any HiDPI display (very
+        // common — most laptops, any Windows scaling above 100%, Retina) the
+        // browser stretches a 1x-resolution canvas up to fill the physical
+        // pixels, and every small sharp dot blurs into a soft, oversized
+        // glow — reads exactly like a halo that isn't actually drawn.
+        let width = window.innerWidth;
+        let height = window.innerHeight;
+        const dpr = window.devicePixelRatio || 1;
+        function resizeCanvasForDPR() {
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        resizeCanvasForDPR();
 
         const mouse = { x: -999, y: -999 };
 
@@ -702,8 +717,9 @@
         });
 
         window.addEventListener('resize', () => {
-            width = canvas.width = window.innerWidth;
-            height = canvas.height = window.innerHeight;
+            width = window.innerWidth;
+            height = window.innerHeight;
+            resizeCanvasForDPR();
             cacheSectionGeometry();
         });
 
