@@ -47,8 +47,6 @@
             padding: 0 40px;
         }
         .hero-title {
-            position: relative; /* must out-stack .ambient-glow (z-index:0) behind it */
-            z-index: 1;
             font-family: 'Bricolage Grotesque', 'DM Sans', sans-serif;
             font-size: clamp(48px, 8vw, 128px);
             font-weight: 700;
@@ -70,77 +68,10 @@
             padding-bottom: 0.08em;
             display: inline-block;
         }
-        /* Ambient "wow" glow — the nebula that used to be 34 Canvas radial
-           gradients recomputed every frame is now a handful of blurred CSS
-           circles. GPU-composited (opacity/transform/filter only), zero
-           per-frame JS cost. Canvas is left to draw only stars and rings. */
-        .ambient-glow {
-            position: absolute;
-            inset: 0;
-            z-index: 0;
-            pointer-events: none;
-            overflow: hidden;
-        }
-        .glow-blob {
-            position: absolute;
-            border-radius: 50%;
-            filter: blur(120px);
-            will-change: transform;
-        }
-        @keyframes glowDriftA {
-            0%, 100% { transform: translate(0, 0); }
-            50% { transform: translate(60px, -40px); }
-        }
-        @keyframes glowDriftB {
-            0%, 100% { transform: translate(0, 0); }
-            50% { transform: translate(-55px, 45px); }
-        }
-        .hero-glow .glow-1 {
-            top: -10%; left: -5%; width: 700px; height: 700px;
-            background: radial-gradient(circle, rgba(138,43,226,0.16) 0%, transparent 70%);
-            animation: glowDriftA 42s ease-in-out infinite;
-        }
-        .hero-glow .glow-2 {
-            bottom: -15%; right: -5%; width: 800px; height: 800px;
-            background: radial-gradient(circle, rgba(232,84,140,0.14) 0%, transparent 70%);
-            animation: glowDriftB 50s ease-in-out infinite;
-        }
-        .hero-glow .glow-3 {
-            top: 30%; left: 40%; width: 600px; height: 600px;
-            background: radial-gradient(circle, rgba(107,140,245,0.12) 0%, transparent 70%);
-            animation: glowDriftA 60s ease-in-out infinite reverse;
-        }
-        .portfolio-glow {
-            opacity: 0;
-            transition: opacity 1.2s ease;
-        }
-        #portfolio.scrolled .portfolio-glow {
-            opacity: 1;
-        }
-        .portfolio-glow .glow-1 {
-            top: 0%; left: 5%; width: 800px; height: 800px;
-            background: radial-gradient(circle, rgba(0,128,128,0.15) 0%, transparent 70%);
-            animation: glowDriftA 40s ease-in-out infinite;
-        }
-        .portfolio-glow .glow-2 {
-            bottom: -10%; right: 0%; width: 900px; height: 900px;
-            background: radial-gradient(circle, rgba(75,0,130,0.14) 0%, transparent 70%);
-            animation: glowDriftB 48s ease-in-out infinite;
-        }
-        .portfolio-glow .glow-3 {
-            top: 45%; left: 42%; width: 650px; height: 650px;
-            background: radial-gradient(circle, rgba(210,215,230,0.08) 0%, transparent 70%);
-            animation: glowDriftA 55s ease-in-out infinite reverse;
-        }
-        .portfolio-glow .glow-4 {
-            top: 60%; right: 20%; width: 700px; height: 700px;
-            background: radial-gradient(circle, rgba(63,81,181,0.12) 0%, transparent 70%);
-            animation: glowDriftB 45s ease-in-out infinite;
-        }
         #portfolio {
             position: relative;
             width: 100%;
-            height: 180vh; /* halved along with the card count (6 -> 3 per column) */
+            height: 300vh;
             background: transparent;
         }
         .portfolio-sticky-zone {
@@ -354,7 +285,7 @@
         }
 
         @media (max-width: 900px) {
-            #portfolio { height: 150vh; }
+            #portfolio { height: 260vh; }
             .portfolio-col-left, .portfolio-col-right { width: 34vw; }
             .playground-card { margin-bottom: 60px; }
             .playground-title { font-size: 6.5vw; }
@@ -384,15 +315,31 @@
 </head>
 <body>
 
+    <svg width="0" height="0" style="position:absolute; overflow:hidden;">
+        <defs id="pg-defs">
+            <filter id="card-liquid" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
+                <feTurbulence type="fractalNoise" baseFrequency="0.012 0.018" numOctaves="2" seed="6" result="noise">
+                    <animate attributeName="baseFrequency" values="0.012 0.018;0.016 0.010;0.012 0.018" dur="7s" repeatCount="indefinite" />
+                </feTurbulence>
+                <feDisplacementMap in="SourceGraphic" in2="noise" scale="11" xChannelSelector="R" yChannelSelector="G" result="warped" />
+                <feColorMatrix in="warped" type="matrix"
+                    values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="rCh" />
+                <feOffset in="rCh" dx="-2.5" dy="0" result="rOff" />
+                <feColorMatrix in="warped" type="matrix"
+                    values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="gCh" />
+                <feColorMatrix in="warped" type="matrix"
+                    values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="bCh" />
+                <feOffset in="bCh" dx="2.5" dy="0" result="bOff" />
+                <feBlend in="rOff" in2="gCh" mode="screen" result="rg" />
+                <feBlend in="rg" in2="bOff" mode="screen" />
+            </filter>
+        </defs>
+    </svg>
+
     <canvas id="space-canvas"></canvas>
 
     <div class="page-wrapper" id="content">
         <section class="hero-section">
-            <div class="ambient-glow hero-glow" aria-hidden="true">
-                <span class="glow-blob glow-1"></span>
-                <span class="glow-blob glow-2"></span>
-                <span class="glow-blob glow-3"></span>
-            </div>
             <h1 class="hero-title" id="main-title">
                 Small business.<br>Big-studio <em>sites.</em>
             </h1>
@@ -400,12 +347,6 @@
 
         <section id="portfolio">
             <div class="portfolio-sticky-zone">
-                <div class="ambient-glow portfolio-glow" aria-hidden="true">
-                    <span class="glow-blob glow-1"></span>
-                    <span class="glow-blob glow-2"></span>
-                    <span class="glow-blob glow-3"></span>
-                    <span class="glow-blob glow-4"></span>
-                </div>
                 <div class="playground-center-content">
                     <span class="playground-eyebrow">Explorations</span>
                     <h2 class="playground-title">Visual <span>playground.</span></h2>
@@ -423,31 +364,47 @@
                             <div class="card-label">Rustam Barbershop &middot; <span>02</span></div>
                         </a>
                         <a href="https://blackveil-studio.github.io/ustefanow/" target="_blank" rel="noopener" class="playground-card">
-                            <div class="playground-card-media"><iframe src="https://blackveil-studio.github.io/ustefanow/" tabindex="-1" scrolling="no" title="U Stefanów"></iframe></div>
-                            <div class="card-label">U Stefan&oacute;w &middot; <span>03</span></div>
+                            <div class="playground-card-media"><iframe data-src="https://blackveil-studio.github.io/ustefanow/" loading="lazy" tabindex="-1" scrolling="no" title="U Stefanów"></iframe></div>
+                            <div class="card-label">U Stefanów &middot; <span>03</span></div>
                         </a>
                         <a href="https://blackveil-studio.github.io/Mari-sweets/" target="_blank" rel="noopener" class="playground-card">
                             <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2FMari-sweets%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Mari Sweets"></div>
                             <div class="card-label">Mari Sweets &middot; <span>04</span></div>
+                        </a>
+                        <a href="https://blackveil-studio.github.io/Innovative-Ink/" target="_blank" rel="noopener" class="playground-card">
+                            <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2FInnovative-Ink%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Innovative Ink"></div>
+                            <div class="card-label">Innovative Ink &middot; <span>05</span></div>
+                        </a>
+                        <a href="https://blackveil-studio.github.io/gueros-demo/" target="_blank" rel="noopener" class="playground-card">
+                            <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2Fgueros-demo%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Guero's Barber Shop"></div>
+                            <div class="card-label">Guero&rsquo;s Barber Shop &middot; <span>06</span></div>
                         </a>
                     </div>
 
                     <div class="portfolio-col-right" id="col-right">
                         <a href="https://blackveil-studio.github.io/Elastyczna/" target="_blank" rel="noopener" class="playground-card">
                             <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2FElastyczna%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Elastyczna Studio"></div>
-                            <div class="card-label">Elastyczna &middot; <span>05</span></div>
+                            <div class="card-label">Elastyczna &middot; <span>07</span></div>
                         </a>
                         <a href="https://blackveil-studio.github.io/lavie-club/" target="_blank" rel="noopener" class="playground-card">
-                            <div class="playground-card-media"><iframe src="https://blackveil-studio.github.io/lavie-club/" tabindex="-1" scrolling="no" title="La Vie Club"></iframe></div>
-                            <div class="card-label">La Vie Club &middot; <span>06</span></div>
+                            <div class="playground-card-media"><iframe data-src="https://blackveil-studio.github.io/lavie-club/" loading="lazy" tabindex="-1" scrolling="no" title="La Vie Club"></iframe></div>
+                            <div class="card-label">La Vie Club &middot; <span>08</span></div>
                         </a>
                         <a href="https://blackveil-studio.github.io/top-dessert-bialystok/" target="_blank" rel="noopener" class="playground-card">
                             <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2Ftop-dessert-bialystok%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="TOP dessert"></div>
-                            <div class="card-label">TOP dessert &middot; <span>07</span></div>
+                            <div class="card-label">TOP dessert &middot; <span>09</span></div>
                         </a>
-                        <a href="https://blackveil-studio.github.io/Innovative-Ink/" target="_blank" rel="noopener" class="playground-card">
-                            <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2FInnovative-Ink%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Innovative Ink"></div>
-                            <div class="card-label">Innovative Ink &middot; <span>08</span></div>
+                        <a href="https://blackveil-studio.github.io/new_kind/" target="_blank" rel="noopener" class="playground-card">
+                            <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2Fnew_kind%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="NewKind Tattoo"></div>
+                            <div class="card-label">NewKind Tattoo &middot; <span>10</span></div>
+                        </a>
+                        <a href="https://blackveil-studio.github.io/fresh-pets/" target="_blank" rel="noopener" class="playground-card">
+                            <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2Ffresh-pets%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Fresh Pets Day Spa"></div>
+                            <div class="card-label">Fresh Pets Day Spa &middot; <span>11</span></div>
+                        </a>
+                        <a href="https://blackveil-studio.github.io/Cleanplicity/" target="_blank" rel="noopener" class="playground-card">
+                            <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2FCleanplicity%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Cleanplicity"></div>
+                            <div class="card-label">Cleanplicity &middot; <span>12</span></div>
                         </a>
                     </div>
                 </div>
@@ -482,6 +439,11 @@
             return (1 - amt) * start + amt * end;
         }
 
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : { r: 0, g: 0, b: 0 };
+        }
+
         function spawnShootingStar() {
             const startX = Math.random() * width * 0.7 + width * 0.15;
             const startY = Math.random() * height * 0.35;
@@ -497,20 +459,42 @@
             });
         }
 
+        const darkBg = hexToRgb('020208');
+
         // One universe, one array, one pass. Every particle carries drift,
         // cursor-repulsion and explosion-impulse fields at all times — there is
         // no second pool to keep in sync and nothing to skip-vs-not-skip.
         // Visibility is a single alpha envelope (universeAlpha, computed once
         // per frame in render()), not an architectural fork.
-        // The nebula clouds that used to live here are gone — 34 radial
-        // gradients recomputed every frame across almost the entire scroll
-        // range was real, sustained GPU/CPU cost. That entire "wow" layer is
-        // now a handful of blurred CSS radial-gradient divs behind the Hero
-        // and Portfolio sections (see <style>) — compositor-handled, zero
-        // per-frame JS cost. Canvas now only draws stars and the prism rings.
         const particles = [];
+        const nebulaClouds = [];
         const shootingStars = []; // additive-only feature — own array, own draw pass, touches nothing else
         let shootingCooldown = 200;
+
+        // forced dark theme — the canvas background never lifts, so nebula
+        // clouds only ever need their one cosmic hue, no light counterpart
+        const cloudColors = [
+            { r: 138, g: 43,  b: 226 }, // violet
+            { r: 255, g: 0,   b: 127 }, // magenta
+            { r: 0,   g: 71,  b: 255 }, // blue
+            { r: 255, g: 105, b: 180 }  // pink
+        ];
+
+        for (let i = 0; i < 34; i++) {
+            const color = cloudColors[Math.floor(Math.random() * cloudColors.length)];
+            nebulaClouds.push({
+                x: Math.random() * width,
+                y: Math.random() * height,
+                baseX: Math.random() * width,
+                baseY: Math.random() * height,
+                radius: Math.random() * 220 + 260,
+                r: color.r, g: color.g, b: color.b,
+                baseAlpha: Math.random() * 0.15 + 0.09,
+                alpha: 0,
+                angle: Math.random() * Math.PI * 2,
+                speed: (Math.random() * 0.0015 + 0.0005) / 3
+            });
+        }
 
         // 3500 total — ~12% bright foreground "hero" stars, the rest fine
         // background dust. Every particle can play both roles (calm drift at
@@ -533,24 +517,49 @@
             });
         }
 
-        // Ambient portfolio backdrop — huge, barely-there pearlescent ring
-        // outlines drifting behind the cards. Thin hairline contours
-        // (lineWidth 1) at ultra-low alpha, not filled glow — the only Canvas
-        // decoration left in the portfolio zone besides the stars.
+        // Zone 2 backdrop — a huge, lazily-rotating galaxy core / planet, built
+        // from a handful of giant soft radial gradients (ultramarine + platinum),
+        // never more than 5 of them so it stays cheap.
+        const galaxyCoreBlobs = [];
+        const galaxyPalette = [
+            { r: 45,  g: 60,  b: 200 }, // deep ultramarine
+            { r: 90,  g: 110, b: 230 }, // lighter ultramarine
+            { r: 200, g: 205, b: 220 }  // platinum
+        ];
+        for (let i = 0; i < 5; i++) {
+            const color = galaxyPalette[i % galaxyPalette.length];
+            galaxyCoreBlobs.push({
+                angleOffset: (i / 5) * Math.PI * 2,
+                orbitRadius: 80 + i * 40,
+                radius: 420 + i * 90,
+                r: color.r, g: color.g, b: color.b,
+                baseAlpha: 0.14 + (i % 2) * 0.05,
+                speed: 0.00008 + i * 0.00002
+            });
+        }
+        let galaxyRotation = 0;
+
+        // Ambient portfolio backdrop — huge, barely-there pearlescent lenses and
+        // rings drifting behind the cards, so the corridor never reads as a flat
+        // black gap once the galaxy core is the only other thing back there.
+        // Pure soft glow only — no stroked outlines. A stroked ellipse at low
+        // alpha still reads as a hard grey ring/spiral once composited over
+        // near-black; a huge, edgeless radial gradient is what actually looks
+        // like light, not geometry.
         const prismColors = [
-            { r: 255, g: 221, b: 140 }, // pale gold
-            { r: 216, g: 191, b: 255 }, // lavender
-            { r: 190, g: 255, b: 240 }  // opal
+            { r: 255, g: 182, b: 193 }, // pearl pink
+            { r: 135, g: 206, b: 250 }, // sky opal
+            { r: 255, g: 221, b: 140 }  // liquid gold
         ];
         const prismRings = [];
-        for (let i = 0; i < 7; i++) {
+        for (let i = 0; i < 6; i++) {
             const color = prismColors[i % prismColors.length];
             prismRings.push({
                 baseX: Math.random() * width,
                 baseY: Math.random() * height,
-                radius: 400 + Math.random() * 250,
+                radius: 450 + Math.random() * 200,
                 r: color.r, g: color.g, b: color.b,
-                baseAlpha: 0.02 + Math.random() * 0.01,
+                baseAlpha: 0.02 + Math.random() * 0.015,
                 angle: Math.random() * Math.PI * 2,
                 speed: 0.00006 + Math.random() * 0.00006
             });
@@ -619,12 +628,14 @@
         let currentLeftY = 0, currentRightY = 0;
 
         (function initPortfolioCards() {
+            const SVGNS = 'http://www.w3.org/2000/svg';
+            const pgDefs = document.getElementById('pg-defs');
             const cards = Array.from(document.querySelectorAll('.playground-card'));
-            // Only 2 of 6 projects keep a live embedded site (their own hero
-            // animates) — U Stefanów and La Vie Club. Their iframes carry a
-            // real `src` straight from the HTML now, so they're playing from the
-            // moment the page loads, not sitting as a blank/black card waiting
-            // for a hover that a scrolling visitor may never trigger.
+            // Only 2 of 12 projects keep a live embedded site (their own hero
+            // animates); the rest are plain <img> screenshots. Those 2 don't load
+            // at all until the visitor actually hovers the card — not on scroll
+            // proximity — so the two live sites' own scripts/fonts/animations
+            // never run in the background while browsing the rest of the grid.
             const iframeCards = cards.filter((card) => card.querySelector('iframe'));
 
             function sizeIframes() {
@@ -635,9 +646,64 @@
             }
             sizeIframes();
             window.addEventListener('resize', sizeIframes);
-            // Hover is pure CSS now — .playground-card:hover scales the card to
-            // 1.03 and the media image to 1.08 (see <style>). No SVG displacement
-            // filters, no per-frame JS tick driving them.
+
+            iframeCards.forEach((card) => {
+                const iframe = card.querySelector('iframe');
+                card.addEventListener('mouseenter', () => {
+                    if (!iframe.src) iframe.src = iframe.dataset.src;
+                }, { once: true });
+            });
+
+            cards.forEach((card, i) => {
+                // per-card liquid-glass filter: fractalNoise displacement, scale
+                // driven smoothly (never snapped) toward 12 on hover, 0 on leave
+                const filterId = `pg-liquid-${i}`;
+                const filter = document.createElementNS(SVGNS, 'filter');
+                filter.setAttribute('id', filterId);
+                filter.setAttribute('x', '-20%');
+                filter.setAttribute('y', '-20%');
+                filter.setAttribute('width', '140%');
+                filter.setAttribute('height', '140%');
+                filter.setAttribute('color-interpolation-filters', 'sRGB');
+
+                const turb = document.createElementNS(SVGNS, 'feTurbulence');
+                turb.setAttribute('type', 'fractalNoise');
+                turb.setAttribute('baseFrequency', '0.015 0.02');
+                turb.setAttribute('numOctaves', '2');
+                turb.setAttribute('seed', String(i * 3 + 1));
+                turb.setAttribute('result', 'noise');
+
+                const disp = document.createElementNS(SVGNS, 'feDisplacementMap');
+                disp.setAttribute('in', 'SourceGraphic');
+                disp.setAttribute('in2', 'noise');
+                disp.setAttribute('scale', '0');
+                disp.setAttribute('xChannelSelector', 'R');
+                disp.setAttribute('yChannelSelector', 'G');
+
+                filter.appendChild(turb);
+                filter.appendChild(disp);
+                pgDefs.appendChild(filter);
+
+                card.querySelector('.playground-card-media').style.filter = `url(#${filterId})`;
+
+                let currentScale = 0, targetScale = 0, liquidRAF = null;
+                function tick() {
+                    currentScale = lerp(currentScale, targetScale, 0.18);
+                    disp.setAttribute('scale', currentScale.toFixed(2));
+                    if (Math.abs(targetScale - currentScale) > 0.05) {
+                        liquidRAF = requestAnimationFrame(tick);
+                    } else {
+                        disp.setAttribute('scale', String(targetScale));
+                        liquidRAF = null;
+                    }
+                }
+                function setTarget(v) {
+                    targetScale = v;
+                    if (!liquidRAF) liquidRAF = requestAnimationFrame(tick);
+                }
+                card.addEventListener('mouseenter', () => setTarget(12));
+                card.addEventListener('mouseleave', () => setTarget(0));
+            });
         })();
 
         // Reading offsetTop/offsetHeight forces a synchronous layout flush.
@@ -752,13 +818,24 @@
             // no separate wake/sleep/peak windows to keep in sync by hand. ---
             const scrollPercent = Math.min(scrollY / 500, 1);
 
-            // The one and only "approaching the next zone" fade in the whole
-            // page: 400px out from the asteroid belt, everything above it
-            // (nebula, prism rings) dims out together as the belt's own visuals
-            // take over. Nothing else fades the cosmos out before this.
-            const skillsApproachStart = skillsTopCached - 400;
-            const skillsApproach = Math.max(0, Math.min(1, (scrollY - skillsApproachStart) / 400));
-            const asteroidVisibility = skillsApproach;
+            // Nebula swell: a single sine hump over scrollPercent — 0 at the top,
+            // peaks exactly halfway through the burst, back to 0 as it completes.
+            const hyperspaceEase = Math.sin(scrollPercent * Math.PI);
+
+            // Galaxy core + ambient prism rings fade in starting partway through
+            // the burst (350px) and are fully present by 700px — overlapping the
+            // star field's own outro below so the cosmos is never empty for a
+            // single frame. Fades back out approaching the asteroid belt as before.
+            const galaxyFadeIn = Math.max(0, Math.min(1, (scrollY - 350) / 350));
+            const galaxyFadeOutStart = skillsTopCached - 400;
+            const galaxyFadeOut = Math.max(0, Math.min(1, (scrollY - galaxyFadeOutStart) / 400));
+            const galaxyAlpha = galaxyFadeIn * (1 - galaxyFadeOut);
+
+            // Skills/asteroid zone: same 400px approach window as the galaxy's own
+            // fade-out, so the handoff between "orbital space" and "asteroid belt"
+            // is a single continuous crossfade, not two independently-tuned ones.
+            const skillsProgress = galaxyFadeOut;
+            const asteroidVisibility = skillsProgress;
 
             // The whole star field — dust + hero stars + explosion — as ONE
             // envelope: fully present through the entire burst, then dissolves
@@ -774,8 +851,8 @@
             // --- Zone 2 corridor: orbital arc motion, strictly scroll-driven ---
             let progress = (scrollY - portfolioTopCached) / (portfolioHeightCached - window.innerHeight);
             progress = Math.max(0, Math.min(1, progress));
-            const targetLeftY = -progress * 650;  // halved along with the card count (6 -> 3 per column)
-            const targetRightY = -progress * 325;
+            const targetLeftY = -progress * 1300;
+            const targetRightY = -progress * 650;
             currentLeftY = lerp(currentLeftY, targetLeftY, 0.35);
             currentRightY = lerp(currentRightY, targetRightY, 0.35);
             // cards bow outward mid-scroll and return near-center at both ends —
@@ -785,13 +862,66 @@
             colLeft.style.transform = `translate3d(${-arcSwing}px, ${currentLeftY}px, 0)`;
             colRight.style.transform = `translate3d(${arcSwing}px, ${currentRightY}px, 0)`;
 
-            // --- prism rings — thin hairline contours only (lineWidth 1), the
-            // one remaining ambient decoration on Canvas. Fades in past the
-            // burst's midpoint, fades out the same way everything else does
-            // approaching the asteroid belt. The deep teal/indigo glow itself
-            // is CSS now (see .portfolio-glow in <style>) — Canvas never draws
-            // a filled shape for it. ---
-            const prismAlpha = Math.max(0, Math.min(1, (scrollPercent - 0.5) / 0.5)) * (1 - skillsApproach);
+            // --- neon nebula clouds — dark 'screen' mode always, swell through
+            // hyperspace, fade out as the galaxy core takes over the backdrop ---
+            ctx.globalCompositeOperation = 'screen';
+            const cloudScale = 1 + hyperspaceEase * 0.5;
+            ctx.save();
+            ctx.translate(width / 2, height / 2);
+            ctx.scale(cloudScale, cloudScale);
+            ctx.translate(-width / 2, -height / 2);
+            const cloudVisibility = 1 - galaxyFadeIn;
+            if (cloudVisibility > 0.001) {
+                nebulaClouds.forEach(cloud => {
+                    cloud.angle += cloud.speed;
+                    cloud.x = cloud.baseX + Math.cos(cloud.angle) * 35;
+                    cloud.y = cloud.baseY + Math.sin(cloud.angle) * 35;
+                    cloud.alpha = cloud.baseAlpha * cloudVisibility;
+
+                    if (cloud.alpha > 0.001) {
+                        const gradient = ctx.createRadialGradient(cloud.x, cloud.y, 5, cloud.x, cloud.y, cloud.radius);
+                        gradient.addColorStop(0, `rgba(${cloud.r}, ${cloud.g}, ${cloud.b}, ${cloud.alpha})`);
+                        gradient.addColorStop(0.5, `rgba(${cloud.r}, ${cloud.g}, ${cloud.b}, ${cloud.alpha * 0.35})`);
+                        gradient.addColorStop(1, `rgba(${cloud.r}, ${cloud.g}, ${cloud.b}, 0)`);
+
+                        ctx.beginPath();
+                        ctx.arc(cloud.x, cloud.y, cloud.radius, 0, Math.PI * 2);
+                        ctx.fillStyle = gradient;
+                        ctx.fill();
+                    }
+                });
+            }
+            ctx.restore();
+
+            // --- Zone 2 backdrop: galaxy core / planet, lazily rotating, built from
+            // a handful of giant soft gradients — cheap on purpose (max 5 blobs) ---
+            if (galaxyAlpha > 0.001) {
+                galaxyRotation += 0.00015;
+                ctx.globalCompositeOperation = 'screen';
+                const cx = width / 2, cy = height / 2;
+                galaxyCoreBlobs.forEach(blob => {
+                    const a = galaxyRotation * (0.3 + blob.speed * 4000) + blob.angleOffset;
+                    const bx = cx + Math.cos(a) * blob.orbitRadius;
+                    const by = cy + Math.sin(a) * blob.orbitRadius * 0.6;
+                    const alpha = blob.baseAlpha * galaxyAlpha;
+                    const grad = ctx.createRadialGradient(bx, by, 0, bx, by, blob.radius);
+                    grad.addColorStop(0, `rgba(${blob.r}, ${blob.g}, ${blob.b}, ${alpha})`);
+                    grad.addColorStop(0.6, `rgba(${blob.r}, ${blob.g}, ${blob.b}, ${alpha * 0.3})`);
+                    grad.addColorStop(1, `rgba(${blob.r}, ${blob.g}, ${blob.b}, 0)`);
+                    ctx.beginPath();
+                    ctx.arc(bx, by, blob.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = grad;
+                    ctx.fill();
+                });
+            }
+
+            // Ambient pearlescent light behind the cards — pure soft radial glow,
+            // deliberately no stroked edge of any kind (a stroked shape at this
+            // alpha reads as a hard grey ring/spiral once composited, not light).
+            // Fades in once the burst is past its midpoint, stays through the
+            // whole portfolio corridor, fades out the same way the galaxy does
+            // approaching the asteroid belt.
+            const prismAlpha = Math.max(0, Math.min(1, (scrollPercent - 0.5) / 0.5)) * (1 - galaxyFadeOut);
             if (prismAlpha > 0.001) {
                 ctx.globalCompositeOperation = 'screen';
                 const parallaxX = (mouse.x - width / 2) * 0.03;
@@ -802,11 +932,13 @@
                     const ry = ring.baseY + Math.sin(ring.angle) * 60 + parallaxY;
                     const ringAlpha = ring.baseAlpha * prismAlpha;
                     if (ringAlpha <= 0.0005) return;
+                    const ringGrad = ctx.createRadialGradient(rx, ry, 0, rx, ry, ring.radius);
+                    ringGrad.addColorStop(0, `rgba(${ring.r}, ${ring.g}, ${ring.b}, ${ringAlpha})`);
+                    ringGrad.addColorStop(1, `rgba(${ring.r}, ${ring.g}, ${ring.b}, 0)`);
                     ctx.beginPath();
-                    ctx.ellipse(rx, ry, ring.radius, ring.radius * 0.6, ring.angle, 0, Math.PI * 2);
-                    ctx.strokeStyle = `rgba(${ring.r}, ${ring.g}, ${ring.b}, ${ringAlpha})`;
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
+                    ctx.arc(rx, ry, ring.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = ringGrad;
+                    ctx.fill();
                 });
             }
 
@@ -826,16 +958,14 @@
                     // cursor repulsion — inertial, not a magnet: the cursor adds
                     // to a dedicated velocity channel, friction (0.96) coasts it
                     // back to rest, so stars glide away and settle instead of
-                    // snapping to a fixed offset from the pointer. Radius 90px —
-                    // stars part right under the cursor, not across half the
-                    // screen — impulse 0.35, soft and unhurried, not a jolt.
+                    // snapping to a fixed offset from the pointer.
                     const dx = p.x - mouse.x;
                     const dy = p.y - mouse.y;
                     const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < 90 && dist > 0) {
-                        const f = (90 - dist) / 90;
-                        p.repVx += (dx / dist) * f * 0.35;
-                        p.repVy += (dy / dist) * f * 0.35;
+                    if (dist < 150 && dist > 0) {
+                        const f = (150 - dist) / 150;
+                        p.repVx += (dx / dist) * f * 0.9;
+                        p.repVy += (dy / dist) * f * 0.9;
                     }
                     p.repVx *= 0.96;
                     p.repVy *= 0.96;
