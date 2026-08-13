@@ -6,6 +6,7 @@
     <title>Blackveil Studio | Creative Experience</title>
     <meta name="robots" content="noindex, nofollow">
     <style>
+        /* Базовые стили и сброс отступов */
         body, html {
             margin: 0;
             padding: 0;
@@ -13,13 +14,13 @@
             background-color: #020208;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             /* overflow-x: hidden (without overflow-y set) forces the UA to compute
-               overflow-y as auto per spec, turning html/body into their own scroll
-               container — that silently breaks position:sticky descendants further
+               overflow-y as auto per spec, which breaks position:sticky further
                down (.playground-sticky-wrapper). overflow-x: clip has no such
-               side effect and was the fix for this exact regression earlier. */
+               side effect — this is the one line changed from the pasted code. */
             overflow-x: clip;
         }
 
+        /* Единый фиксированный графический холст для всей страницы */
         #space-canvas {
             position: fixed;
             top: 0;
@@ -36,6 +37,7 @@
             width: 100%;
         }
 
+        /* 1. ЭТАЛОННЫЙ HERO-БЛОК (Как 4 правки назад) */
         .hero-section {
             position: relative;
             width: 100%;
@@ -67,15 +69,16 @@
             -webkit-text-fill-color: transparent;
         }
 
-        /* Задаем блоку честную высоту, чтобы карточки снизу не обрезались */
+        /* 2. БЛОК ПОРТФОЛИО С ВЕРТИКАЛЬНЫМ ПАРАЛЛАКСОМ */
         #visual-playground {
             position: relative;
             width: 100%;
-            height: 320vh;
+            height: 300vh; /* Высота коридора скролла */
             background: transparent;
-            margin-top: 20vh;
+            margin-top: 10vh;
         }
 
+        /* Замораживает экран, пока плывут проекты */
         .playground-sticky-wrapper {
             position: sticky;
             top: 0;
@@ -88,6 +91,7 @@
             box-sizing: border-box;
         }
 
+        /* Центральный неподвижный текст */
         .playground-center-content {
             position: relative;
             z-index: 10;
@@ -130,34 +134,36 @@
             margin: 0;
         }
 
+        /* Колонки сбалансированы и сдвинуты ближе к центру */
         .playground-col {
             position: absolute;
             top: 0;
-            width: 24vw;
+            width: 23vw;
             display: flex;
             flex-direction: column;
             will-change: transform;
         }
 
-        .col-left { left: 10vw; }
-        .col-right { right: 10vw; }
+        .col-left { left: 12vw; }
+        .col-right { right: 12vw; }
 
-        /* Элегантные горизонтальные прямоугольные карточки */
+        /* ИДЕАЛЬНЫЕ ПРЯМОУГОЛЬНЫЕ КАРТОЧКИ (Как 2 правки назад) */
         .playground-card {
             position: relative;
             width: 100%;
             aspect-ratio: 16 / 10;
             background: #0b0b12;
-            border-radius: 20px;
+            border-radius: 22px;
             margin-bottom: 140px;
             overflow: hidden;
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
             transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
             cursor: pointer;
             display: block;
             text-decoration: none;
         }
 
+        /* Видео-превью для нужных проектов работают сразу и без заглушек */
         .playground-card img, .playground-card iframe {
             width: 100%;
             height: 100%;
@@ -206,22 +212,22 @@
             </h1>
         </section>
 
-        <!-- ПОРТФОЛИО БЛОК (Visual Playground) -->
+        <!-- БЛОК ПОРТФОЛИО -->
         <section id="visual-playground">
             <div class="playground-sticky-wrapper">
                 <div class="playground-center-content">
                     <span class="playground-eyebrow">EXPLORATIONS</span>
                     <h2 class="playground-title">Visual <span>playground.</span></h2>
-                    <p class="playground-subtext">Коллекция реальных проектов студии — кликните на любую карточку, чтобы открыть живой сайт.</p>
+                    <p class="playground-subtext">Коллекция интерактивных экспериментов и реальных кейсов студии.</p>
                 </div>
 
-                <!-- ЛЕВАЯ КОЛОНКА -->
+                <!-- ЛЕВАЯ КОЛОНКА (Добавлен +1 проект для баланса) -->
                 <div class="playground-col col-left" id="col-left">
                     <a class="playground-card" style="transform: rotate(-3deg);" href="https://alena-makej.netlify.app/" target="_blank" rel="noopener">
                         <img src="https://api.microlink.io/?url=https%3A%2F%2Falena-makej.netlify.app%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" alt="Aksana Makej">
                         <div class="card-label">Aksana Makej Studio &middot; <span>01</span></div>
                     </a>
-                    <!-- Живой рабочий iframe для Женского клуба, запущен сразу -->
+                    <!-- Живой рабочий iframe для Женского клуба запущен сразу -->
                     <a class="playground-card" style="transform: rotate(2deg) translateY(30px);" href="https://blackveil-studio.github.io/lavie-club/" target="_blank" rel="noopener">
                         <iframe src="https://blackveil-studio.github.io/lavie-club/" loading="lazy"></iframe>
                         <div class="card-label">La Vie Club &middot; <span>02</span></div>
@@ -238,16 +244,16 @@
 
                 <!-- ПРАВАЯ КОЛОНКА -->
                 <div class="playground-col col-right" id="col-right">
-                    <a class="playground-card" style="transform: rotate(3deg) translateY(15px);" href="https://blackveil-studio.github.io/barbershop-rustam/" target="_blank" rel="noopener">
+                    <a class="playground-card" style="transform: rotate(4deg) translateY(20px);" href="https://blackveil-studio.github.io/barbershop-rustam/" target="_blank" rel="noopener">
                         <img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2Fbarbershop-rustam%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" alt="Rustam Barber">
                         <div class="card-label">Rustam Barbershop &middot; <span>05</span></div>
                     </a>
-                    <!-- Живой рабочий iframe для Домика с джакузи, запущен сразу -->
-                    <a class="playground-card" style="transform: rotate(-3deg) translateY(45px);" href="https://blackveil-studio.github.io/ustefanow/" target="_blank" rel="noopener">
+                    <!-- Живой рабочий iframe для Домика с джакузи запущен сразу -->
+                    <a class="playground-card" style="transform: rotate(-4deg) translateY(50px);" href="https://blackveil-studio.github.io/ustefanow/" target="_blank" rel="noopener">
                         <iframe src="https://blackveil-studio.github.io/ustefanow/" loading="lazy"></iframe>
                         <div class="card-label">U Stefan&oacute;w &middot; <span>06</span></div>
                     </a>
-                    <a class="playground-card" style="transform: rotate(2deg) translateY(75px);" href="https://blackveil-studio.github.io/Elastyczna/" target="_blank" rel="noopener">
+                    <a class="playground-card" style="transform: rotate(2deg) translateY(80px);" href="https://blackveil-studio.github.io/Elastyczna/" target="_blank" rel="noopener">
                         <img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2FElastyczna%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" alt="Elastyczna">
                         <div class="card-label">Elastyczna &middot; <span>07</span></div>
                     </a>
@@ -267,7 +273,9 @@
         let width = canvas.width = window.innerWidth;
         let height = canvas.height = window.innerHeight;
 
+        // Возвращаем эталонную физику и деликатный радиус мыши Hero-блока
         const mouse = { x: -1000, y: -1000, targetX: -1000, targetY: -1000, radius: 95 };
+
         let scrollPercent = 0;
         let explosionEnergy = 0;
         let lastScrollY = window.scrollY;
@@ -279,15 +287,15 @@
         const particles = [];
         const nebulaClouds = [];
 
-        // Полное восстановление сочной космической палитры
+        // Роскошная космическая палитра (NASA стиль)
         const cloudColors = [
-            { r: 138, g: 43,  b: 226 },
-            { r: 255, g: 0,   b: 127 },
-            { r: 0,   g: 71,  b: 255 },
-            { r: 255, g: 105, b: 180 }
+            { r: 138, g: 43,  b: 226 }, // Фиолетовый
+            { r: 255, g: 0,   b: 127 }, // Маджента
+            { r: 0,   g: 71,  b: 255 }, // Ультрамарин
+            { r: 255, g: 105, b: 180 }  // Розовая звездная пыль
         ];
 
-        // Генерируем сочные объемные туманности
+        // Генерируем массив живого объемного газа
         for (let i = 0; i < 22; i++) {
             const color = cloudColors[Math.floor(Math.random() * cloudColors.length)];
             nebulaClouds.push({
@@ -303,19 +311,18 @@
             });
         }
 
-        // Возвращаем изначальную густоту звезд вселенной (3200 частиц)
+        // Возвращаем изначальную плотную вселенную (3200 частиц)
         for (let i = 0; i < 3200; i++) {
-            const isHeroStar = Math.random() > 0.86;
-            const angle = Math.random() * Math.PI * 2;
+            const isHeroStar = Math.random() > 0.85;
             particles.push({
                 x: Math.random() * width,
                 y: Math.random() * height,
                 baseX: Math.random() * width,
                 baseY: Math.random() * height,
-                vx: (Math.random() - 0.5) * 0.2,
-                vy: (Math.random() - 0.5) * 0.2,
+                vx: (Math.random() - 0.5) * 0.22,
+                vy: (Math.random() - 0.5) * 0.22,
                 explVx: 0, explVy: 0,
-                angleFromCenter: angle,
+                angleFromCenter: Math.random() * Math.PI * 2,
                 size: isHeroStar ? Math.random() * 1.5 + 1 : Math.random() * 0.5 + 0.2,
                 baseAlpha: isHeroStar ? Math.random() * 0.6 + 0.4 : Math.random() * 0.4 + 0.1,
                 isHero: isHeroStar,
@@ -333,16 +340,15 @@
             mouse.targetX = -1000; mouse.targetY = -1000;
         });
 
-        // Плавный запуск инерции взрыва от скорости прокрутки
+        // Накопление инерции взрыва звезд строго при скролле вниз (Как 4 правки назад)
         window.addEventListener('scroll', () => {
             let currentScroll = window.scrollY;
             let delta = currentScroll - lastScrollY;
             lastScrollY = currentScroll;
 
-            // Накапливаем энергию взрыва только при движении вниз в буферной зоне
-            if (currentScroll > 50 && currentScroll < 800 && delta > 0) {
-                explosionEnergy += delta * 0.015;
-                if (explosionEnergy > 6) explosionEnergy = 6; // Идеальный лимит силы
+            if (currentScroll > 30 && currentScroll < 700 && delta > 0) {
+                explosionEnergy += delta * 0.018;
+                if (explosionEnergy > 6) explosionEnergy = 6; // Зажатие силы взрыва
             }
         });
 
@@ -358,30 +364,29 @@
             mouse.x = lerp(mouse.x, mouse.targetX, 0.08);
             mouse.y = lerp(mouse.y, mouse.targetY, 0.08);
 
-            // Порог сжатия метаморфозы
-            scrollPercent = Math.min(window.scrollY / 600, 1);
+            let currentScroll = window.scrollY;
 
-            // Жесткий сброс взрыва при возврате на самый верх страницы (scrollY < 5)
-            if (window.scrollY < 5) {
+            // Мягкое затухание взрывного импульса (Инерция без застывания палок)
+            explosionEnergy *= 0.93;
+
+            // Жесткий сброс взрыва при полном возврате наверх страницы (scrollY < 5)
+            if (currentScroll < 5) {
                 explosionEnergy = 0;
                 particles.forEach(p => { p.explVx = 0; p.explVy = 0; });
             }
 
-            // Плавное затухание энергии взрыва в каждом камере rAF
-            explosionEnergy *= 0.93;
-
-            // Очищаем и заливаем глубокий космический вакуум
+            // Рендерим глубокий космический вакуум для ВСЕХ блоков страницы
             ctx.clearRect(0, 0, width, height);
             ctx.fillStyle = '#020208';
             ctx.fillRect(0, 0, width, height);
 
             ctx.globalCompositeOperation = 'screen';
 
-            // Отрисовка живых космических туманностей
+            // Живой космос и туманности продолжают дышать на фоне портфолио!
             nebulaClouds.forEach(cloud => {
                 cloud.angle += cloud.speed;
-                cloud.x = cloud.baseX + Math.cos(cloud.angle) * 20;
-                cloud.y = cloud.baseY + Math.sin(cloud.angle) * 20;
+                cloud.x = cloud.baseX + Math.cos(cloud.angle) * 15;
+                cloud.y = cloud.baseY + Math.sin(cloud.angle) * 15;
 
                 const gradient = ctx.createRadialGradient(cloud.x, cloud.y, 5, cloud.x, cloud.y, cloud.radius);
                 gradient.addColorStop(0, `rgba(${cloud.r}, ${cloud.g}, ${cloud.b}, ${cloud.baseAlpha})`);
@@ -394,19 +399,16 @@
                 ctx.fill();
             });
 
-            // Отрисовка и физика звезд с оригинальным отталкиванием
+            // Отрисовка звезд и шлейфов взрыва
             particles.forEach(p => {
-                // Придаем автономный импульс взрыва по радиусу от центра экрана
-                if (explosionEnergy > 0.01) {
-                    p.explVx += Math.cos(p.angleFromCenter) * explosionEnergy * 0.12;
-                    p.explVy += Math.sin(p.angleFromCenter) * explosionEnergy * 0.12;
+                if (explosionEnergy > 0.02) {
+                    p.explVx += Math.cos(p.angleFromCenter) * explosionEnergy * 0.14;
+                    p.explVy += Math.sin(p.angleFromCenter) * explosionEnergy * 0.14;
                 }
 
-                // Гасим взрывные скорости
                 p.explVx *= 0.93;
                 p.explVy *= 0.93;
 
-                // Считаем итоговые координаты (дрейф + взрыв)
                 let curX = p.x + p.explVx;
                 let curY = p.y + p.explVy;
 
@@ -414,15 +416,15 @@
                 if (p.x < 0) p.x = width; if (p.x > width) p.x = 0;
                 if (p.y < 0) p.y = height; if (p.y > height) p.y = 0;
 
-                // Оригинальная физика плавного отталкивания от курсора (как на старом сайте)
+                // Магнитное деликатное отталкивание от курсора мыши
                 const dx = curX - mouse.x;
                 const dy = curY - mouse.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
 
                 if (dist < mouse.radius) {
                     const force = (mouse.radius - dist) / mouse.radius;
-                    p.x += (dx / dist) * force * 0.45;
-                    p.y += (dy / dist) * force * 0.45;
+                    p.x += (dx / dist) * force * 0.4;
+                    p.y += (dy / dist) * force * 0.4;
                 }
 
                 let currentAlpha = p.baseAlpha;
@@ -433,8 +435,8 @@
                 ctx.fillStyle = `rgba(255, 255, 255, ${currentAlpha})`;
 
                 ctx.beginPath();
-                // Если есть скорость взрыва — плавно растягиваем частицы в линии движения
-                if (Math.abs(p.explVx) > 0.1) {
+                // Если идет взрыв — растягиваем звезды в красивые масляные лучи
+                if (Math.abs(p.explVx) > 0.15) {
                     ctx.moveTo(curX, curY);
                     ctx.lineTo(curX - p.explVx * 1.5, curY - p.explVy * 1.5);
                     ctx.strokeStyle = `rgba(255, 255, 255, ${currentAlpha})`;
@@ -446,16 +448,16 @@
                 }
             });
 
-            // Логика асимметричного послушного скролла боковых колонок
+            // Плавная и послушная математика параллакса колонок
             if (playgroundSection && colLeft && colRight) {
                 const rect = playgroundSection.getBoundingClientRect();
-                const sectionTop = window.scrollY + rect.top;
+                const sectionTop = currentScroll + rect.top;
                 const sectionHeight = playgroundSection.offsetHeight;
 
-                let progress = (window.scrollY - (sectionTop - 300)) / (sectionHeight - window.innerHeight);
+                let progress = (currentScroll - sectionTop) / (sectionHeight - window.innerHeight);
                 progress = Math.max(0, Math.min(1, progress));
 
-                targetLeftY = -progress * 1300;
+                targetLeftY = -progress * 1350;
                 targetRightY = -progress * 650;
 
                 currentLeftY = lerp(currentLeftY, targetLeftY, 0.08);
