@@ -315,27 +315,6 @@
 </head>
 <body>
 
-    <svg width="0" height="0" style="position:absolute; overflow:hidden;">
-        <defs id="pg-defs">
-            <filter id="card-liquid" x="-15%" y="-15%" width="130%" height="130%" color-interpolation-filters="sRGB">
-                <feTurbulence type="fractalNoise" baseFrequency="0.012 0.018" numOctaves="2" seed="6" result="noise">
-                    <animate attributeName="baseFrequency" values="0.012 0.018;0.016 0.010;0.012 0.018" dur="7s" repeatCount="indefinite" />
-                </feTurbulence>
-                <feDisplacementMap in="SourceGraphic" in2="noise" scale="11" xChannelSelector="R" yChannelSelector="G" result="warped" />
-                <feColorMatrix in="warped" type="matrix"
-                    values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="rCh" />
-                <feOffset in="rCh" dx="-2.5" dy="0" result="rOff" />
-                <feColorMatrix in="warped" type="matrix"
-                    values="0 0 0 0 0  0 1 0 0 0  0 0 0 0 0  0 0 0 1 0" result="gCh" />
-                <feColorMatrix in="warped" type="matrix"
-                    values="0 0 0 0 0  0 0 0 0 0  0 0 1 0 0  0 0 0 1 0" result="bCh" />
-                <feOffset in="bCh" dx="2.5" dy="0" result="bOff" />
-                <feBlend in="rOff" in2="gCh" mode="screen" result="rg" />
-                <feBlend in="rg" in2="bOff" mode="screen" />
-            </filter>
-        </defs>
-    </svg>
-
     <canvas id="space-canvas"></canvas>
 
     <div class="page-wrapper" id="content">
@@ -364,47 +343,31 @@
                             <div class="card-label">Rustam Barbershop &middot; <span>02</span></div>
                         </a>
                         <a href="https://blackveil-studio.github.io/ustefanow/" target="_blank" rel="noopener" class="playground-card">
-                            <div class="playground-card-media"><iframe data-src="https://blackveil-studio.github.io/ustefanow/" loading="lazy" tabindex="-1" scrolling="no" title="U Stefanów"></iframe></div>
-                            <div class="card-label">U Stefanów &middot; <span>03</span></div>
+                            <div class="playground-card-media"><iframe id="iframe-ustefanow" src="https://blackveil-studio.github.io/ustefanow/" tabindex="-1" scrolling="no" title="U Stefanów"></iframe></div>
+                            <div class="card-label">U Stefan&oacute;w &middot; <span>03</span></div>
                         </a>
                         <a href="https://blackveil-studio.github.io/Mari-sweets/" target="_blank" rel="noopener" class="playground-card">
                             <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2FMari-sweets%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Mari Sweets"></div>
                             <div class="card-label">Mari Sweets &middot; <span>04</span></div>
-                        </a>
-                        <a href="https://blackveil-studio.github.io/Innovative-Ink/" target="_blank" rel="noopener" class="playground-card">
-                            <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2FInnovative-Ink%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Innovative Ink"></div>
-                            <div class="card-label">Innovative Ink &middot; <span>05</span></div>
-                        </a>
-                        <a href="https://blackveil-studio.github.io/gueros-demo/" target="_blank" rel="noopener" class="playground-card">
-                            <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2Fgueros-demo%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Guero's Barber Shop"></div>
-                            <div class="card-label">Guero&rsquo;s Barber Shop &middot; <span>06</span></div>
                         </a>
                     </div>
 
                     <div class="portfolio-col-right" id="col-right">
                         <a href="https://blackveil-studio.github.io/Elastyczna/" target="_blank" rel="noopener" class="playground-card">
                             <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2FElastyczna%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Elastyczna Studio"></div>
-                            <div class="card-label">Elastyczna &middot; <span>07</span></div>
+                            <div class="card-label">Elastyczna &middot; <span>05</span></div>
                         </a>
                         <a href="https://blackveil-studio.github.io/lavie-club/" target="_blank" rel="noopener" class="playground-card">
-                            <div class="playground-card-media"><iframe data-src="https://blackveil-studio.github.io/lavie-club/" loading="lazy" tabindex="-1" scrolling="no" title="La Vie Club"></iframe></div>
-                            <div class="card-label">La Vie Club &middot; <span>08</span></div>
+                            <div class="playground-card-media"><iframe id="iframe-lavieclub" src="https://blackveil-studio.github.io/lavie-club/" tabindex="-1" scrolling="no" title="La Vie Club"></iframe></div>
+                            <div class="card-label">La Vie Club &middot; <span>06</span></div>
                         </a>
                         <a href="https://blackveil-studio.github.io/top-dessert-bialystok/" target="_blank" rel="noopener" class="playground-card">
                             <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2Ftop-dessert-bialystok%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="TOP dessert"></div>
-                            <div class="card-label">TOP dessert &middot; <span>09</span></div>
+                            <div class="card-label">TOP dessert &middot; <span>07</span></div>
                         </a>
-                        <a href="https://blackveil-studio.github.io/new_kind/" target="_blank" rel="noopener" class="playground-card">
-                            <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2Fnew_kind%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="NewKind Tattoo"></div>
-                            <div class="card-label">NewKind Tattoo &middot; <span>10</span></div>
-                        </a>
-                        <a href="https://blackveil-studio.github.io/fresh-pets/" target="_blank" rel="noopener" class="playground-card">
-                            <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2Ffresh-pets%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Fresh Pets Day Spa"></div>
-                            <div class="card-label">Fresh Pets Day Spa &middot; <span>11</span></div>
-                        </a>
-                        <a href="https://blackveil-studio.github.io/Cleanplicity/" target="_blank" rel="noopener" class="playground-card">
-                            <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2FCleanplicity%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Cleanplicity"></div>
-                            <div class="card-label">Cleanplicity &middot; <span>12</span></div>
+                        <a href="https://blackveil-studio.github.io/Innovative-Ink/" target="_blank" rel="noopener" class="playground-card">
+                            <div class="playground-card-media"><img src="https://api.microlink.io/?url=https%3A%2F%2Fblackveil-studio.github.io%2FInnovative-Ink%2F&screenshot=true&meta=false&embed=screenshot.url&viewport.width=1600&viewport.height=900" loading="lazy" alt="Innovative Ink"></div>
+                            <div class="card-label">Innovative Ink &middot; <span>08</span></div>
                         </a>
                     </div>
                 </div>
@@ -439,11 +402,6 @@
             return (1 - amt) * start + amt * end;
         }
 
-        function hexToRgb(hex) {
-            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-            return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : { r: 0, g: 0, b: 0 };
-        }
-
         function spawnShootingStar() {
             const startX = Math.random() * width * 0.7 + width * 0.15;
             const startY = Math.random() * height * 0.35;
@@ -459,8 +417,6 @@
             });
         }
 
-        const darkBg = hexToRgb('020208');
-
         // One universe, one array, one pass. Every particle carries drift,
         // cursor-repulsion and explosion-impulse fields at all times — there is
         // no second pool to keep in sync and nothing to skip-vs-not-skip.
@@ -471,24 +427,35 @@
         const shootingStars = []; // additive-only feature — own array, own draw pass, touches nothing else
         let shootingCooldown = 200;
 
-        // forced dark theme — the canvas background never lifts, so nebula
-        // clouds only ever need their one cosmic hue, no light counterpart
-        const cloudColors = [
+        // Hero and Portfolio each get their own cosmic identity — every cloud
+        // carries both a Hero hue (warm violet/magenta) and a Portfolio hue
+        // (cool blue/indigo/teal), and render() lerps between them as the
+        // scroll crosses into the portfolio corridor. One continuous backdrop
+        // system, two distinct moods, no extra draw calls either way.
+        const heroCloudColors = [
             { r: 138, g: 43,  b: 226 }, // violet
             { r: 255, g: 0,   b: 127 }, // magenta
             { r: 0,   g: 71,  b: 255 }, // blue
             { r: 255, g: 105, b: 180 }  // pink
         ];
+        const portfolioCloudColors = [
+            { r: 30,  g: 60,  b: 220 }, // sapphire blue
+            { r: 70,  g: 20,  b: 180 }, // blue-violet
+            { r: 0,   g: 130, b: 150 }, // deep teal
+            { r: 40,  g: 90,  b: 200 }  // cyan-indigo
+        ];
 
         for (let i = 0; i < 34; i++) {
-            const color = cloudColors[Math.floor(Math.random() * cloudColors.length)];
+            const heroColor = heroCloudColors[Math.floor(Math.random() * heroCloudColors.length)];
+            const portfolioColor = portfolioCloudColors[Math.floor(Math.random() * portfolioCloudColors.length)];
             nebulaClouds.push({
                 x: Math.random() * width,
                 y: Math.random() * height,
                 baseX: Math.random() * width,
                 baseY: Math.random() * height,
                 radius: Math.random() * 220 + 260,
-                r: color.r, g: color.g, b: color.b,
+                r: heroColor.r, g: heroColor.g, b: heroColor.b,
+                r2: portfolioColor.r, g2: portfolioColor.g, b2: portfolioColor.b,
                 baseAlpha: Math.random() * 0.15 + 0.09,
                 alpha: 0,
                 angle: Math.random() * Math.PI * 2,
@@ -525,17 +492,16 @@
         // now the entire cosmic backdrop, unobstructed — richer to look at
         // and lighter to run.
 
-        // Ambient portfolio backdrop — huge, barely-there pearlescent lenses and
-        // rings drifting behind the cards, so the corridor never reads as a flat
-        // black gap once the galaxy core is the only other thing back there.
-        // Pure soft glow only — no stroked outlines. A stroked ellipse at low
-        // alpha still reads as a hard grey ring/spiral once composited over
-        // near-black; a huge, edgeless radial gradient is what actually looks
-        // like light, not geometry.
+        // Ambient portfolio backdrop — huge, barely-there icy lenses and rings
+        // drifting behind the cards, matching the portfolio's cool blue/teal
+        // identity. Pure soft glow only — no stroked outlines. A stroked
+        // ellipse at low alpha reads as a hard grey ring/spiral once
+        // composited over near-black; a huge, edgeless radial gradient is
+        // what actually looks like light, not geometry.
         const prismColors = [
-            { r: 255, g: 182, b: 193 }, // pearl pink
-            { r: 135, g: 206, b: 250 }, // sky opal
-            { r: 255, g: 221, b: 140 }  // liquid gold
+            { r: 173, g: 216, b: 255 }, // icy blue
+            { r: 200, g: 220, b: 230 }, // pale silver
+            { r: 140, g: 230, b: 210 }  // seafoam
         ];
         const prismRings = [];
         for (let i = 0; i < 6; i++) {
@@ -614,14 +580,13 @@
         let currentLeftY = 0, currentRightY = 0;
 
         (function initPortfolioCards() {
-            const SVGNS = 'http://www.w3.org/2000/svg';
-            const pgDefs = document.getElementById('pg-defs');
             const cards = Array.from(document.querySelectorAll('.playground-card'));
-            // Only 2 of 12 projects keep a live embedded site (their own hero
-            // animates); the rest are plain <img> screenshots. Those 2 don't load
-            // at all until the visitor actually hovers the card — not on scroll
-            // proximity — so the two live sites' own scripts/fonts/animations
-            // never run in the background while browsing the rest of the grid.
+            // Both live-site iframes (U Stefanów, La Vie Club) carry a real src
+            // straight from the HTML now — they play from the moment the page
+            // loads, no hover-gate, no black rectangle waiting for a mouse that
+            // a scrolling visitor may never send. Hover is plain CSS
+            // (scale(1.03) on the card, scale(1.08) on the image/iframe) — no
+            // SVG displacement filter, no per-frame JS tick driving it.
             const iframeCards = cards.filter((card) => card.querySelector('iframe'));
 
             function sizeIframes() {
@@ -633,62 +598,26 @@
             sizeIframes();
             window.addEventListener('resize', sizeIframes);
 
-            iframeCards.forEach((card) => {
-                const iframe = card.querySelector('iframe');
-                card.addEventListener('mouseenter', () => {
-                    if (!iframe.src) iframe.src = iframe.dataset.src;
-                }, { once: true });
-            });
-
-            cards.forEach((card, i) => {
-                // per-card liquid-glass filter: fractalNoise displacement, scale
-                // driven smoothly (never snapped) toward 12 on hover, 0 on leave
-                const filterId = `pg-liquid-${i}`;
-                const filter = document.createElementNS(SVGNS, 'filter');
-                filter.setAttribute('id', filterId);
-                filter.setAttribute('x', '-20%');
-                filter.setAttribute('y', '-20%');
-                filter.setAttribute('width', '140%');
-                filter.setAttribute('height', '140%');
-                filter.setAttribute('color-interpolation-filters', 'sRGB');
-
-                const turb = document.createElementNS(SVGNS, 'feTurbulence');
-                turb.setAttribute('type', 'fractalNoise');
-                turb.setAttribute('baseFrequency', '0.015 0.02');
-                turb.setAttribute('numOctaves', '2');
-                turb.setAttribute('seed', String(i * 3 + 1));
-                turb.setAttribute('result', 'noise');
-
-                const disp = document.createElementNS(SVGNS, 'feDisplacementMap');
-                disp.setAttribute('in', 'SourceGraphic');
-                disp.setAttribute('in2', 'noise');
-                disp.setAttribute('scale', '0');
-                disp.setAttribute('xChannelSelector', 'R');
-                disp.setAttribute('yChannelSelector', 'G');
-
-                filter.appendChild(turb);
-                filter.appendChild(disp);
-                pgDefs.appendChild(filter);
-
-                card.querySelector('.playground-card-media').style.filter = `url(#${filterId})`;
-
-                let currentScale = 0, targetScale = 0, liquidRAF = null;
-                function tick() {
-                    currentScale = lerp(currentScale, targetScale, 0.18);
-                    disp.setAttribute('scale', currentScale.toFixed(2));
-                    if (Math.abs(targetScale - currentScale) > 0.05) {
-                        liquidRAF = requestAnimationFrame(tick);
-                    } else {
-                        disp.setAttribute('scale', String(targetScale));
-                        liquidRAF = null;
-                    }
+            // Both embedded sites show their own cookie banner on load. They're
+            // same-origin with this page (both under blackveil-studio.github.io),
+            // so it can be dismissed straight through contentDocument — no
+            // cross-origin restriction here.
+            const cookieBannerFixes = {
+                'iframe-ustefanow': (doc) => {
+                    const el = doc.getElementById('cookie-bar');
+                    if (el) el.style.display = 'none';
+                },
+                'iframe-lavieclub': (doc) => {
+                    const el = doc.getElementById('cookieNotice');
+                    if (el) el.style.display = 'none';
                 }
-                function setTarget(v) {
-                    targetScale = v;
-                    if (!liquidRAF) liquidRAF = requestAnimationFrame(tick);
-                }
-                card.addEventListener('mouseenter', () => setTarget(12));
-                card.addEventListener('mouseleave', () => setTarget(0));
+            };
+            Object.keys(cookieBannerFixes).forEach((id) => {
+                const iframe = document.getElementById(id);
+                if (!iframe) return;
+                iframe.addEventListener('load', () => {
+                    try { cookieBannerFixes[id](iframe.contentDocument); } catch (e) { /* cross-origin fallback: leave banner as-is */ }
+                });
             });
         })();
 
@@ -808,6 +737,12 @@
             // peaks exactly halfway through the burst, back to 0 as it completes.
             const hyperspaceEase = Math.sin(scrollPercent * Math.PI);
 
+            // How far each cloud has crossfaded from its Hero hue to its
+            // Portfolio hue — completes exactly as the burst does (by 500px),
+            // giving the portfolio its own cool blue/indigo/teal identity
+            // instead of just reusing the Hero's warm violet/magenta.
+            const nebulaColorMix = Math.max(0, Math.min(1, (scrollPercent - 0.4) / 0.6));
+
             // The nebula clouds are the only backdrop now — no separate galaxy-
             // core system to crossfade with, so there's just one "approaching
             // the next zone" fade for the whole cosmic backdrop (nebula + prism
@@ -860,10 +795,13 @@
                     cloud.alpha = cloud.baseAlpha * cloudVisibility;
 
                     if (cloud.alpha > 0.001) {
+                        const cr = Math.round(lerp(cloud.r, cloud.r2, nebulaColorMix));
+                        const cg = Math.round(lerp(cloud.g, cloud.g2, nebulaColorMix));
+                        const cb = Math.round(lerp(cloud.b, cloud.b2, nebulaColorMix));
                         const gradient = ctx.createRadialGradient(cloud.x, cloud.y, 5, cloud.x, cloud.y, cloud.radius);
-                        gradient.addColorStop(0, `rgba(${cloud.r}, ${cloud.g}, ${cloud.b}, ${cloud.alpha})`);
-                        gradient.addColorStop(0.5, `rgba(${cloud.r}, ${cloud.g}, ${cloud.b}, ${cloud.alpha * 0.35})`);
-                        gradient.addColorStop(1, `rgba(${cloud.r}, ${cloud.g}, ${cloud.b}, 0)`);
+                        gradient.addColorStop(0, `rgba(${cr}, ${cg}, ${cb}, ${cloud.alpha})`);
+                        gradient.addColorStop(0.5, `rgba(${cr}, ${cg}, ${cb}, ${cloud.alpha * 0.35})`);
+                        gradient.addColorStop(1, `rgba(${cr}, ${cg}, ${cb}, 0)`);
 
                         ctx.beginPath();
                         ctx.arc(cloud.x, cloud.y, cloud.radius, 0, Math.PI * 2);
@@ -990,19 +928,11 @@
                         }
                     }
 
-                    if (p.isHero) {
-                        const haloR = p.size * 9;
-                        const haloGrad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, haloR);
-                        haloGrad.addColorStop(0, `rgba(255, 255, 255, ${currentAlpha * 0.4})`);
-                        haloGrad.addColorStop(0.25, `rgba(255, 255, 255, ${currentAlpha * 0.12})`);
-                        haloGrad.addColorStop(0.6, `rgba(255, 255, 255, ${currentAlpha * 0.03})`);
-                        haloGrad.addColorStop(1, `rgba(255, 255, 255, 0)`);
-                        ctx.beginPath();
-                        ctx.arc(p.x, p.y, haloR, 0, Math.PI * 2);
-                        ctx.fillStyle = haloGrad;
-                        ctx.fill();
-                    }
-
+                    // Clean flat point — no per-particle halo gradient. This
+                    // matches the original locked Hero spec (flat ctx.arc()
+                    // circles, twinkle via alpha only) and removes what was a
+                    // real per-frame cost: up to ~420 extra gradient calls
+                    // during the burst window with the halo in place.
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
                     ctx.fillStyle = `rgba(${coreRgb}, ${currentAlpha})`;
