@@ -463,10 +463,12 @@
             });
         }
 
-        // 3500 total — ~12% bright foreground "hero" stars, the rest fine
-        // background dust. Every particle can play both roles (calm drift at
-        // rest, radial burst on scroll) since there's only one pool now.
-        for (let i = 0; i < 3500; i++) {
+        // 4200 total — bumped up from 3500. Removing the per-star halo made
+        // each point much smaller on screen (a 20px glow vs a 1-3px dot), so
+        // the same count reads as visibly sparser even though nothing about
+        // density changed in the data — this compensates for that directly.
+        // ~12% bright foreground "hero" stars, the rest fine background dust.
+        for (let i = 0; i < 4200; i++) {
             const isHeroStar = Math.random() > 0.88;
             particles.push({
                 x: Math.random() * width,
@@ -900,19 +902,27 @@
 
                     // scroll-explosion impulse — hero subset only (~12%). Its own
                     // velocity channel so its friction never touches the ambient
-                    // drift or the cursor-repulsion channel above.
+                    // drift or the cursor-repulsion channel above. The radial
+                    // injection (the sqrt + two multiply-adds) only runs while
+                    // there's real energy to inject — outside the burst window
+                    // explosionEnergy is 0 and this was pure wasted work on
+                    // every isHero particle, every frame.
+                    let explSpeed = 0;
                     if (p.isHero) {
-                        const rdx = p.x - width / 2;
-                        const rdy = p.y - height / 2;
-                        const rdist = Math.sqrt(rdx * rdx + rdy * rdy) || 1;
-                        p.explVx += (rdx / rdist) * explosionEnergy;
-                        p.explVy += (rdy / rdist) * explosionEnergy;
+                        if (explosionEnergy > 0.001) {
+                            const rdx = p.x - width / 2;
+                            const rdy = p.y - height / 2;
+                            const rdist = Math.sqrt(rdx * rdx + rdy * rdy) || 1;
+                            p.explVx += (rdx / rdist) * explosionEnergy;
+                            p.explVy += (rdy / rdist) * explosionEnergy;
+                        }
                         p.explVx *= 0.93;
                         p.explVy *= 0.93;
-                        const explSpeed = Math.hypot(p.explVx, p.explVy);
+                        explSpeed = Math.hypot(p.explVx, p.explVy);
                         if (explSpeed > 18) {
                             p.explVx = (p.explVx / explSpeed) * 18;
                             p.explVy = (p.explVy / explSpeed) * 18;
+                            explSpeed = 18;
                         }
                         p.x += p.explVx;
                         p.y += p.explVy;
@@ -941,8 +951,8 @@
                     // CURRENT explosion velocity this frame, not from scroll pixels.
                     // As explVx/explVy decay via friction, the line shrinks back to
                     // a dot on its own, smoothly, with zero further scroll input.
+                    // Reuses explSpeed computed above — no second Math.hypot call.
                     if (p.isHero) {
-                        const explSpeed = Math.hypot(p.explVx, p.explVy);
                         if (explSpeed > 0.3) {
                             const tailX = p.x - p.explVx * 2;
                             const tailY = p.y - p.explVy * 2;
