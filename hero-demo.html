@@ -1018,34 +1018,49 @@
                 }
                 ctx.stroke();
 
-                // Cosmic core — the actual "more cosmos" fix: the rim lived
-                // at the edges, cards live in the columns, but the center
-                // (right behind the sticky text) was genuinely empty. Small
-                // blobs (120-190px — the old galaxyCoreBlobs were 400-800px
-                // and THAT overlap-at-scale is what read as a flat wash, not
-                // gradients themselves being the problem) orbiting tight
-                // around center, plus sparse twinkling dust.
+                // Cosmic core — first pass at this used alpha 0.05, which
+                // measured as a real, nonzero pixel difference (41 vs 12
+                // background) but is nowhere near visible to an actual eye
+                // against a compressed screenshot. This is 4x stronger, plus
+                // an actual bright flare point at dead center so there's a
+                // real light source to anchor on, not just diffuse haze.
                 coreBlobs.forEach(blob => {
                     const bAngle = time * blob.speed + blob.angleOffset;
                     const bx = cx + Math.cos(bAngle) * blob.orbitRadius;
                     const by = cy + Math.sin(bAngle) * blob.orbitRadius * 0.6;
-                    const ba = a * 0.05;
+                    const ba = a * 0.22;
                     const grad = ctx.createRadialGradient(bx, by, 0, bx, by, blob.radius);
                     grad.addColorStop(0, `rgba(${blob.r}, ${blob.g}, ${blob.b}, ${ba})`);
-                    grad.addColorStop(0.6, `rgba(${blob.r}, ${blob.g}, ${blob.b}, ${ba * 0.3})`);
+                    grad.addColorStop(0.6, `rgba(${blob.r}, ${blob.g}, ${blob.b}, ${ba * 0.35})`);
                     grad.addColorStop(1, `rgba(${blob.r}, ${blob.g}, ${blob.b}, 0)`);
                     ctx.beginPath();
                     ctx.arc(bx, by, blob.radius, 0, Math.PI * 2);
                     ctx.fillStyle = grad;
                     ctx.fill();
                 });
+
+                // Bright flare at dead center — a real point of light, not
+                // just soft haze, so the "cosmic core" reads as an actual
+                // energy source. Its own faster pulse so it feels alive
+                // independent of the rim's breathing.
+                const flarePulse = 0.7 + 0.3 * Math.sin(time * 0.0016);
+                const flareA = a * 0.5 * flarePulse;
+                const flareGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 90);
+                flareGrad.addColorStop(0, `rgba(255, 255, 255, ${flareA})`);
+                flareGrad.addColorStop(0.3, `rgba(${horizonColors[3].r}, ${horizonColors[3].g}, ${horizonColors[3].b}, ${flareA * 0.5})`);
+                flareGrad.addColorStop(1, `rgba(${horizonColors[3].r}, ${horizonColors[3].g}, ${horizonColors[3].b}, 0)`);
+                ctx.beginPath();
+                ctx.arc(cx, cy, 90, 0, Math.PI * 2);
+                ctx.fillStyle = flareGrad;
+                ctx.fill();
+
                 coreDust.forEach(d => {
                     const dx = cx + Math.cos(d.angle) * d.radius;
                     const dy = cy + Math.sin(d.angle) * d.radius * 0.6;
                     const twinkle = 0.3 + Math.sin(time * d.twinkleSpeed + d.seed) * 0.35 + 0.35;
                     ctx.beginPath();
-                    ctx.arc(dx, dy, d.size, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(${d.r}, ${d.g}, ${d.b}, ${a * twinkle * 0.7})`;
+                    ctx.arc(dx, dy, d.size * 1.4, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${d.r}, ${d.g}, ${d.b}, ${Math.min(1, a * twinkle * 1.3)})`;
                     ctx.fill();
                 });
 
