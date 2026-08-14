@@ -549,7 +549,7 @@
         // cosmic detail concentrated exactly where the light is, not spread
         // flatly across the whole frame.
         const rimDust = [];
-        for (let i = 0; i < 70; i++) {
+        for (let i = 0; i < 45; i++) {
             const color = horizonColors[Math.floor(Math.random() * 3)];
             rimDust.push({
                 angle: Math.random() * Math.PI * 2,
@@ -561,37 +561,62 @@
             });
         }
 
-        // Cosmic core — the center of the frame (right behind the sticky
-        // text) was the one genuinely empty spot: the rim lives at the
-        // edges, the cards live in the columns, nothing lived in the middle.
-        // A handful of SMALL soft blobs (120-190px, not the 400-800px the old
-        // galaxyCoreBlobs used — that size, overlapped, is what caused the
-        // "flat wash" complaint) orbiting tightly around center, plus a
-        // sparse dust scatter — reads as a distant nebula glimpsed through
-        // the horizon, not a wall of color.
-        const coreBlobs = [];
-        for (let i = 0; i < 4; i++) {
-            const color = horizonColors[i % 3];
-            coreBlobs.push({
-                angleOffset: (i / 4) * Math.PI * 2,
-                orbitRadius: 50 + i * 18,
-                radius: 120 + i * 18,
-                speed: 0.00012 + i * 0.00003,
-                r: color.r, g: color.g, b: color.b
-            });
-        }
-        const coreDust = [];
-        for (let i = 0; i < 35; i++) {
-            const color = horizonColors[Math.floor(Math.random() * 3)];
-            coreDust.push({
-                angle: Math.random() * Math.PI * 2,
-                radius: 90 + Math.random() * 240,
-                size: Math.random() * 1.2 + 0.4,
-                twinkleSpeed: Math.random() * 0.0022 + 0.0006,
-                seed: Math.random() * 100,
-                r: color.r, g: color.g, b: color.b
-            });
-        }
+        // Cosmic core, take 2 — the flare+blobs version was both too weak to
+        // see and, once strengthened, sat close enough to the sticky text to
+        // compete with it. More importantly: repeatedly building 5 new
+        // gradient objects from scratch every single frame, for as long as
+        // the visitor sits in the portfolio zone, is real sustained
+        // allocation/GC pressure that a per-frame draw-call count doesn't
+        // capture — and matches "we're only on the second block and it
+        // already lags." A small spiral galaxy, rendered ONCE to an
+        // offscreen sprite at load, then just blitted with ctx.drawImage()
+        // (one of the cheapest operations a canvas has — a GPU blit, no
+        // per-frame gradient construction, no per-frame star loop) each
+        // frame with only rotation/alpha changing. Also just a more
+        // distinctive, recognizable cosmic image than a diffuse glow.
+        const galaxySprite = document.createElement('canvas');
+        const GALAXY_SPRITE_SIZE = 320;
+        galaxySprite.width = GALAXY_SPRITE_SIZE;
+        galaxySprite.height = GALAXY_SPRITE_SIZE;
+        (function paintGalaxySprite() {
+            const sctx = galaxySprite.getContext('2d');
+            const scx = GALAXY_SPRITE_SIZE / 2, scy = GALAXY_SPRITE_SIZE / 2;
+            sctx.globalCompositeOperation = 'lighter';
+
+            // soft core glow — saturated color, not white, on purpose: this
+            // sits directly behind the white "Visual playground." headline,
+            // and a white-hot core there would wash out the text's own
+            // contrast rather than just glow behind it.
+            const coreGrad = sctx.createRadialGradient(scx, scy, 0, scx, scy, GALAXY_SPRITE_SIZE * 0.24);
+            coreGrad.addColorStop(0, `rgba(${horizonColors[4].r}, ${horizonColors[4].g}, ${horizonColors[4].b}, 0.85)`);
+            coreGrad.addColorStop(0.35, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0.5)`);
+            coreGrad.addColorStop(1, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0)`);
+            sctx.beginPath();
+            sctx.arc(scx, scy, GALAXY_SPRITE_SIZE * 0.24, 0, Math.PI * 2);
+            sctx.fillStyle = coreGrad;
+            sctx.fill();
+
+            // 3 spiral arms, each a trail of small dots along a spiral curve,
+            // fading out toward the edge — a real, recognizable galaxy shape
+            const arms = 3;
+            for (let arm = 0; arm < arms; arm++) {
+                const armOffset = (arm / arms) * Math.PI * 2;
+                const color = horizonColors[arm % 3];
+                for (let t = 0; t < 55; t++) {
+                    const theta = t * 0.17 + armOffset;
+                    const r = 16 + t * 2.4;
+                    if (r > GALAXY_SPRITE_SIZE * 0.47) break;
+                    const px = scx + Math.cos(theta) * r;
+                    const py = scy + Math.sin(theta) * r * 0.6; // flattened, like a galaxy seen at an angle
+                    const fade = 1 - r / (GALAXY_SPRITE_SIZE * 0.47);
+                    const dotAlpha = fade * (0.35 + Math.random() * 0.35);
+                    sctx.beginPath();
+                    sctx.arc(px, py, 0.8 + Math.random() * 1.4, 0, Math.PI * 2);
+                    sctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${dotAlpha})`;
+                    sctx.fill();
+                }
+            }
+        })();
 
         // Zone 3 — the asteroid belt. 4 labeled "skill" shards plus a handful of
         // small unlabeled decorative shards, all sharing the same inertia physics
@@ -1018,51 +1043,21 @@
                 }
                 ctx.stroke();
 
-                // Cosmic core — first pass at this used alpha 0.05, which
-                // measured as a real, nonzero pixel difference (41 vs 12
-                // background) but is nowhere near visible to an actual eye
-                // against a compressed screenshot. This is 4x stronger, plus
-                // an actual bright flare point at dead center so there's a
-                // real light source to anchor on, not just diffuse haze.
-                coreBlobs.forEach(blob => {
-                    const bAngle = time * blob.speed + blob.angleOffset;
-                    const bx = cx + Math.cos(bAngle) * blob.orbitRadius;
-                    const by = cy + Math.sin(bAngle) * blob.orbitRadius * 0.6;
-                    const ba = a * 0.22;
-                    const grad = ctx.createRadialGradient(bx, by, 0, bx, by, blob.radius);
-                    grad.addColorStop(0, `rgba(${blob.r}, ${blob.g}, ${blob.b}, ${ba})`);
-                    grad.addColorStop(0.6, `rgba(${blob.r}, ${blob.g}, ${blob.b}, ${ba * 0.35})`);
-                    grad.addColorStop(1, `rgba(${blob.r}, ${blob.g}, ${blob.b}, 0)`);
-                    ctx.beginPath();
-                    ctx.arc(bx, by, blob.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = grad;
-                    ctx.fill();
-                });
-
-                // Bright flare at dead center — a real point of light, not
-                // just soft haze, so the "cosmic core" reads as an actual
-                // energy source. Its own faster pulse so it feels alive
-                // independent of the rim's breathing.
-                const flarePulse = 0.7 + 0.3 * Math.sin(time * 0.0016);
-                const flareA = a * 0.5 * flarePulse;
-                const flareGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 90);
-                flareGrad.addColorStop(0, `rgba(255, 255, 255, ${flareA})`);
-                flareGrad.addColorStop(0.3, `rgba(${horizonColors[3].r}, ${horizonColors[3].g}, ${horizonColors[3].b}, ${flareA * 0.5})`);
-                flareGrad.addColorStop(1, `rgba(${horizonColors[3].r}, ${horizonColors[3].g}, ${horizonColors[3].b}, 0)`);
-                ctx.beginPath();
-                ctx.arc(cx, cy, 90, 0, Math.PI * 2);
-                ctx.fillStyle = flareGrad;
-                ctx.fill();
-
-                coreDust.forEach(d => {
-                    const dx = cx + Math.cos(d.angle) * d.radius;
-                    const dy = cy + Math.sin(d.angle) * d.radius * 0.6;
-                    const twinkle = 0.3 + Math.sin(time * d.twinkleSpeed + d.seed) * 0.35 + 0.35;
-                    ctx.beginPath();
-                    ctx.arc(dx, dy, d.size * 1.4, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(${d.r}, ${d.g}, ${d.b}, ${Math.min(1, a * twinkle * 1.3)})`;
-                    ctx.fill();
-                });
+                // Spiral galaxy sprite — one drawImage call, no per-frame
+                // gradient construction. Sized and kept at moderate alpha so
+                // it sits as a distant object behind the text rather than
+                // competing with it for contrast — the sprite's own core
+                // color is a saturated blue-violet, not white, specifically
+                // so it doesn't wash out the white "Visual playground."
+                // headline sitting on top of it.
+                const galaxyPulse = 0.85 + 0.15 * Math.sin(time * 0.0006);
+                const galaxyDraw = 230;
+                ctx.save();
+                ctx.globalAlpha = a * 0.8 * galaxyPulse;
+                ctx.translate(cx, cy);
+                ctx.rotate(time * 0.00007);
+                ctx.drawImage(galaxySprite, -galaxyDraw / 2, -galaxyDraw / 2, galaxyDraw, galaxyDraw);
+                ctx.restore();
 
                 // Dust caught in the corona's light — twinkling points fixed
                 // to the rim (angle + radius jitter set once at init), so
