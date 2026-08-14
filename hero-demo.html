@@ -114,6 +114,7 @@
             font-family: 'DM Sans', sans-serif;
             font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase;
             color: rgba(255,255,255,.45); font-weight: 700; margin-bottom: 12px; display: block;
+            text-shadow: 0 2px 16px rgba(2, 2, 8, 0.85);
         }
         .playground-title {
             font-family: 'Bricolage Grotesque', sans-serif;
@@ -123,11 +124,18 @@
             color: #f5f5f7;
             margin: 0 0 18px;
             line-height: 1;
+            /* The galaxy behind this text got dense/bright enough that white
+               text was losing contrast against it — a dark shadow anchors
+               legibility regardless of whatever the canvas is doing back
+               there, rather than relying on the canvas to stay dim exactly
+               where the text happens to sit. */
+            text-shadow: 0 4px 28px rgba(2, 2, 8, 0.9), 0 2px 10px rgba(2, 2, 8, 0.8);
         }
         .playground-title span {
             font-style: italic;
             background: linear-gradient(90deg, #6b8cf5, #b06ee8, #e8548c);
             -webkit-background-clip: text; background-clip: text; color: transparent;
+            filter: drop-shadow(0 4px 20px rgba(2, 2, 8, 0.85));
         }
         .playground-subtext {
             font-family: 'DM Sans', sans-serif;
@@ -135,6 +143,7 @@
             line-height: 1.5;
             color: rgba(255,255,255,.5);
             margin: 0;
+            text-shadow: 0 2px 16px rgba(2, 2, 8, 0.85);
         }
 
         .portfolio-columns-container {
@@ -633,35 +642,35 @@
             // smaller toward the edge) on top of the existing alpha fade —
             // two depth cues stacking (near = big & bright, far = small &
             // dim) reads as genuine dimensionality, not just a flat fade.
+            // Density cut roughly in half (70 -> 42 per arm, wider radius
+            // step to cover the same spiral extent) — this is the other half
+            // of "sharper": a dense field of overlapping soft-edged dots
+            // reads as noise no matter how crisp each individual one is.
+            // Fewer, more separated, more emphatic points read as sharp;
+            // packed-together ones read as texture. This also directly
+            // helps the text-contrast problem — less raw brightness clutter
+            // sitting right behind it.
             const arms = 3;
             for (let arm = 0; arm < arms; arm++) {
                 const armOffset = (arm / arms) * Math.PI * 2;
                 const color = horizonColors[arm % 3];
-                for (let t = 0; t < 70; t++) {
+                for (let t = 0; t < 42; t++) {
                     const theta = t * 0.17 + armOffset;
-                    const r = 16 + t * 3.4;
+                    const r = 16 + t * 5.6;
                     if (r > GALAXY_SPRITE_SIZE * 0.48) break;
                     const px = scx + Math.cos(theta) * r;
                     const py = scy + Math.sin(theta) * r * 0.55; // flattened, like a galaxy seen at an angle
                     const fade = 1 - r / (GALAXY_SPRITE_SIZE * 0.48);
-                    const dotAlpha = fade * (0.4 + Math.random() * 0.4);
-                    // Overcorrected last round: the white core was 0.28x of
-                    // a halo that maxed out around 2px native — under 0.6px
-                    // at native resolution, which is sub-pixel and vanishes
-                    // under the browser's own smoothing once drawImage
-                    // upscales it 2.3-2.9x. Result: only the big soft
-                    // gradient layers survived, i.e. "a blurred blue spot."
-                    // Core is now roughly half the halo's radius, and the
-                    // halo itself is back up near the original size — this
-                    // was never really about making dots smaller, it was
-                    // about making the CENTER of each dot actually opaque.
-                    const haloSize = (0.9 + fade * 1.8) * (0.75 + Math.random() * 0.6);
+                    const dotAlpha = fade * (0.45 + Math.random() * 0.4);
+                    // Core pushed further still — this is now the dominant
+                    // visual weight of each dot, not the halo around it.
+                    const haloSize = (1.0 + fade * 2.0) * (0.75 + Math.random() * 0.6);
                     sctx.beginPath();
                     sctx.arc(px, py, haloSize, 0, Math.PI * 2);
-                    sctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${dotAlpha * 0.45})`;
+                    sctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${dotAlpha * 0.4})`;
                     sctx.fill();
                     sctx.beginPath();
-                    sctx.arc(px, py, Math.max(0.9, haloSize * 0.5), 0, Math.PI * 2);
+                    sctx.arc(px, py, Math.max(1.1, haloSize * 0.58), 0, Math.PI * 2);
                     sctx.fillStyle = `rgba(255, 255, 255, ${Math.min(1, dotAlpha * 1.4)})`;
                     sctx.fill();
                 }
@@ -1169,6 +1178,27 @@
                     ctx.fillStyle = `rgba(${sp.r}, ${sp.g}, ${sp.b}, ${Math.min(1, twinkle)})`;
                     ctx.fill();
                 });
+                ctx.restore();
+
+                // Text-contrast well: the sticky text sits at exactly the
+                // galaxy's own center — the densest, brightest part of it —
+                // which is what made "Visual playground." hard to read once
+                // the star field got dense enough to look sharp. A soft dark
+                // pool right there (default composite, NOT 'screen', so it
+                // actually darkens rather than adding light) recovers
+                // contrast without touching the galaxy everywhere else. The
+                // CSS text-shadow on the headline itself is the primary,
+                // always-correct fix; this is the canvas doing its part too.
+                ctx.save();
+                ctx.globalCompositeOperation = 'source-over';
+                const wellGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 260);
+                wellGrad.addColorStop(0, `rgba(2, 2, 8, ${a * 0.55})`);
+                wellGrad.addColorStop(0.7, `rgba(2, 2, 8, ${a * 0.3})`);
+                wellGrad.addColorStop(1, 'rgba(2, 2, 8, 0)');
+                ctx.beginPath();
+                ctx.arc(cx, cy, 260, 0, Math.PI * 2);
+                ctx.fillStyle = wellGrad;
+                ctx.fill();
                 ctx.restore();
 
                 // Dust caught in the corona's light — twinkling points fixed
