@@ -535,10 +535,31 @@
         const horizonColors = [
             { r: 107, g: 140, b: 245 }, // blue-violet
             { r: 176, g: 110, b: 232 }, // purple
-            { r: 232, g: 84,  b: 140 }  // pink
+            { r: 232, g: 84,  b: 140 }, // pink
+            { r: 255, g: 255, b: 255 }, // white highlight, for the gradient's brightest stops
+            { r: 90,  g: 220, b: 230 }  // cyan, for chromatic fringe + extra ray color
         ];
         const horizonRipples = []; // mouse-echo rings — own array, own draw pass
         let lastRippleX = -999, lastRippleY = -999, rippleCooldown = 0;
+
+        // Dust caught in the corona's light — NOT a general starfield (that
+        // was the "flat background" complaint's actual cause two rounds
+        // ago). These live in a narrow band hugging the rim itself, angle
+        // and radius fixed at init, only their twinkle animates — genuine
+        // cosmic detail concentrated exactly where the light is, not spread
+        // flatly across the whole frame.
+        const rimDust = [];
+        for (let i = 0; i < 70; i++) {
+            const color = horizonColors[Math.floor(Math.random() * 3)];
+            rimDust.push({
+                angle: Math.random() * Math.PI * 2,
+                radiusJitter: (Math.random() - 0.5) * 90,
+                size: Math.random() * 1.3 + 0.4,
+                twinkleSpeed: Math.random() * 0.002 + 0.0006,
+                seed: Math.random() * 100,
+                r: color.r, g: color.g, b: color.b
+            });
+        }
 
         // Zone 3 — the asteroid belt. 4 labeled "skill" shards plus a handful of
         // small unlabeled decorative shards, all sharing the same inertia physics
@@ -887,60 +908,131 @@
             }
             ctx.restore();
 
-            // --- Event Horizon v2: a genuine eclipse-corona rim, not a soft
-            // color wash. Her original spec called for "a thin, ultra-bright
-            // neon line, like the sun's corona during an eclipse" — the first
-            // version drew four huge blob gradients instead, which is exactly
-            // why it read as "just a blue background." This uses Canvas's
-            // native shadowBlur for real glow on a THIN stroked ellipse —
-            // one path, one glowing line, center of the frame stays true
-            // black. A rotating 3-color gradient keeps it alive, plus small
-            // sparks traveling along the rim itself. ---
+            // --- Event Horizon v3: full cosmic treatment. Same core technique
+            // as v2 (multi-pass shadowBlur stroke is what actually reads as
+            // neon glow — verified, a single pass doesn't) but with real
+            // eclipse-corona detail layered on: streamers radiating from the
+            // rim, a dimmer echo ring behind it for depth, chromatic fringing
+            // for a premium optical feel, and dust caught in the light along
+            // the rim itself (not spread across the frame — that was the
+            // original "flat background" problem). Still one ellipse shape,
+            // everything else is either procedural (rays, needs no stored
+            // state) or a small fixed array (70 dust points). ---
             if (horizonAlpha > 0.001) {
                 ctx.globalCompositeOperation = 'screen';
                 const pulse = 0.8 + 0.2 * Math.sin(time * 0.0009);
-                const rimRx = width * 0.5;
-                const rimRy = height * 0.5;
+                const breathe = 1 + 0.012 * Math.sin(time * 0.0004);
+                const rimRx = width * 0.5 * breathe;
+                const rimRy = height * 0.5 * breathe;
                 const cx = width / 2, cy = height / 2;
+                const a = horizonAlpha * pulse;
 
-                // slowly rotating aurora gradient across the rim
+                // slowly rotating aurora gradient across the rim — 5 stops
+                // now (adds the cyan + a white flare point) instead of 3, a
+                // richer traveling color wash along the same single stroke
                 const rot = (time * 0.00003) % (Math.PI * 2);
                 const gx1 = cx + Math.cos(rot) * rimRx, gy1 = cy + Math.sin(rot) * rimRy;
                 const gx2 = cx - Math.cos(rot) * rimRx, gy2 = cy - Math.sin(rot) * rimRy;
                 const rimGrad = ctx.createLinearGradient(gx1, gy1, gx2, gy2);
-                const a = horizonAlpha * pulse;
                 rimGrad.addColorStop(0, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, ${a})`);
-                rimGrad.addColorStop(0.5, `rgba(${horizonColors[1].r}, ${horizonColors[1].g}, ${horizonColors[1].b}, ${a})`);
+                rimGrad.addColorStop(0.25, `rgba(${horizonColors[4].r}, ${horizonColors[4].g}, ${horizonColors[4].b}, ${a})`);
+                rimGrad.addColorStop(0.5, `rgba(${horizonColors[3].r}, ${horizonColors[3].g}, ${horizonColors[3].b}, ${a})`);
+                rimGrad.addColorStop(0.75, `rgba(${horizonColors[1].r}, ${horizonColors[1].g}, ${horizonColors[1].b}, ${a})`);
                 rimGrad.addColorStop(1, `rgba(${horizonColors[2].r}, ${horizonColors[2].g}, ${horizonColors[2].b}, ${a})`);
+
+                const rimPath = (rx, ry) => { ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); };
+
+                // Dim echo ring, slightly larger, its own slower rotation —
+                // depth cue, like binary corona rings around a real horizon.
+                ctx.save();
+                ctx.shadowBlur = 40 * horizonAlpha;
+                ctx.shadowColor = `rgba(${horizonColors[4].r}, ${horizonColors[4].g}, ${horizonColors[4].b}, ${a * 0.4})`;
+                ctx.strokeStyle = `rgba(${horizonColors[4].r}, ${horizonColors[4].g}, ${horizonColors[4].b}, ${a * 0.18})`;
+                ctx.lineWidth = 1.5;
+                rimPath(rimRx * 1.06, rimRy * 1.06);
+                ctx.stroke();
+                ctx.restore();
+
+                // Streamers — thin rays radiating out from points around the
+                // rim, varying length/brightness per ray (fixed per index, so
+                // the rhythm reads as organic rather than uniform), all
+                // collected into ONE path/stroke.
+                ctx.save();
+                ctx.shadowBlur = 18 * horizonAlpha;
+                ctx.shadowColor = `rgba(${horizonColors[3].r}, ${horizonColors[3].g}, ${horizonColors[3].b}, ${a * 0.5})`;
+                ctx.strokeStyle = `rgba(${horizonColors[3].r}, ${horizonColors[3].g}, ${horizonColors[3].b}, ${a * 0.3})`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                const RAY_COUNT = 20;
+                for (let ri = 0; ri < RAY_COUNT; ri++) {
+                    const rAngle = (ri / RAY_COUNT) * Math.PI * 2 + rot * 0.5;
+                    const lenPulse = 0.6 + 0.4 * Math.sin(ri * 2.7 + time * 0.0008);
+                    const rayLen = (24 + (ri % 5) * 14) * lenPulse;
+                    const bx = cx + Math.cos(rAngle) * rimRx, by = cy + Math.sin(rAngle) * rimRy;
+                    const ex = cx + Math.cos(rAngle) * (rimRx + rayLen), ey = cy + Math.sin(rAngle) * (rimRy + rayLen);
+                    ctx.moveTo(bx, by);
+                    ctx.lineTo(ex, ey);
+                }
+                ctx.stroke();
+                ctx.restore();
 
                 // A single shadowBlur pass reads as barely-there (verified:
                 // ~15 brightness units above background, not a visible glow).
                 // Real neon-tube rendering stacks multiple passes — wide/dim
                 // outer passes build up the bloom, a tight/bright core pass
-                // on top reads as the actual light source. 4 strokes total,
-                // still just an ellipse each — nowhere near the old grid's
-                // per-node cost.
-                const rimPath = () => { ctx.beginPath(); ctx.ellipse(cx, cy, rimRx, rimRy, 0, 0, Math.PI * 2); };
+                // on top reads as the actual light source.
                 ctx.save();
                 for (let pass = 0; pass < 3; pass++) {
                     ctx.shadowBlur = (28 + pass * 26) * horizonAlpha;
                     ctx.shadowColor = `rgba(180, 160, 255, ${a * 0.7})`;
                     ctx.strokeStyle = `rgba(180, 160, 255, ${a * 0.35})`;
                     ctx.lineWidth = 3 + pass * 3;
-                    rimPath();
+                    rimPath(rimRx, rimRy);
                     ctx.stroke();
                 }
+                // Chromatic fringe — two faint, tightly-offset copies of the
+                // core line in cyan/pink under the white core, like a lens
+                // failing to focus every wavelength at once. Subtle on
+                // purpose (low alpha) — a premium optical detail, not a
+                // glitch effect.
+                ctx.shadowBlur = 6 * horizonAlpha;
+                ctx.shadowColor = 'transparent';
+                ctx.strokeStyle = `rgba(90, 220, 230, ${a * 0.4})`;
+                ctx.lineWidth = 1.5;
+                rimPath(rimRx - 1.5, rimRy - 1.5);
+                ctx.stroke();
+                ctx.strokeStyle = `rgba(232, 84, 140, ${a * 0.4})`;
+                rimPath(rimRx + 1.5, rimRy + 1.5);
+                ctx.stroke();
+
                 ctx.shadowBlur = 14 * horizonAlpha;
                 ctx.shadowColor = `rgba(255, 255, 255, ${a})`;
                 ctx.strokeStyle = rimGrad;
                 ctx.lineWidth = 2;
-                rimPath();
+                rimPath(rimRx, rimRy);
                 ctx.stroke();
                 ctx.restore();
 
-                // 4 sparks traveling along the rim, evenly spaced, each its
-                // own small glowing point — the "living" detail on top of the
-                // static corona.
+                // Dust caught in the corona's light — twinkling points fixed
+                // to the rim (angle + radius jitter set once at init), so
+                // they read as texture belonging to the light itself, not a
+                // generic starfield scattered across the frame.
+                ctx.save();
+                rimDust.forEach(d => {
+                    const dx = cx + Math.cos(d.angle) * (rimRx + d.radiusJitter);
+                    const dy = cy + Math.sin(d.angle) * (rimRy + d.radiusJitter);
+                    const twinkle = 0.3 + Math.sin(time * d.twinkleSpeed + d.seed) * 0.35 + 0.35;
+                    const da = a * twinkle * 0.8;
+                    ctx.beginPath();
+                    ctx.arc(dx, dy, d.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${d.r}, ${d.g}, ${d.b}, ${da})`;
+                    ctx.fill();
+                });
+                ctx.restore();
+
+                // Sparks traveling along the rim, evenly spaced, each its
+                // own small glowing point — separate from the dust, these
+                // move continuously rather than just twinkling in place.
                 ctx.save();
                 ctx.shadowBlur = 20 * horizonAlpha;
                 for (let s = 0; s < 4; s++) {
