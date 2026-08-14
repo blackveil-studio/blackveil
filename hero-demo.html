@@ -593,20 +593,25 @@
             // core — three overlapping radial gradients at different radii/
             // intensities read as actual depth rather than one flat disc.
             // All still baked into the sprite once, not per-frame.
-            const haze = sctx.createRadialGradient(scx, scy, 0, scx, scy, GALAXY_SPRITE_SIZE * 0.5);
-            haze.addColorStop(0, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0.22)`);
-            haze.addColorStop(0.5, `rgba(${horizonColors[1].r}, ${horizonColors[1].g}, ${horizonColors[1].b}, 0.1)`);
+            // Both layers pulled in and dimmed from the first pass — at the
+            // 2.3-2.9x draw scale, a 0.5-radius haze at alpha 0.22 was
+            // covering most of the frame in soft fog, which is the other
+            // half of "too blurry." These are now backdrop texture, not the
+            // dominant visual — the star points (below) carry the "wow" now.
+            const haze = sctx.createRadialGradient(scx, scy, 0, scx, scy, GALAXY_SPRITE_SIZE * 0.42);
+            haze.addColorStop(0, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0.13)`);
+            haze.addColorStop(0.5, `rgba(${horizonColors[1].r}, ${horizonColors[1].g}, ${horizonColors[1].b}, 0.05)`);
             haze.addColorStop(1, `rgba(${horizonColors[1].r}, ${horizonColors[1].g}, ${horizonColors[1].b}, 0)`);
             sctx.beginPath();
-            sctx.arc(scx, scy, GALAXY_SPRITE_SIZE * 0.5, 0, Math.PI * 2);
+            sctx.arc(scx, scy, GALAXY_SPRITE_SIZE * 0.42, 0, Math.PI * 2);
             sctx.fillStyle = haze;
             sctx.fill();
 
-            const midGlow = sctx.createRadialGradient(scx, scy, 0, scx, scy, GALAXY_SPRITE_SIZE * 0.34);
-            midGlow.addColorStop(0, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0.4)`);
+            const midGlow = sctx.createRadialGradient(scx, scy, 0, scx, scy, GALAXY_SPRITE_SIZE * 0.28);
+            midGlow.addColorStop(0, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0.26)`);
             midGlow.addColorStop(1, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0)`);
             sctx.beginPath();
-            sctx.arc(scx, scy, GALAXY_SPRITE_SIZE * 0.34, 0, Math.PI * 2);
+            sctx.arc(scx, scy, GALAXY_SPRITE_SIZE * 0.28, 0, Math.PI * 2);
             sctx.fillStyle = midGlow;
             sctx.fill();
 
@@ -639,11 +644,23 @@
                     const px = scx + Math.cos(theta) * r;
                     const py = scy + Math.sin(theta) * r * 0.55; // flattened, like a galaxy seen at an angle
                     const fade = 1 - r / (GALAXY_SPRITE_SIZE * 0.48);
-                    const dotAlpha = fade * (0.35 + Math.random() * 0.35);
-                    const dotSize = (0.7 + fade * 2.2) * (0.7 + Math.random() * 0.8);
+                    const dotAlpha = fade * (0.4 + Math.random() * 0.4);
+                    // Previous sizing (0.7 + fade*2.2, up to ~2.9px native)
+                    // becomes ~7-9px once drawn at the 2.3-2.9x scale this
+                    // sprite is shown at — a soft, edgeless blob at that
+                    // size, which is exactly the "too blurry / bubbles" look
+                    // reported. Every dot is now a tiny sharp point PLUS a
+                    // small soft halo around it — a real star, not a blur —
+                    // and the base sizes are cut roughly in half so they stay
+                    // crisp even after the upscale.
+                    const haloSize = (0.5 + fade * 1.1) * (0.7 + Math.random() * 0.6);
                     sctx.beginPath();
-                    sctx.arc(px, py, dotSize, 0, Math.PI * 2);
-                    sctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${dotAlpha})`;
+                    sctx.arc(px, py, haloSize, 0, Math.PI * 2);
+                    sctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${dotAlpha * 0.4})`;
+                    sctx.fill();
+                    sctx.beginPath();
+                    sctx.arc(px, py, haloSize * 0.28, 0, Math.PI * 2);
+                    sctx.fillStyle = `rgba(255, 255, 255, ${Math.min(1, dotAlpha * 1.3)})`;
                     sctx.fill();
                 }
             }
