@@ -575,7 +575,11 @@
         // frame with only rotation/alpha changing. Also just a more
         // distinctive, recognizable cosmic image than a diffuse glow.
         const galaxySprite = document.createElement('canvas');
-        const GALAXY_SPRITE_SIZE = 320;
+        // Higher native resolution than before (was 320) since it's now
+        // drawn 3x larger — this is still a one-time cost at init, not a
+        // per-frame one, so bumping it up avoids the sprite looking soft/
+        // upscaled at its new draw size.
+        const GALAXY_SPRITE_SIZE = 640;
         galaxySprite.width = GALAXY_SPRITE_SIZE;
         galaxySprite.height = GALAXY_SPRITE_SIZE;
         (function paintGalaxySprite() {
@@ -617,6 +621,31 @@
                 }
             }
         })();
+
+        // A handful of LIVE sparkle points along the same spiral pattern as
+        // the (static) sprite — twinkle via alpha only, drawn in the sprite's
+        // own local/rotated space so they turn together with it. This is
+        // what makes the galaxy read as alive without redrawing the sprite
+        // itself: 18 cheap filled circles, no gradients, not a return to
+        // the per-frame-gradient cost that was just removed.
+        const galaxySparkles = [];
+        for (let arm = 0; arm < 3; arm++) {
+            const armOffset = (arm / 3) * Math.PI * 2;
+            const color = horizonColors[arm % 3];
+            for (let s = 0; s < 6; s++) {
+                const t = 6 + s * 8 + Math.random() * 4;
+                const theta = t * 0.17 + armOffset;
+                const r = 16 + t * 2.4;
+                galaxySparkles.push({
+                    x: Math.cos(theta) * r,
+                    y: Math.sin(theta) * r * 0.6,
+                    size: Math.random() * 1.5 + 1,
+                    twinkleSpeed: Math.random() * 0.0025 + 0.0008,
+                    seed: Math.random() * 100,
+                    r: color.r, g: color.g, b: color.b
+                });
+            }
+        }
 
         // Zone 3 — the asteroid belt. 4 labeled "skill" shards plus a handful of
         // small unlabeled decorative shards, all sharing the same inertia physics
@@ -979,8 +1008,16 @@
                 ctx.globalCompositeOperation = 'screen';
                 const pulse = 0.8 + 0.2 * Math.sin(time * 0.0009);
                 const breathe = 1 + 0.012 * Math.sin(time * 0.0004);
-                const rimRx = width * 0.5 * breathe;
-                const rimRy = height * 0.5 * breathe;
+                // The original ellipse was already exactly inscribed —
+                // tangent to all 4 viewport edges. Scaling that uniformly by
+                // 1.5x is provably invisible (checked: 0% of the curve stays
+                // within a 1280x720 frame; even 1.1x only keeps ~46% of the
+                // circumference on-screen, since every point moves further
+                // from center in every direction at once). Went with 1.08x —
+                // a real, visible increase, still comfortably a full sweeping
+                // oval rather than a few disconnected corner arcs.
+                const rimRx = width * 0.54 * breathe;
+                const rimRy = height * 0.54 * breathe;
                 const cx = width / 2, cy = height / 2;
                 const a = horizonAlpha * pulse;
 
@@ -1044,19 +1081,28 @@
                 ctx.stroke();
 
                 // Spiral galaxy sprite — one drawImage call, no per-frame
-                // gradient construction. Sized and kept at moderate alpha so
-                // it sits as a distant object behind the text rather than
-                // competing with it for contrast — the sprite's own core
-                // color is a saturated blue-violet, not white, specifically
-                // so it doesn't wash out the white "Visual playground."
-                // headline sitting on top of it.
+                // gradient construction. The sprite's own core color is a
+                // saturated blue-violet, not white, specifically so it
+                // doesn't wash out the white "Visual playground." headline
+                // sitting on top of it. Live sparkle points (galaxySparkles)
+                // ride the SAME translate/rotate transform as the sprite, so
+                // they turn with it and twinkle via alpha only — no extra
+                // gradients, just plain filled circles.
                 const galaxyPulse = 0.85 + 0.15 * Math.sin(time * 0.0006);
-                const galaxyDraw = 230;
+                const galaxyDraw = 690; // 3x the original 230
+                const galaxyScale = galaxyDraw / GALAXY_SPRITE_SIZE;
                 ctx.save();
                 ctx.globalAlpha = a * 0.8 * galaxyPulse;
                 ctx.translate(cx, cy);
-                ctx.rotate(time * 0.00007);
+                ctx.rotate(time * 0.00003); // "очень медленно" — half the previous speed
                 ctx.drawImage(galaxySprite, -galaxyDraw / 2, -galaxyDraw / 2, galaxyDraw, galaxyDraw);
+                galaxySparkles.forEach(sp => {
+                    const twinkle = 0.25 + Math.sin(time * sp.twinkleSpeed + sp.seed) * 0.4 + 0.4;
+                    ctx.beginPath();
+                    ctx.arc(sp.x * galaxyScale, sp.y * galaxyScale, sp.size * galaxyScale, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${sp.r}, ${sp.g}, ${sp.b}, ${Math.min(1, twinkle)})`;
+                    ctx.fill();
+                });
                 ctx.restore();
 
                 // Dust caught in the corona's light — twinkling points fixed
