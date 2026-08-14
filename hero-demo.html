@@ -575,17 +575,40 @@
         // frame with only rotation/alpha changing. Also just a more
         // distinctive, recognizable cosmic image than a diffuse glow.
         const galaxySprite = document.createElement('canvas');
-        // Higher native resolution than before (was 320) since it's now
-        // drawn 3x larger — this is still a one-time cost at init, not a
-        // per-frame one, so bumping it up avoids the sprite looking soft/
-        // upscaled at its new draw size.
-        const GALAXY_SPRITE_SIZE = 640;
+        // Bumped again (320 -> 640 -> 900) since the draw size is going up
+        // another 3x — still a one-time paint cost at init regardless of
+        // resolution, never a per-frame one, so there's no real reason not
+        // to keep it crisp at whatever size it's actually shown at.
+        const GALAXY_SPRITE_SIZE = 900;
         galaxySprite.width = GALAXY_SPRITE_SIZE;
         galaxySprite.height = GALAXY_SPRITE_SIZE;
         (function paintGalaxySprite() {
             const sctx = galaxySprite.getContext('2d');
             const scx = GALAXY_SPRITE_SIZE / 2, scy = GALAXY_SPRITE_SIZE / 2;
             sctx.globalCompositeOperation = 'lighter';
+
+            // Volumetric read comes from layering, not from any single
+            // clever trick: a wide, very dim outer haze first (the galaxy's
+            // faint halo), a tighter mid-glow on top of that, then the sharp
+            // core — three overlapping radial gradients at different radii/
+            // intensities read as actual depth rather than one flat disc.
+            // All still baked into the sprite once, not per-frame.
+            const haze = sctx.createRadialGradient(scx, scy, 0, scx, scy, GALAXY_SPRITE_SIZE * 0.5);
+            haze.addColorStop(0, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0.22)`);
+            haze.addColorStop(0.5, `rgba(${horizonColors[1].r}, ${horizonColors[1].g}, ${horizonColors[1].b}, 0.1)`);
+            haze.addColorStop(1, `rgba(${horizonColors[1].r}, ${horizonColors[1].g}, ${horizonColors[1].b}, 0)`);
+            sctx.beginPath();
+            sctx.arc(scx, scy, GALAXY_SPRITE_SIZE * 0.5, 0, Math.PI * 2);
+            sctx.fillStyle = haze;
+            sctx.fill();
+
+            const midGlow = sctx.createRadialGradient(scx, scy, 0, scx, scy, GALAXY_SPRITE_SIZE * 0.34);
+            midGlow.addColorStop(0, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0.4)`);
+            midGlow.addColorStop(1, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0)`);
+            sctx.beginPath();
+            sctx.arc(scx, scy, GALAXY_SPRITE_SIZE * 0.34, 0, Math.PI * 2);
+            sctx.fillStyle = midGlow;
+            sctx.fill();
 
             // soft core glow — saturated color, not white, on purpose: this
             // sits directly behind the white "Visual playground." headline,
@@ -600,22 +623,26 @@
             sctx.fillStyle = coreGrad;
             sctx.fill();
 
-            // 3 spiral arms, each a trail of small dots along a spiral curve,
-            // fading out toward the edge — a real, recognizable galaxy shape
+            // 3 spiral arms, each a trail of small dots along a spiral curve.
+            // Dot SIZE now also scales with radius (bigger near the core,
+            // smaller toward the edge) on top of the existing alpha fade —
+            // two depth cues stacking (near = big & bright, far = small &
+            // dim) reads as genuine dimensionality, not just a flat fade.
             const arms = 3;
             for (let arm = 0; arm < arms; arm++) {
                 const armOffset = (arm / arms) * Math.PI * 2;
                 const color = horizonColors[arm % 3];
-                for (let t = 0; t < 55; t++) {
+                for (let t = 0; t < 70; t++) {
                     const theta = t * 0.17 + armOffset;
-                    const r = 16 + t * 2.4;
-                    if (r > GALAXY_SPRITE_SIZE * 0.47) break;
+                    const r = 16 + t * 3.4;
+                    if (r > GALAXY_SPRITE_SIZE * 0.48) break;
                     const px = scx + Math.cos(theta) * r;
-                    const py = scy + Math.sin(theta) * r * 0.6; // flattened, like a galaxy seen at an angle
-                    const fade = 1 - r / (GALAXY_SPRITE_SIZE * 0.47);
+                    const py = scy + Math.sin(theta) * r * 0.55; // flattened, like a galaxy seen at an angle
+                    const fade = 1 - r / (GALAXY_SPRITE_SIZE * 0.48);
                     const dotAlpha = fade * (0.35 + Math.random() * 0.35);
+                    const dotSize = (0.7 + fade * 2.2) * (0.7 + Math.random() * 0.8);
                     sctx.beginPath();
-                    sctx.arc(px, py, 0.8 + Math.random() * 1.4, 0, Math.PI * 2);
+                    sctx.arc(px, py, dotSize, 0, Math.PI * 2);
                     sctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${dotAlpha})`;
                     sctx.fill();
                 }
@@ -1080,21 +1107,32 @@
                 }
                 ctx.stroke();
 
-                // Spiral galaxy sprite — one drawImage call, no per-frame
-                // gradient construction. The sprite's own core color is a
-                // saturated blue-violet, not white, specifically so it
-                // doesn't wash out the white "Visual playground." headline
-                // sitting on top of it. Live sparkle points (galaxySparkles)
-                // ride the SAME translate/rotate transform as the sprite, so
-                // they turn with it and twinkle via alpha only — no extra
-                // gradients, just plain filled circles.
+                // Spiral galaxy sprite. Still just drawImage calls — no
+                // per-frame gradient construction regardless of size. Two
+                // passes now for the "volumetric" ask: a larger, dimmer,
+                // independently-rotating backdrop copy first (reads as a
+                // hazy outer layer sitting further back in space), then the
+                // sharp foreground copy on top — real layered depth from
+                // parallax rotation, not just a bigger flat image. Live
+                // sparkle points (galaxySparkles) ride the foreground
+                // layer's transform so they turn with it, twinkling via
+                // alpha only — no extra gradients, plain filled circles.
                 const galaxyPulse = 0.85 + 0.15 * Math.sin(time * 0.0006);
-                const galaxyDraw = 690; // 3x the original 230
+                const galaxyDraw = 2070; // 3x the previous 690 (9x the original 230)
                 const galaxyScale = galaxyDraw / GALAXY_SPRITE_SIZE;
+
+                ctx.save();
+                ctx.globalAlpha = a * 0.35 * galaxyPulse;
+                ctx.translate(cx, cy);
+                ctx.rotate(-time * 0.000018); // counter-rotating, slower — the "further back" layer
+                const backDraw = galaxyDraw * 1.25;
+                ctx.drawImage(galaxySprite, -backDraw / 2, -backDraw / 2, backDraw, backDraw);
+                ctx.restore();
+
                 ctx.save();
                 ctx.globalAlpha = a * 0.8 * galaxyPulse;
                 ctx.translate(cx, cy);
-                ctx.rotate(time * 0.00003); // "очень медленно" — half the previous speed
+                ctx.rotate(time * 0.00003); // "очень медленно"
                 ctx.drawImage(galaxySprite, -galaxyDraw / 2, -galaxyDraw / 2, galaxyDraw, galaxyDraw);
                 galaxySparkles.forEach(sp => {
                     const twinkle = 0.25 + Math.sin(time * sp.twinkleSpeed + sp.seed) * 0.4 + 0.4;
