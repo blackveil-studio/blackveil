@@ -335,7 +335,6 @@
                headings were this large. */
             gap: 5vh;
             pointer-events: none;
-            opacity: 0; /* JS drives this every frame via the scroll-linked reveal; starts at 0 so there's no flash before that first runs */
         }
         .expertise-row {
             display: flex;
@@ -364,6 +363,13 @@
             cursor: default;
             user-select: none;
             white-space: nowrap;
+            /* Starts invisible — JS (drawStrings) sets this every frame as
+               the strings' own growth front passes each heading's Y
+               position, not a shared timer for the whole stack. No
+               transition on opacity: the per-frame JS update is already
+               continuous/smooth, and a CSS transition layered on top of a
+               fast-changing target would just lag behind it. */
+            opacity: 0;
             /* The "3D-shift" — a barely-there perspective tilt + lateral
                nudge, not a dramatic rotation. Kept intentionally subtle
                ("едва заметно"): this is a hover cue on plain body text, not
@@ -1649,19 +1655,24 @@
             const DAMPING = 0.94;
             const PROXIMITY = 46; // px — how close the cursor needs to be to touch a string
 
-            // Where the strings "shoot" from. Tried tracking the portfolio
-            // galaxy's actual collapsing point across the two canvases
-            // (viewport position minus the section's own scroll offset) —
-            // but that point's fly-off and this section's own entry are
-            // driven by the identical linear window, so in section-local
-            // coordinates it stays mathematically pinned at a constant
-            // -height/2 (always just above the canvas, never inside it):
-            // the two rates cancel exactly. A fixed point near the top of
-            // this canvas is what actually lets the "shoot up AND down"
-            // read — a little burst upward, a longer unfurl downward —
-            // instead of silently degenerating back into the old top-down
-            // growth.
-            const CORE_J = Math.round(SEGMENTS * 0.14);
+            // Where the strings "shoot" from: the portfolio galaxy's own
+            // live collapsing-core position, tracked into this canvas's
+            // local coordinates every frame in drawStrings (see its own
+            // comment there for why this needs the section's extra
+            // pull-up transform to be geometrically reachable at all).
+            // Ratcheted forward-only across the transition, reset to 0
+            // whenever the section isn't in its reveal window.
+            let liveCoreJ = 0;
+            // Each heading's Y position relative to the strings canvas,
+            // cached once (not a per-frame layout read) and refreshed on
+            // resize — compared every frame against the strings' own
+            // growth front to fade each heading in exactly as the strings
+            // grow past it.
+            let headingLocalTops = [];
+            function cacheHeadingPositions() {
+                const cRect = stringsCanvas.getBoundingClientRect();
+                headingLocalTops = headingEls.map(h => h.getBoundingClientRect().top - cRect.top);
+            }
 
             let sWidth = 0, sHeight = 0;
             const sDpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -1740,6 +1751,7 @@
                 });
             }
             buildFeeders();
+            cacheHeadingPositions();
 
             // Scroll-linked materialize reveal — this is the actual fix
             // for "huge empty gap between blocks," not a CSS margin
@@ -1755,7 +1767,7 @@
             let expertiseTopCached = 0;
             function cacheExpertiseGeometry() { expertiseTopCached = expertiseSection.offsetTop; }
             cacheExpertiseGeometry();
-            window.addEventListener('resize', () => { layoutStrings(); buildFeeders(); cacheExpertiseGeometry(); });
+            window.addEventListener('resize', () => { layoutStrings(); buildFeeders(); cacheExpertiseGeometry(); cacheHeadingPositions(); });
 
             // The reveal window is now locked to RELEASE_WINDOW_PX (the
             // same shared constant the portfolio's fly-off uses, set in
@@ -1863,54 +1875,110 @@
             function drawStrings() {
                 sctx.clearRect(0, 0, sWidth, sHeight);
                 const reveal = revealProgress();
-                if (expertiseStack) expertiseStack.style.opacity = reveal;
-                // CRITICAL BUG FIXED HERE: this used to also call
-                // requestAnimationFrame(stringsFrame) before returning —
-                // but stringsFrame() ALREADY schedules its own next frame
-                // unconditionally right after calling drawStrings(). Since
-                // reveal is 0 for the entire time a visitor is anywhere in
-                // Hero/Portfolio (i.e. almost the whole page, and always
-                // true at initial load), that meant EVERY frame was
-                // scheduling two next-frame callbacks instead of one —
-                // the number of pending rAF callbacks doubled every
-                // frame, an exponential blowup that saturates the event
-                // loop within seconds and looks exactly like "frozen,
-                // won't scroll, infinite loading." Just return here; the
-                // one real requestAnimationFrame(stringsFrame) call
-                // belongs solely at the end of stringsFrame().
-                if (reveal <= 0.001) return;
 
-                // Shoots outward from CORE_J in both directions instead of
-                // growing top-down — jLo/jHi both start pinned at CORE_J
+                // Pull the whole section up during the transition so it
+                // overlaps the still-visible collapsing galaxy instead of
+                // leaving empty space below it — a hump, not a ramp: 0 at
+                // both ends of the window, peaking mid-transition. Easing
+                // back to exactly 0 by full reveal matters: a pull that
+                // stayed applied at reveal===1 would leave the section
+                // permanently offset from its natural resting position for
+                // the rest of the page, opening a gap at the BOTTOM once
+                // the transition is long over. This way it settles exactly
+                // back onto its native document-flow position with zero
+                // lasting offset.
+                const pullShape = 4 * reveal * (1 - reveal);
+                const expertisePull = pullShape * height * 0.65;
+                expertiseSection.style.transform = expertisePull > 0.5 ? `translateY(${-expertisePull}px)` : '';
+
+                if (reveal <= 0.001) {
+                    liveCoreJ = 0;
+                    headingEls.forEach(h => { h.style.opacity = 0; });
+                    // CRITICAL BUG FIXED HERE: this used to also call
+                    // requestAnimationFrame(stringsFrame) before returning —
+                    // but stringsFrame() ALREADY schedules its own next frame
+                    // unconditionally right after calling drawStrings(). Since
+                    // reveal is 0 for the entire time a visitor is anywhere in
+                    // Hero/Portfolio (i.e. almost the whole page, and always
+                    // true at initial load), that meant EVERY frame was
+                    // scheduling two next-frame callbacks instead of one —
+                    // the number of pending rAF callbacks doubled every
+                    // frame, an exponential blowup that saturates the event
+                    // loop within seconds and looks exactly like "frozen,
+                    // won't scroll, infinite loading." Just return here; the
+                    // one real requestAnimationFrame(stringsFrame) call
+                    // belongs solely at the end of stringsFrame().
+                    return;
+                }
+
+                // Where the strings actually shoot from: the portfolio
+                // galaxy's real collapsing-core position, converted into
+                // this canvas's local coordinates the same cheap way the
+                // feeder particles below already do (viewport position
+                // minus the section's current on-screen top — which now
+                // has to include expertisePull, since that's a real visual
+                // offset on top of the section's native scroll position).
+                // Tracking this literally (no pull) doesn't work: the
+                // core's fly-off and the section's native scroll-entry
+                // share the exact same rate, so in section-local
+                // coordinates the two cancel and the point sits
+                // permanently just outside the canvas the whole time. The
+                // pull above is what actually breaks that cancellation and
+                // lets the core genuinely arrive inside the frame around
+                // the transition's midpoint. Ratcheted forward-only
+                // (liveCoreJ never decreases) because the core's local
+                // position isn't monotonic across the window — it rises
+                // into view then the pull eases back off near full reveal —
+                // and the strings should keep growing from wherever
+                // they've already reached, not visually retreat toward a
+                // receding point.
+                const sectionViewportTop = (expertiseTopCached - window.scrollY) - expertisePull;
+                const coreYViewport = (height / 2) - lastFlyOffsetPx;
+                const coreYLocal = coreYViewport - sectionViewportTop;
+                const coreJRaw = Math.max(0, Math.min(SEGMENTS, Math.round((coreYLocal / sHeight) * SEGMENTS)));
+                liveCoreJ = Math.max(liveCoreJ, coreJRaw);
+                const centerJ = liveCoreJ;
+
+                // Shoots outward from centerJ in both directions instead of
+                // growing top-down — jLo/jHi both start pinned at centerJ
                 // and spread apart as reveal runs 0->1, clamped to the
-                // string's real ends. Max(CORE_J, SEGMENTS-CORE_J) as the
+                // string's real ends. Max(centerJ, SEGMENTS-centerJ) as the
                 // spread target guarantees the full string is visible by
                 // reveal===1 regardless of which side is longer.
-                const spreadJ = reveal * Math.max(CORE_J, SEGMENTS - CORE_J);
-                const jLo = Math.max(0, Math.round(CORE_J - spreadJ));
-                const jHi = Math.min(SEGMENTS, Math.round(CORE_J + spreadJ));
+                const spreadJ = reveal * Math.max(centerJ, SEGMENTS - centerJ);
+                const jLo = Math.max(0, Math.round(centerJ - spreadJ));
+                const jHi = Math.min(SEGMENTS, Math.round(centerJ + spreadJ));
                 sctx.lineCap = 'round';
+
+                // Per-heading fade-in: each heading lights up exactly when
+                // the strings' downward growth front (jHi, the edge headed
+                // toward the text mass) passes its own cached Y position,
+                // instead of the whole stack fading on one shared timer —
+                // "струны пролетают под его координатами."
+                const growthFrontY = (jHi / SEGMENTS) * sHeight;
+                headingEls.forEach((h, i) => {
+                    const localTop = headingLocalTops[i] || 0;
+                    const dist = growthFrontY - localTop;
+                    h.style.opacity = Math.max(0, Math.min(1, dist / 40));
+                });
 
                 // Oval-to-strings hand-off. Each feeder's CURRENT position
                 // on the fixed space-canvas is recomputed live (same cx/cy/
                 // orbitAngle/squircle formula render() uses for the
                 // corona's orbit ring — see orbitParticles' own init
-                // comment), then converted from that canvas's viewport-
-                // space coordinates into this canvas's section-local space
-                // via `expertiseTopCached - scrollY` (the section's own
-                // current viewport-top, cheap arithmetic — no
-                // getBoundingClientRect layout read in the hot path). `t`
-                // (== reveal, the same value driving the shoot-out above)
-                // lerps each feeder from that live oval position to its
-                // assigned string's own CORE_J anchor — the same point the
-                // strings themselves are shooting out from — crossfading
-                // blue -> Aurora Green as it goes, then fades out near the
-                // end as it "becomes" the string's own core rather than a
-                // separate dot.
+                // comment), then converted into this canvas's local space
+                // via the same sectionViewportTop computed above (pull
+                // included, so the feeders and the strings agree on where
+                // the core actually is). `t` (== reveal, the same value
+                // driving the shoot-out above) lerps each feeder from that
+                // live oval position to its assigned string's own centerJ
+                // anchor — the same point the strings themselves are
+                // shooting out from — crossfading blue -> Aurora Green as
+                // it goes, then fades out near the end as it "becomes" the
+                // string's own core rather than a separate dot.
                 if (reveal < 0.999) {
                     const cx = width / 2, cy = height / 2 - lastFlyOffsetPx;
                     const orbitAngle = lastRenderTime * 0.00002;
-                    const sectionViewportTop = expertiseTopCached - window.scrollY;
                     const t = reveal;
                     sctx.save();
                     sctx.shadowBlur = 0;
@@ -1923,7 +1991,7 @@
                             const ovalX = cx + ex * width * 0.5 * p.kJitter;
                             const ovalY = (cy + ey * height * 0.5 * p.kJitter) - sectionViewportTop;
 
-                            const targetX = s.x, targetY = pyOf(s, CORE_J);
+                            const targetX = s.x, targetY = pyOf(s, centerJ);
                             const px = ovalX + (targetX - ovalX) * t;
                             const py = ovalY + (targetY - ovalY) * t;
 
