@@ -150,7 +150,14 @@
             font-size: 14px;
             line-height: 1.5;
             color: #fff; opacity: 0.75;
-            margin: 0;
+            margin: 0 auto;
+            /* Explicit center + its own (narrower than the 520px parent)
+               max-width — the short new tagline wraps tightly under the
+               title instead of stretching to the parent's full width. No
+               text-align: justify was present here before, but centering
+               is now stated explicitly rather than inherited. */
+            text-align: center;
+            max-width: 480px;
             mix-blend-mode: difference;
         }
 
@@ -359,7 +366,7 @@
                 <div class="playground-center-content">
                     <span class="playground-eyebrow">Explorations</span>
                     <h2 class="playground-title">Visual <span>playground.</span></h2>
-                    <p class="playground-subtext">Коллекция реальных проектов студии &mdash; кликните на любую карточку, чтобы открыть живой сайт.</p>
+                    <p class="playground-subtext">High-end digital experiences crafted with motion and code. Click to explore.</p>
                 </div>
 
                 <div class="portfolio-columns-container">
@@ -420,6 +427,7 @@
         const canvas = document.getElementById('space-canvas');
         const ctx = canvas.getContext('2d');
         const portfolioSection = document.getElementById('portfolio');
+        const portfolioStickyZone = document.querySelector('.portfolio-sticky-zone');
         const skillsSection = document.getElementById('skills');
         const skillsStickyZone = document.querySelector('.skills-sticky-zone');
 
@@ -876,6 +884,21 @@
         // of their own height, so neither depletes before the other.
         let colLeftHeightCached = 0;
         let colRightHeightCached = 0;
+        // The scroll-progress value (same 0-1 `progress` used to drive the
+        // card columns below) at which the portfolio block should start
+        // flying off screen — computed directly from real card geometry,
+        // not guessed. A column's bottom edge, at a given progress, sits at
+        // colHeightCached * (1 - progress * multiplier) px from the top of
+        // the (pinned) viewport — that's just its resting position
+        // (colHeightCached, since columns fill downward from y=0) plus the
+        // same -progress*colHeightCached*multiplier translateY the render
+        // loop already applies. Solving that for "bottom edge == 50vh"
+        // gives the progress at which THIS column's last card crosses the
+        // 50vh line. Computed for both columns (they use different
+        // multipliers, 1.15 vs 0.95); take the larger of the two results,
+        // since "the lowest card" means waiting for whichever column's
+        // last card is slower to clear 50vh, not the first one to do it.
+        let releaseProgress = 0.7;
         function cacheSectionGeometry() {
             portfolioTopCached = portfolioSection.offsetTop;
             portfolioHeightCached = portfolioSection.offsetHeight;
@@ -883,6 +906,16 @@
             skillsHeightCached = skillsSection.offsetHeight;
             colLeftHeightCached = colLeft.scrollHeight;
             colRightHeightCached = colRight.scrollHeight;
+
+            const halfViewport = height * 0.5;
+            function progressAtHalfViewport(colHeight, multiplier) {
+                if (colHeight <= 0) return 0;
+                const p = (1 - halfViewport / colHeight) / multiplier;
+                return Math.max(0, Math.min(0.95, p));
+            }
+            const leftReleaseP = progressAtHalfViewport(colLeftHeightCached, 1.15);
+            const rightReleaseP = progressAtHalfViewport(colRightHeightCached, 0.95);
+            releaseProgress = Math.max(leftReleaseP, rightReleaseP);
         }
         cacheSectionGeometry();
 
@@ -1050,6 +1083,22 @@
             colLeft.style.transform = `translate3d(${-arcSwing}px, ${currentLeftY}px, 0)`;
             colRight.style.transform = `translate3d(${arcSwing}px, ${currentRightY}px, 0)`;
 
+            // --- Early release: once the lowest card's bottom edge has
+            // crossed 50vh (releaseProgress, computed from real geometry
+            // above), the whole pinned zone starts riding up and off with
+            // the remaining scroll instead of staying stuck through the
+            // rest of it. releaseAmount is a pure function of `progress`
+            // (itself a pure function of scrollY) — no independent timer,
+            // no easing lag, so it can never drift out of sync with the
+            // actual scroll position it's driving off of. Applied to
+            // .portfolio-sticky-zone directly: sticky positioning is a
+            // layout-time calculation, transforms happen at paint time, so
+            // the two don't fight — the zone stays "stuck" for layout
+            // purposes while visually riding up on top of that.
+            const releaseAmount = Math.max(0, Math.min(1, (progress - releaseProgress) / (1 - releaseProgress)));
+            const flyOffsetPx = releaseAmount * height;
+            portfolioStickyZone.style.transform = flyOffsetPx > 0 ? `translateY(${-flyOffsetPx}px)` : '';
+
             // --- nebula clouds — Hero-only now. Swells through the first half
             // of the burst, then fades out over the second half so it's
             // fully gone by scrollY 500 — handing off to matte black + the
@@ -1119,7 +1168,13 @@
                 // from stretching the ellipse further.
                 const rimRx = width * 0.54 * breathe;
                 const rimRy = height * 0.54 * breathe;
-                const cx = width / 2, cy = height / 2;
+                // cy carries the same flyOffsetPx the DOM sticky-zone is
+                // being translated by, so the corona/galaxy/ring ride up in
+                // lockstep with the text and cards rather than staying put
+                // while everything else leaves — canvas content has no
+                // transform of its own to piggyback on, so the offset has
+                // to be baked into the center coordinate directly.
+                const cx = width / 2, cy = height / 2 - flyOffsetPx;
                 const a = horizonAlpha * pulse;
 
                 // rot still drives the streamers/sparks below, just no
