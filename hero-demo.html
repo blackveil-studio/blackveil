@@ -886,19 +886,26 @@
         let colRightHeightCached = 0;
         // The scroll-progress value (same 0-1 `progress` used to drive the
         // card columns below) at which the portfolio block should start
-        // flying off screen — computed directly from real card geometry,
-        // not guessed. A column's bottom edge, at a given progress, sits at
-        // colHeightCached * (1 - progress * multiplier) px from the top of
-        // the (pinned) viewport — that's just its resting position
-        // (colHeightCached, since columns fill downward from y=0) plus the
-        // same -progress*colHeightCached*multiplier translateY the render
-        // loop already applies. Solving that for "bottom edge == 50vh"
-        // gives the progress at which THIS column's last card crosses the
-        // 50vh line. Computed for both columns (they use different
-        // multipliers, 1.15 vs 0.95); take the larger of the two results,
-        // since "the lowest card" means waiting for whichever column's
-        // last card is slower to clear 50vh, not the first one to do it.
-        let releaseProgress = 0.7;
+        // flying off screen. Tied to one specific card — the last card in
+        // the right column ("Innovative Ink") — target: its bottom edge
+        // sits 175px above the bottom of the viewport (middle of the
+        // requested 150-200px window).
+        //
+        // First attempt computed this from offsetTop/offsetHeight plus the
+        // column's translateY formula by hand — wrong by ~80px in testing.
+        // The gap was .portfolio-col-right .playground-card's own
+        // `rotate(4deg)` tilt: getBoundingClientRect() reports the rotated
+        // element's actual painted bounding box, which is measurably
+        // taller/offset from its unrotated layout box (measured: 178px
+        // rendered vs 158px offsetHeight), and re-deriving that rotation
+        // math by hand a second time isn't worth the risk of getting it
+        // wrong again. Measuring the real rect at two known transform
+        // states and fitting a line is exact regardless of rotation,
+        // origin, or anything else applied to the card — the relationship
+        // is linear in progress either way, since the column's own
+        // translateY is linear and rotation only ever contributes a fixed
+        // offset to that line, not a curve.
+        let releaseProgress = 0.5;
         function cacheSectionGeometry() {
             portfolioTopCached = portfolioSection.offsetTop;
             portfolioHeightCached = portfolioSection.offsetHeight;
@@ -907,15 +914,59 @@
             colLeftHeightCached = colLeft.scrollHeight;
             colRightHeightCached = colRight.scrollHeight;
 
-            const halfViewport = height * 0.5;
-            function progressAtHalfViewport(colHeight, multiplier) {
-                if (colHeight <= 0) return 0;
-                const p = (1 - halfViewport / colHeight) / multiplier;
-                return Math.max(0, Math.min(0.95, p));
-            }
-            const leftReleaseP = progressAtHalfViewport(colLeftHeightCached, 1.15);
-            const rightReleaseP = progressAtHalfViewport(colRightHeightCached, 0.95);
-            releaseProgress = Math.max(leftReleaseP, rightReleaseP);
+            // Measures ONE fixed quantity: how far below colRight's own top
+            // edge the (rotated) last card's bottom edge sits. This is a
+            // pure local/layout property of the card — its offsetTop,
+            // offsetHeight, and the fixed rotate(4deg) tilt each right-
+            // column card has — and provably independent of colRight's own
+            // translateY, since translating a parent shifts every
+            // descendant's rect by the exact same delta, which cancels out
+            // of a (child - parent) subtraction. That independence is what
+            // makes this safe to measure at ANY moment (page load, mid-
+            // scroll, whatever), instead of needing the sticky zone to
+            // already be pinned.
+            //
+            // Two real bugs found getting here, both from measuring
+            // getBoundingClientRect() while something was mid-transition:
+            // .portfolio-columns-container has its own `transition:
+            // transform 0.32s` for its reveal — forcing its transform via
+            // inline style still respects that transition (any change to a
+            // transitioned property animates, class-driven or not), so an
+            // immediate read after setting it was catching a mid-animation
+            // value, not the settled one. Disabling the transition for the
+            // instant of measurement (then restoring it) fixes that, and
+            // is the only way this needed to touch that element at all —
+            // simply not touching it, unlike a first attempt at this, left
+            // whatever un-settled transform happened to be active bleeding
+            // into the measurement.
+            const lastRightCard = colRight.lastElementChild;
+            const columnsContainer = colRight.parentElement;
+            const savedContainerTransition = columnsContainer.style.transition;
+            const savedContainerTransform = columnsContainer.style.transform;
+            const savedColTransform = colRight.style.transform;
+            columnsContainer.style.transition = 'none';
+            columnsContainer.style.transform = 'translateY(0px)';
+            colRight.style.transform = 'translate3d(0px, 0px, 0)';
+            void columnsContainer.offsetHeight; // force layout so the transition-free style is actually applied before the read below
+            const colRightTopNow = colRight.getBoundingClientRect().top;
+            const cardBottomNow = lastRightCard.getBoundingClientRect().bottom;
+            const rotatedBottomOffset = cardBottomNow - colRightTopNow;
+            colRight.style.transform = savedColTransform;
+            columnsContainer.style.transform = savedContainerTransform;
+            columnsContainer.style.transition = savedContainerTransition;
+
+            // colRight's own static top (when the zone is actually pinned)
+            // is 0 — .portfolio-columns-container sits at top:0 within the
+            // sticky zone, colRight sits at top:0 within that — so its
+            // in-viewport top at a given progress is just its own
+            // translateY, the same -progress*colRightHeightCached*0.95 the
+            // render loop already applies. Solve for the card's bottom
+            // edge sitting 175px above the bottom of the viewport (middle
+            // of the requested 150-200px window).
+            const TARGET_DIST_FROM_BOTTOM = 175;
+            const targetBottom = height - TARGET_DIST_FROM_BOTTOM;
+            const p = (rotatedBottomOffset - targetBottom) / (colRightHeightCached * 0.95);
+            releaseProgress = Math.max(0, Math.min(0.95, p));
         }
         cacheSectionGeometry();
 
