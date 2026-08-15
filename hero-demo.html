@@ -114,7 +114,7 @@
             font-family: 'DM Sans', sans-serif;
             font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase;
             color: rgba(255,255,255,.45); font-weight: 700; margin-bottom: 12px; display: block;
-            text-shadow: 0 2px 16px rgba(2, 2, 8, 0.85);
+            text-shadow: 0 1px 6px rgba(2, 2, 8, 0.6);
         }
         .playground-title {
             font-family: 'Bricolage Grotesque', sans-serif;
@@ -124,18 +124,16 @@
             color: #f5f5f7;
             margin: 0 0 18px;
             line-height: 1;
-            /* The galaxy behind this text got dense/bright enough that white
-               text was losing contrast against it — a dark shadow anchors
-               legibility regardless of whatever the canvas is doing back
-               there, rather than relying on the canvas to stay dim exactly
-               where the text happens to sit. */
-            text-shadow: 0 4px 28px rgba(2, 2, 8, 0.9), 0 2px 10px rgba(2, 2, 8, 0.8);
+            /* A tight, low grounding shadow — not a soft cloud. Blur radius
+               kept small (10px) and alpha moderate (0.6) so it reads as
+               contrast under the letters, not a dark smudge around them. */
+            text-shadow: 0 2px 10px rgba(2, 2, 8, 0.6);
         }
         .playground-title span {
             font-style: italic;
             background: linear-gradient(90deg, #6b8cf5, #b06ee8, #e8548c);
             -webkit-background-clip: text; background-clip: text; color: transparent;
-            filter: drop-shadow(0 4px 20px rgba(2, 2, 8, 0.85));
+            filter: drop-shadow(0 2px 8px rgba(2, 2, 8, 0.6));
         }
         .playground-subtext {
             font-family: 'DM Sans', sans-serif;
@@ -143,7 +141,7 @@
             line-height: 1.5;
             color: rgba(255,255,255,.5);
             margin: 0;
-            text-shadow: 0 2px 16px rgba(2, 2, 8, 0.85);
+            text-shadow: 0 1px 6px rgba(2, 2, 8, 0.55);
         }
 
         .portfolio-columns-container {
@@ -650,6 +648,16 @@
             // packed-together ones read as texture. This also directly
             // helps the text-contrast problem — less raw brightness clutter
             // sitting right behind it.
+            // Switched off 'lighter' for the star points specifically. The
+            // ambient haze/midGlow/core above are SUPPOSED to bloom into
+            // each other — that's what makes them read as glow. But with
+            // ~126 overlapping dot-halos also blending additively on top of
+            // that, everything within the inner radius summed into one
+            // bright fog and only the sparse outer dots read as separate
+            // points — which is exactly the "blurred blue spot" complaint.
+            // Plain alpha compositing keeps each star a discrete shape
+            // regardless of how many neighbors it overlaps.
+            sctx.globalCompositeOperation = 'source-over';
             const arms = 3;
             for (let arm = 0; arm < arms; arm++) {
                 const armOffset = (arm / arms) * Math.PI * 2;
@@ -1156,12 +1164,21 @@
                 // (haze/midglow/core) are wide enough that the difference
                 // there is invisible, but the small bright dots keep a real
                 // edge instead of blurring into their surroundings.
+                // This backdrop copy was the other real cause of "still
+                // blurry": a second full copy of the SAME detailed sprite,
+                // rotated and rescaled independently, printed underneath the
+                // sharp one. Two offset copies of the same star pattern sum
+                // into a smeared double-exposure, not a "hazy layer behind
+                // it" — no amount of dot-sharpening in the sprite itself
+                // could fix that, since the blur was coming from here, not
+                // from the sprite. Alpha cut hard (0.35 -> 0.08) so it stays
+                // a faint depth cue instead of competing with the sharp copy.
                 ctx.save();
                 ctx.imageSmoothingEnabled = false;
-                ctx.globalAlpha = a * 0.35 * galaxyPulse;
+                ctx.globalAlpha = a * 0.08 * galaxyPulse;
                 ctx.translate(cx, cy);
                 ctx.rotate(-time * 0.000018); // counter-rotating, slower — the "further back" layer
-                const backDraw = galaxyDraw * 1.25;
+                const backDraw = galaxyDraw * 1.1;
                 ctx.drawImage(galaxySprite, -backDraw / 2, -backDraw / 2, backDraw, backDraw);
                 ctx.restore();
 
@@ -1192,8 +1209,8 @@
                 ctx.save();
                 ctx.globalCompositeOperation = 'source-over';
                 const wellGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 260);
-                wellGrad.addColorStop(0, `rgba(2, 2, 8, ${a * 0.55})`);
-                wellGrad.addColorStop(0.7, `rgba(2, 2, 8, ${a * 0.3})`);
+                wellGrad.addColorStop(0, `rgba(2, 2, 8, ${a * 0.35})`);
+                wellGrad.addColorStop(0.7, `rgba(2, 2, 8, ${a * 0.18})`);
                 wellGrad.addColorStop(1, 'rgba(2, 2, 8, 0)');
                 ctx.beginPath();
                 ctx.arc(cx, cy, 260, 0, Math.PI * 2);
