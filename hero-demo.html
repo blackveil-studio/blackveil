@@ -19,7 +19,7 @@
             margin: 0;
             padding: 0;
             width: 100%;
-            background-color: #020208;
+            background-color: #03030c;
             font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             /* overflow-x: hidden (without overflow-y set) forces the UA to compute
                overflow-y as auto per spec, turning html/body into their own scroll
@@ -89,12 +89,11 @@
         }
         .playground-center-content {
             position: absolute;
-            /* Pushed higher still — 7vh (bottom of the requested 7-10vh
-               range, i.e. the highest allowed position) puts the whole
-               block above the card oval on clean dark background, with
+            /* Pushed to the top of the sticky viewport — clear of every
+               star in the galaxy, sitting on clean dark background, with
                mix-blend-mode below as a second, independent safety net
                rather than the only mechanism. */
-            top: 7vh;
+            top: 3vh;
             left: 50%;
             /* starts slightly lower, slides up 16px into its resting spot
                once .scrolled lands — same settle motion as before, just a
@@ -186,8 +185,12 @@
             flex-direction: column;
             will-change: transform;
         }
-        .portfolio-col-left { left: 12vw; }
-        .portfolio-col-right { right: 12vw; }
+        /* Distance from center to the column's own edge was 38vw
+           (50 - 12). +25% on that distance = 47.5vw, i.e. left/right: 2.5vw
+           — cards pushed out toward the screen edges, opening up the
+           center for the galaxy. */
+        .portfolio-col-left { left: 2.5vw; }
+        .portfolio-col-right { right: 2.5vw; }
 
         .playground-card {
             position: relative;
@@ -317,6 +320,11 @@
 
         @media (max-width: 900px) {
             #portfolio { height: 260vh; }
+            /* Keep the pre-widening offset here — the desktop-only 2.5vw
+               value above would crowd these already-wider (34vw) columns
+               at this breakpoint. */
+            .portfolio-col-left { left: 12vw; }
+            .portfolio-col-right { right: 12vw; }
             .portfolio-col-left, .portfolio-col-right { width: 34vw; }
             .playground-card { margin-bottom: 60px; }
             .playground-title { font-size: 6.5vw; }
@@ -647,8 +655,8 @@
             // small and vivid rather than wide and fading to grey.
             sctx.globalCompositeOperation = 'lighter';
             const bulge = sctx.createRadialGradient(scx, scy, 0, scx, scy, GALAXY_SPRITE_SIZE * 0.1);
-            bulge.addColorStop(0, `rgba(${galaxyNeon[1].r}, ${galaxyNeon[1].g}, ${galaxyNeon[1].b}, 0.4)`);
-            bulge.addColorStop(0.6, `rgba(${galaxyNeon[2].r}, ${galaxyNeon[2].g}, ${galaxyNeon[2].b}, 0.22)`);
+            bulge.addColorStop(0, `rgba(${galaxyNeon[1].r}, ${galaxyNeon[1].g}, ${galaxyNeon[1].b}, 0.22)`);
+            bulge.addColorStop(0.6, `rgba(${galaxyNeon[2].r}, ${galaxyNeon[2].g}, ${galaxyNeon[2].b}, 0.12)`);
             bulge.addColorStop(1, `rgba(${galaxyNeon[2].r}, ${galaxyNeon[2].g}, ${galaxyNeon[2].b}, 0)`);
             sctx.beginPath();
             sctx.arc(scx, scy, GALAXY_SPRITE_SIZE * 0.1, 0, Math.PI * 2);
@@ -663,8 +671,8 @@
             // spanning shape redrawn every frame).
             function softStar(px, py, radius, r, g, b, peakAlpha, glow) {
                 if (glow) {
-                    sctx.shadowBlur = radius * 2.4;
-                    sctx.shadowColor = `rgba(${r}, ${g}, ${b}, ${Math.min(1, peakAlpha * 1.15)})`;
+                    sctx.shadowBlur = radius * 1.6;
+                    sctx.shadowColor = `rgba(${r}, ${g}, ${b}, ${Math.min(1, peakAlpha)})`;
                 }
                 const grad = sctx.createRadialGradient(px, py, 0, px, py, radius);
                 grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${peakAlpha})`);
@@ -680,16 +688,18 @@
             // Core cluster — dense pack of small soft round stars, cycling
             // through all 3 neon hues. No radius-based alpha/size falloff —
             // every star burns at the same uniform brightness regardless of
-            // position, per direct instruction ("no dips anywhere").
-            for (let i = 0; i < 190; i++) {
+            // position, per direct instruction ("no dips anywhere"). Count
+            // cut 190 -> 133 (-30%); size and glow bumped up so the same
+            // visual density holds with fewer draw calls.
+            for (let i = 0; i < 133; i++) {
                 const ang = Math.random() * Math.PI * 2;
-                const rad = Math.pow(Math.random(), 1.6) * GALAXY_SPRITE_SIZE * 0.12;
+                const rad = Math.pow(Math.random(), 1.3) * GALAXY_SPRITE_SIZE * 0.12;
                 const px = scx + Math.cos(ang) * rad;
                 const py = scy + Math.sin(ang) * rad * 0.55;
-                const size = 2.4 + Math.random() * 2.8;
+                const size = 2.6 + Math.random() * 3.0;
                 const color = galaxyNeon[i % 3];
-                softStar(px, py, size * 2.6, color.r, color.g, color.b, 0.56 + Math.random() * 0.2, false);
-                softStar(px, py, Math.max(0.9, size * 0.55), 255, 255, 255, 0.58 + Math.random() * 0.18, true);
+                softStar(px, py, size * 2.6, color.r, color.g, color.b, 0.5 + Math.random() * 0.18, false);
+                softStar(px, py, Math.max(1.0, size * 0.55), 255, 255, 255, 0.52 + Math.random() * 0.15, true);
             }
 
             // 3 arms along the log-spiral centerline, each star given a
@@ -703,8 +713,10 @@
             // "паутина": a thread of points scattered around a curve reads
             // as a solid dimensional stream, a thread of points sitting
             // exactly ON a curve reads as a wire.
+            // Count cut 240 -> 168/arm (-30%); size and glow bumped to
+            // hold the same visual density with fewer draw calls.
             const arms = 3;
-            const POINTS_PER_ARM = 240;
+            const POINTS_PER_ARM = 168;
             for (let arm = 0; arm < arms; arm++) {
                 const armOffset = (arm / arms) * Math.PI * 2;
                 const color = galaxyNeon[arm % 3];
@@ -720,34 +732,38 @@
                     const perpAngle = theta + Math.PI / 2;
                     const px = scx + baseX + Math.cos(perpAngle) * perp;
                     const py = scy + (baseY + Math.sin(perpAngle) * perp) * 0.55; // flattened, like a galaxy seen at an angle
-                    const size = (1.6 + (1 - pz) * 2.4);
-                    const dotAlpha = 0.6 + Math.random() * 0.2;
-                    softStar(px, py, size * 2.3, color.r, color.g, color.b, dotAlpha * 0.7, false);
-                    softStar(px, py, Math.max(0.8, size * 0.5), 255, 255, 255, Math.min(0.78, dotAlpha * (0.8 + (1 - pz) * 0.32)), true);
+                    const size = (1.8 + (1 - pz) * 2.6);
+                    const dotAlpha = 0.55 + Math.random() * 0.2;
+                    softStar(px, py, size * 2.3, color.r, color.g, color.b, dotAlpha * 0.62, false);
+                    softStar(px, py, Math.max(0.8, size * 0.5), 255, 255, 255, Math.min(0.7, dotAlpha * (0.75 + (1 - pz) * 0.3)), true);
                 }
             }
         })();
 
-        // A handful of LIVE sparkle points along the same spiral pattern as
-        // the (static) sprite — twinkle via alpha only, drawn in the sprite's
-        // own local/rotated space so they turn together with it. This is
-        // what makes the galaxy read as alive without redrawing the sprite
-        // itself: 18 cheap filled circles, no gradients, not a return to
-        // the per-frame-gradient cost that was just removed.
-        const galaxySparkles = [];
-        for (let arm = 0; arm < 3; arm++) {
-            const armOffset = (arm / 3) * Math.PI * 2;
-            const color = galaxyNeon[arm % 3];
-            for (let s = 0; s < 6; s++) {
-                const tNorm = 0.15 + s * 0.14 + Math.random() * 0.06;
-                const { theta, r } = spiralPoint(tNorm, armOffset);
-                galaxySparkles.push({
-                    x: Math.cos(theta) * r,
-                    y: Math.sin(theta) * r * 0.55,
-                    size: Math.random() * 1.5 + 1,
-                    twinkleSpeed: Math.random() * 0.0025 + 0.0008,
-                    seed: Math.random() * 100,
-                    r: color.r, g: color.g, b: color.b
+        // The live twinkling sparkle layer (18 points, alpha modulated via
+        // Math.sin every frame, plus a per-frame createRadialGradient each)
+        // was removed outright — it was both a real per-frame cost and, by
+        // definition, a flicker source. "No dimming/pulsing, no gradients
+        // outside init" rules out the whole mechanism, not just parts of
+        // it; the main star field is already dense enough to not need a
+        // separate accent layer on top.
+        //
+        // Side streamers: sparse dust flanking the LEFT/RIGHT edges of the
+        // screen, filling the empty gap outside the card oval. Positions
+        // are fixed at init (angle/radius parameters only — actual x/y is
+        // computed from the current width/height each frame, same pattern
+        // as rimDust below), and every point draws as one flat, static-
+        // alpha fill — no gradient, no shadowBlur, no twinkle, so this
+        // whole layer costs 36 plain ctx.arc()+fill() calls per frame.
+        const sideStreamers = [];
+        for (let side = -1; side <= 1; side += 2) {
+            for (let i = 0; i < 18; i++) {
+                const t = i / 17;
+                sideStreamers.push({
+                    side, t,
+                    rJitter: (Math.random() - 0.5) * 0.14,
+                    size: 1.3 + Math.random() * 2.1,
+                    color: galaxyNeon[i % 3]
                 });
             }
         }
@@ -1039,7 +1055,7 @@
 
             // --- background: forced dark theme, always ---
             ctx.clearRect(0, 0, width, height);
-            ctx.fillStyle = '#020208';
+            ctx.fillStyle = '#03030c';
             ctx.fillRect(0, 0, width, height);
 
             // --- Zone 2 corridor: orbital arc motion, strictly scroll-driven ---
@@ -1195,9 +1211,7 @@
                 // read as web-like visual noise, on top of the spiral math
                 // itself needing a real curve. A single monumental copy,
                 // rotating on one clock, has no second copy to cross with.
-                const galaxyPulse = 0.85 + 0.15 * Math.sin(time * 0.0006);
                 const galaxyDraw = 2350;
-                const galaxyScale = galaxyDraw / GALAXY_SPRITE_SIZE;
                 const galaxyRotSpeed = 0.000028;
 
                 // Composite mode set explicitly at the blit rather than
@@ -1209,36 +1223,54 @@
                 // the rim and the Hero's nebula clouds too — pairing it
                 // with a sprite whose own peak brightness per star is
                 // capped (see paintGalaxySprite) is what keeps it safe.
+                //
+                // Alpha is plain horizonAlpha now, NOT the shared `a`
+                // variable used above for the corona rim — `a` already has
+                // the rim's own slow sin-based "breathing" pulse baked into
+                // it (`const a = horizonAlpha * pulse`), which the galaxy
+                // was inheriting even after its own separate galaxyPulse
+                // term was removed. The rim keeps its breathe/pulse — that
+                // wasn't part of what "the galaxy" was asked to stop doing
+                // — but the galaxy itself now burns at one flat, stable
+                // brightness with zero Math.sin/cos anywhere in its alpha.
                 ctx.save();
                 ctx.globalCompositeOperation = 'screen';
                 ctx.imageSmoothingEnabled = true;
-                ctx.globalAlpha = a * galaxyPulse;
+                ctx.globalAlpha = horizonAlpha;
                 ctx.translate(cx, cy);
                 ctx.rotate(time * galaxyRotSpeed); // autonomous, own clock only — no mouse term anywhere in this block
                 ctx.drawImage(galaxySprite, -galaxyDraw / 2, -galaxyDraw / 2, galaxyDraw, galaxyDraw);
-                // 18 tiny per-sparkle gradients, recreated every frame —
-                // negligible at this count (the expensive pattern this
-                // project already fixed once was 5 gradients each covering
-                // most of the viewport; these are a couple pixels across).
-                galaxySparkles.forEach(sp => {
-                    const twinkle = 0.25 + Math.sin(time * sp.twinkleSpeed + sp.seed) * 0.4 + 0.4;
-                    const sx = sp.x * galaxyScale, sy = sp.y * galaxyScale, ssize = Math.max(1.2, sp.size * galaxyScale * 1.4);
-                    const alpha = Math.min(1, twinkle);
-                    const g = ctx.createRadialGradient(sx, sy, 0, sx, sy, ssize);
-                    g.addColorStop(0, `rgba(${sp.r}, ${sp.g}, ${sp.b}, ${alpha})`);
-                    g.addColorStop(1, `rgba(${sp.r}, ${sp.g}, ${sp.b}, 0)`);
+                ctx.restore();
+
+                // Side streamers — sparse dust flanking the screen's left/
+                // right edges, outside the card oval, filling what was
+                // empty space. Flat, static-alpha fills only: no gradient,
+                // no shadowBlur, no twinkle, computed from the same
+                // rimRx/rimRy ellipse the corona itself uses so it reads as
+                // part of the same structure, not a bolted-on extra.
+                ctx.save();
+                ctx.globalCompositeOperation = 'screen';
+                ctx.globalAlpha = horizonAlpha * 0.55;
+                sideStreamers.forEach(sp => {
+                    // Symmetric sweep centered on due-left (PI) or due-right
+                    // (0) — spans both above and below the horizontal, not
+                    // just one side of it.
+                    const center = sp.side < 0 ? Math.PI : 0;
+                    const angle = center + (sp.t - 0.5) * Math.PI * 0.56;
+                    const rScale = 1.05 + Math.sin(sp.t * Math.PI) * 0.62 + sp.rJitter;
+                    const px = cx + Math.cos(angle) * rimRx * rScale;
+                    const py = cy + Math.sin(angle) * rimRy * rScale;
                     ctx.beginPath();
-                    ctx.arc(sx, sy, ssize, 0, Math.PI * 2);
-                    ctx.fillStyle = g;
+                    ctx.arc(px, py, sp.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${sp.color.r}, ${sp.color.g}, ${sp.color.b}, 0.7)`;
                     ctx.fill();
                 });
                 ctx.restore();
 
                 // No text-contrast trick needed here at all anymore — the
-                // text moved off to the top third of the screen (see CSS),
-                // so it no longer shares screen space with the galaxy. The
-                // galaxy runs at full, uncompromised brightness everywhere,
-                // with no darkening, blend-mode, or blur panel fighting it.
+                // text sits at the very top of the sticky viewport (see
+                // CSS), so it no longer shares screen space with the
+                // galaxy. mix-blend-mode on the text itself is the backup.
 
                 // Dust caught in the corona's light — twinkling points fixed
                 // to the rim (angle + radius jitter set once at init), so
