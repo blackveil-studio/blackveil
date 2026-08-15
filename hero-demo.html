@@ -1705,7 +1705,21 @@
                 sctx.clearRect(0, 0, sWidth, sHeight);
                 const reveal = revealProgress();
                 if (expertiseStack) expertiseStack.style.opacity = reveal;
-                if (reveal <= 0.001) { requestAnimationFrame(stringsFrame); return; }
+                // CRITICAL BUG FIXED HERE: this used to also call
+                // requestAnimationFrame(stringsFrame) before returning —
+                // but stringsFrame() ALREADY schedules its own next frame
+                // unconditionally right after calling drawStrings(). Since
+                // reveal is 0 for the entire time a visitor is anywhere in
+                // Hero/Portfolio (i.e. almost the whole page, and always
+                // true at initial load), that meant EVERY frame was
+                // scheduling two next-frame callbacks instead of one —
+                // the number of pending rAF callbacks doubled every
+                // frame, an exponential blowup that saturates the event
+                // loop within seconds and looks exactly like "frozen,
+                // won't scroll, infinite loading." Just return here; the
+                // one real requestAnimationFrame(stringsFrame) call
+                // belongs solely at the end of stringsFrame().
+                if (reveal <= 0.001) return;
 
                 const visibleCount = Math.max(2, Math.round(reveal * (SEGMENTS + 1)));
                 sctx.lineCap = 'round';
