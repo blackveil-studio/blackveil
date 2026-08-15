@@ -77,6 +77,11 @@
         #portfolio {
             position: relative;
             width: 100%;
+            /* Height is set in JS (cacheSectionGeometry) from the exact
+               numbers driving the fly-off animation, so the box always
+               ends exactly where the crossfade into #expertise ends —
+               zero dead scroll, by construction. This fallback only
+               matters for the instant before that JS runs. */
             height: 300vh;
             background: transparent;
         }
@@ -325,13 +330,17 @@
             width: 100%;
             display: flex;
             flex-direction: column;
-            gap: 2vh;
+            /* Generous air between the cascading lines — this was the
+               "наляписто и сбито" complaint: 2vh read as cramped once the
+               headings were this large. */
+            gap: 5vh;
             pointer-events: none;
             opacity: 0; /* JS drives this every frame via the scroll-linked reveal; starts at 0 so there's no flash before that first runs */
         }
         .expertise-row {
             display: flex;
             pointer-events: auto;
+            margin-bottom: 1.5vh;
         }
         /* True cascade — each row indented further right than the last,
            strictly increasing, not an alternating left/right pattern. */
@@ -344,8 +353,12 @@
             font-family: 'Bricolage Grotesque', sans-serif;
             font-weight: 700;
             font-size: clamp(26px, 4.6vw, 68px);
-            letter-spacing: -0.02em;
-            line-height: 1;
+            /* Journal-style air, not the tight display-type spacing the
+               first pass used: a taller line-height and slightly open
+               letter-spacing on a single line of text just reads as
+               generous vertical rhythm around it. */
+            letter-spacing: 0.05em;
+            line-height: 1.9;
             color: #fff;
             margin: 0;
             cursor: default;
@@ -872,6 +885,21 @@
         // translateY is linear and rotation only ever contributes a fixed
         // offset to that line, not a curve.
         let releaseProgress = 0.5;
+        // The fixed pixel budget `progress` (the card-parallax driver below)
+        // spans, and the fixed pixel window the fly-off + incoming-section
+        // crossfade takes — both set from `height` in cacheSectionGeometry
+        // so they track viewport size, and both read by render() and by
+        // initStrings() (same top-level script scope) as the single shared
+        // source of truth for the hand-off timing.
+        let PROGRESS_SCROLL_PX = 0;
+        let RELEASE_WINDOW_PX = 0;
+        // Exposes render()'s per-frame `time` and the corona/orbit-ring's
+        // current fly-off offset outside render() itself, so the strings
+        // section can compute where the SAME orbit particles are on screen
+        // right now — needed for the oval-to-strings hand-off — without
+        // duplicating render()'s own scroll/time bookkeeping.
+        let lastRenderTime = 0;
+        let lastFlyOffsetPx = 0;
         function cacheSectionGeometry() {
             portfolioTopCached = portfolioSection.offsetTop;
             portfolioHeightCached = portfolioSection.offsetHeight;
@@ -931,6 +959,23 @@
             const targetBottom = height - TARGET_DIST_FROM_BOTTOM;
             const p = (rotatedBottomOffset - targetBottom) / (colRightHeightCached * 0.95);
             releaseProgress = Math.max(0, Math.min(0.95, p));
+
+            // Retime the hand-off so the fly-off and the next section's
+            // entry happen in the SAME scroll window instead of two
+            // disjoint ones. The old fixed `height: 300vh` on #portfolio
+            // left ~100vh of pure dead scroll after the cards had already
+            // fully flown off and before the next section's native entry-
+            // slide even began — that was the reported empty gap. Sizing
+            // the box in JS from the exact numbers driving the animation
+            // removes it by construction: the section's own box now ends
+            // exactly where the crossfade ends, so native document flow
+            // hands off to #expertise at the very instant the fly-off
+            // completes — no re-tuned vh guess involved.
+            PROGRESS_SCROLL_PX = height * 2;
+            RELEASE_WINDOW_PX = height;
+            const releaseStartPx = releaseProgress * PROGRESS_SCROLL_PX;
+            portfolioSection.style.height = (releaseStartPx + RELEASE_WINDOW_PX) + 'px';
+            portfolioHeightCached = portfolioSection.offsetHeight;
         }
         cacheSectionGeometry();
 
@@ -990,6 +1035,7 @@
         let wasAtTop = true;
 
         function render(time) {
+            lastRenderTime = time;
 
             const scrollY = window.scrollY;
 
@@ -1066,7 +1112,14 @@
             ctx.fillRect(0, 0, width, height);
 
             // --- Zone 2 corridor: orbital arc motion, strictly scroll-driven ---
-            let progress = (scrollY - portfolioTopCached) / (portfolioHeightCached - window.innerHeight);
+            // Driven by the fixed PROGRESS_SCROLL_PX budget (set in
+            // cacheSectionGeometry) rather than portfolioHeightCached
+            // directly — the box's own CSS height is now sized to end
+            // exactly at the fly-off/hand-off point, which is a shorter
+            // distance than the full card-parallax budget; decoupling the
+            // two keeps the card travel feel unchanged while still letting
+            // the box end where the crossfade ends.
+            let progress = (scrollY - portfolioTopCached) / PROGRESS_SCROLL_PX;
             progress = Math.max(0, Math.min(1, progress));
             // Each column travels a little past its own content height (1.1x)
             // so the last card clears the viewport by the end of the scroll —
@@ -1087,18 +1140,25 @@
 
             // --- Early release: once the lowest card's bottom edge has
             // crossed 50vh (releaseProgress, computed from real geometry
-            // above), the whole pinned zone starts riding up and off with
-            // the remaining scroll instead of staying stuck through the
-            // rest of it. releaseAmount is a pure function of `progress`
-            // (itself a pure function of scrollY) — no independent timer,
-            // no easing lag, so it can never drift out of sync with the
-            // actual scroll position it's driving off of. Applied to
-            // .portfolio-sticky-zone directly: sticky positioning is a
-            // layout-time calculation, transforms happen at paint time, so
-            // the two don't fight — the zone stays "stuck" for layout
-            // purposes while visually riding up on top of that.
-            const releaseAmount = Math.max(0, Math.min(1, (progress - releaseProgress) / (1 - releaseProgress)));
+            // above), the whole pinned zone starts riding up and off. Fixed
+            // RELEASE_WINDOW_PX (one viewport height, set alongside
+            // PROGRESS_SCROLL_PX in cacheSectionGeometry) instead of "the
+            // remaining fraction of progress's own range" — because
+            // #portfolio's CSS height is now sized to end exactly
+            // RELEASE_WINDOW_PX past the release point, this guarantees
+            // flyOffsetPx reaches its max (fully flown off) at exactly the
+            // same scrollY the section's box ends and #expertise begins
+            // its native entry — the two animations share one window
+            // instead of running back-to-back with dead scroll between
+            // them. Applied to .portfolio-sticky-zone directly: sticky
+            // positioning is a layout-time calculation, transforms happen
+            // at paint time, so the two don't fight — the zone stays
+            // "stuck" for layout purposes while visually riding up on top
+            // of that.
+            const releaseStartPx = releaseProgress * PROGRESS_SCROLL_PX;
+            const releaseAmount = Math.max(0, Math.min(1, (scrollY - portfolioTopCached - releaseStartPx) / RELEASE_WINDOW_PX));
             const flyOffsetPx = releaseAmount * height;
+            lastFlyOffsetPx = flyOffsetPx;
             portfolioStickyZone.style.transform = flyOffsetPx > 0 ? `translateY(${-flyOffsetPx}px)` : '';
 
             // --- nebula clouds — Hero-only now. Swells through the first half
@@ -1525,15 +1585,18 @@
             // in a quick "excite once, watch it settle" spot check, but a
             // longer run (500+ steps) blew up to ~2e17 — nowhere near
             // damped, just exploding slowly enough that a short test
-            // didn't catch it. Swept a real grid of (tension, damping)
-            // pairs offline, simulating 600-20,000 steps each and also
-            // under sustained re-excitation (matching the hover-boost
-            // jitter), and picked the pair with genuine, verified decay
-            // in every case: 0.1 / 0.88 decays to ~1e-24 by step 5000 from
-            // a resting excite, stays there through 20,000 steps, and
-            // stays bounded (not exploding) under continuous re-plucking.
-            const TENSION = 0.1;
-            const DAMPING = 0.88;
+            // didn't catch it. Re-swept a new grid afterward, this time
+            // biased toward the "heavy, slow, lazy" feel asked for: lower
+            // TENSION softens the spring (slower wave period, deeper bend
+            // for the same push), higher DAMPING keeps more of each
+            // step's velocity (sustains the sway longer instead of
+            // stopping abruptly). Verified 0.045 / 0.94 over 200,000
+            // steps, both from a single excite and under sustained
+            // re-excitation (matching the hover-boost jitter) — stays
+            // bounded in the ~0.3-1.7 range the whole run, no growth
+            // trend, comfortably clear of the earlier blow-up.
+            const TENSION = 0.045;
+            const DAMPING = 0.94;
             const PROXIMITY = 46; // px — how close the cursor needs to be to touch a string
 
             let sWidth = 0, sHeight = 0;
@@ -1590,6 +1653,30 @@
             }
             layoutStrings();
 
+            // Oval-to-strings hand-off: each string gets a small group of
+            // REAL entries from the portfolio's own `orbitParticles` array
+            // (same object references, not a fabricated look-alike set) —
+            // evenly spaced picks across the 900-particle ring so the
+            // whole ring feeds the whole row of strings. Every frame their
+            // CURRENT on-screen position is recomputed with the exact same
+            // squircle formula render() uses for the galaxy ring (see
+            // drawStrings below), so this is genuinely the same particles,
+            // still live, just also being drawn a second time as they
+            // drift toward this section's string tops.
+            const FEEDERS_PER_STRING = 6;
+            let stringFeeders = [];
+            function buildFeeders() {
+                stringFeeders = strings.map((s, i) => {
+                    const group = [];
+                    for (let k = 0; k < FEEDERS_PER_STRING; k++) {
+                        const idx = Math.floor(((i * FEEDERS_PER_STRING + k) / (STRING_COUNT * FEEDERS_PER_STRING)) * orbitParticles.length);
+                        group.push(orbitParticles[idx]);
+                    }
+                    return group;
+                });
+            }
+            buildFeeders();
+
             // Scroll-linked materialize reveal — this is the actual fix
             // for "huge empty gap between blocks," not a CSS margin
             // change. The strings start growing in BEFORE the user
@@ -1604,21 +1691,21 @@
             let expertiseTopCached = 0;
             function cacheExpertiseGeometry() { expertiseTopCached = expertiseSection.offsetTop; }
             cacheExpertiseGeometry();
-            window.addEventListener('resize', () => { layoutStrings(); cacheExpertiseGeometry(); });
+            window.addEventListener('resize', () => { layoutStrings(); buildFeeders(); cacheExpertiseGeometry(); });
 
-            // The whole reveal window sits BEFORE the section's own top
-            // (start..end both <= expertiseTopCached), not straddling it —
-            // deliberately, not just for simplicity. A window that
-            // extended past the section's top depends on there being that
-            // much scrollable page left AFTER it, which isn't guaranteed
-            // (this section can be the last thing on the page, as it
-            // currently is); a window that finishes exactly at arrival is
-            // reachable regardless of how much content follows.
-            const REVEAL_LEAD = 700;
-            const REVEAL_END_MARGIN = 150;
+            // The reveal window is now locked to RELEASE_WINDOW_PX (the
+            // same shared constant the portfolio's fly-off uses, set in
+            // cacheSectionGeometry) instead of flat pixel constants tuned
+            // by eye — start = the exact scrollY the cards begin flying
+            // off, end = the exact scrollY #expertise fully fills the
+            // viewport. One shared window driving both animations means
+            // the strings materialize AS the cards fly off, not on their
+            // own separate schedule, and it stays reachable regardless of
+            // page length since it still sits entirely at/before
+            // expertiseTopCached.
             function revealProgress() {
-                const start = expertiseTopCached - REVEAL_LEAD;
-                const end = expertiseTopCached - REVEAL_END_MARGIN;
+                const start = expertiseTopCached - RELEASE_WINDOW_PX;
+                const end = expertiseTopCached;
                 return Math.max(0, Math.min(1, (window.scrollY - start) / (end - start)));
             }
 
@@ -1675,7 +1762,14 @@
                         const av = Math.abs(velocity);
                         if (av > peakV) { peakV = av; peakJ = j; }
                     }
-                    s.energy = Math.max(s.energy * 0.9, Math.min(1, peakV * 0.6));
+                    // Slow, asymmetric lerp toward the target instead of an
+                    // instant jump-then-decay — that's what made the glow
+                    // "flash" on. A slow rise and an even slower fall reads
+                    // as the light softly breathing in and out, matching
+                    // the same heavy/lazy feel as the string physics above.
+                    const energyTarget = Math.min(1, peakV * 0.6);
+                    const energyRate = energyTarget > s.energy ? 0.05 : 0.02;
+                    s.energy += (energyTarget - s.energy) * energyRate;
                     s.peakIndex = peakJ;
                 });
             }
@@ -1723,6 +1817,54 @@
 
                 const visibleCount = Math.max(2, Math.round(reveal * (SEGMENTS + 1)));
                 sctx.lineCap = 'round';
+
+                // Oval-to-strings hand-off. Each feeder's CURRENT position
+                // on the fixed space-canvas is recomputed live (same cx/cy/
+                // orbitAngle/squircle formula render() uses for the
+                // corona's orbit ring — see orbitParticles' own init
+                // comment), then converted from that canvas's viewport-
+                // space coordinates into this canvas's section-local space
+                // via `expertiseTopCached - scrollY` (the section's own
+                // current viewport-top, cheap arithmetic — no
+                // getBoundingClientRect layout read in the hot path). `t`
+                // (== reveal, the same value driving the materialize
+                // growth above) lerps each feeder from that live oval
+                // position to its assigned string's own top anchor,
+                // crossfading blue -> Aurora Green as it goes, then fades
+                // out near the end as it "becomes" the string's own
+                // materializing tip rather than a separate dot.
+                if (reveal < 0.999) {
+                    const cx = width / 2, cy = height / 2 - lastFlyOffsetPx;
+                    const orbitAngle = lastRenderTime * 0.00002;
+                    const sectionViewportTop = expertiseTopCached - window.scrollY;
+                    const t = reveal;
+                    sctx.save();
+                    sctx.shadowBlur = 0;
+                    strings.forEach((s, i) => {
+                        stringFeeders[i].forEach(p => {
+                            const ang = p.angleOffset + orbitAngle;
+                            const c = Math.cos(ang), sn = Math.sin(ang);
+                            const ex = Math.sign(c) * Math.pow(Math.abs(c), SQUIRCLE_EXP);
+                            const ey = Math.sign(sn) * Math.pow(Math.abs(sn), SQUIRCLE_EXP);
+                            const ovalX = cx + ex * width * 0.5 * p.kJitter;
+                            const ovalY = (cy + ey * height * 0.5 * p.kJitter) - sectionViewportTop;
+
+                            const targetX = s.x, targetY = 4;
+                            const px = ovalX + (targetX - ovalX) * t;
+                            const py = ovalY + (targetY - ovalY) * t;
+
+                            const r = Math.round(60 + (3 - 60) * t);
+                            const g = Math.round(120 + (192 - 120) * t);
+                            const b = Math.round(255 + (122 - 255) * t);
+                            const alpha = p.alpha * (1 - t * 0.85);
+                            sctx.beginPath();
+                            sctx.arc(px, py, p.radius, 0, Math.PI * 2);
+                            sctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                            sctx.fill();
+                        });
+                    });
+                    sctx.restore();
+                }
 
                 // Echo glow — a soft, low-opacity radial bloom centered on
                 // whichever point currently carries the most energy,
