@@ -301,28 +301,27 @@
         /* ============================================================
            Block 2 — Expertise & Tech Stack
            ============================================================ */
+        /* Mirrors #portfolio's own pattern exactly: a plain scroll-through
+           box whose height is set in JS (cacheExpertiseGeometry) so its
+           sticky-zone hands off from #portfolio's with zero gap. No
+           background of its own — background: transparent lets the single
+           shared #space-canvas (now drawing the strings too) show through
+           underneath instead of a second, separately-colored layer. */
         #expertise {
             position: relative;
             width: 100%;
-            min-height: 100vh;
-            background: #03030c;
+            height: 180vh;
+            background: transparent;
+        }
+        .expertise-sticky-zone {
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            width: 100vw;
             overflow: hidden;
             display: flex;
             align-items: flex-start;
-            /* No top padding — the section starts flush against whatever
-               precedes it. The old 12vh top padding plus a vertically
-               centered stack was exactly what read as "a big empty hole"
-               between blocks: real empty space, not a scroll-driven gap.
-               The seamless-materialize reveal (driven by JS, see
-               initStrings) fills the transition instead. */
             padding: 6vh 0 10vh;
-        }
-        #strings-canvas {
-            position: absolute;
-            inset: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
         }
         .expertise-stack {
             position: relative;
@@ -363,12 +362,13 @@
             cursor: default;
             user-select: none;
             white-space: nowrap;
-            /* Starts invisible — JS (drawStrings) sets this every frame as
-               the strings' own growth front passes each heading's Y
-               position, not a shared timer for the whole stack. No
-               transition on opacity: the per-frame JS update is already
-               continuous/smooth, and a CSS transition layered on top of a
-               fast-changing target would just lag behind it. */
+            /* Starts invisible — render()'s updateExpertiseHeadings() sets
+               this every frame, staggered per heading, once the particle
+               morph has finished and the user scrolls a bit further into
+               the settle window. No transition on opacity: the per-frame
+               JS update is already continuous/smooth, and a CSS
+               transition layered on top of a fast-changing target would
+               just lag behind it. */
             opacity: 0;
             /* The "3D-shift" — a barely-there perspective tilt + lateral
                nudge, not a dramatic rotation. Kept intentionally subtle
@@ -453,12 +453,13 @@
         </section>
 
         <section id="expertise">
-            <canvas id="strings-canvas"></canvas>
-            <div class="expertise-stack">
-                <div class="expertise-row"><h2 class="expertise-heading" data-heading="0">Design &amp; Art Direction</h2></div>
-                <div class="expertise-row"><h2 class="expertise-heading" data-heading="1">Frontend Development</h2></div>
-                <div class="expertise-row"><h2 class="expertise-heading" data-heading="2">Motion &amp; Interactive Web</h2></div>
-                <div class="expertise-row"><h2 class="expertise-heading" data-heading="3">High-End Product Solutions</h2></div>
+            <div class="expertise-sticky-zone">
+                <div class="expertise-stack">
+                    <div class="expertise-row"><h2 class="expertise-heading" data-heading="0">Design &amp; Art Direction</h2></div>
+                    <div class="expertise-row"><h2 class="expertise-heading" data-heading="1">Frontend Development</h2></div>
+                    <div class="expertise-row"><h2 class="expertise-heading" data-heading="2">Motion &amp; Interactive Web</h2></div>
+                    <div class="expertise-row"><h2 class="expertise-heading" data-heading="3">High-End Product Solutions</h2></div>
+                </div>
             </div>
         </section>
     </div>
@@ -645,14 +646,41 @@
         const orbitParticles = [];
         const ORBIT_COUNT = 900;
         const SQUIRCLE_EXP = 2 / 4; // exponent applied to |cos|/|sin|, i.e. 2/n for n=4
+        // Single unified transition (see render()'s morph block below): the
+        // SAME 900 particles that draw the galaxy's corner ring also draw
+        // the Expertise strings — no separate array, no second canvas.
+        // targetYFrac is each particle's fixed, even spread along a
+        // string's full length once morphed in (0..1, independent of which
+        // string it lands in — the column is picked live, every frame, by
+        // whichever of the STRING_COUNT target lines is nearest the
+        // particle's current on-screen X, so "which line" can track the
+        // ring's own slow rotation while "where along the line" stays
+        // stable). seed drives a small per-particle twinkle once settled.
         for (let i = 0; i < ORBIT_COUNT; i++) {
             orbitParticles.push({
                 angleOffset: (i / ORBIT_COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.02,
                 kJitter: 0.97 + Math.random() * 0.06,
                 radius: 1 + Math.random() * 0.5,
-                alpha: 0.4 + Math.random() * 0.35
+                alpha: 0.4 + Math.random() * 0.35,
+                targetYFrac: i / ORBIT_COUNT,
+                seed: Math.random() * 1000
             });
         }
+
+        // The target vertical lines the particles morph into. Fixed in
+        // VIEWPORT space (not tied to any DOM section's scroll position —
+        // there's only the one fixed canvas now), recomputed on resize.
+        const STRING_COUNT = 8;
+        const stringTargetX = [];
+        function computeStringTargets() {
+            stringTargetX.length = 0;
+            const margin = width * 0.08;
+            const usable = width - margin * 2;
+            for (let i = 0; i < STRING_COUNT; i++) {
+                stringTargetX.push(margin + (usable / (STRING_COUNT - 1)) * i);
+            }
+        }
+        computeStringTargets();
 
         // Galaxy: baked ONCE into an offscreen sprite, same as before — but
         // this time the sprite canvas is sized to MATCH its final on-screen
@@ -892,25 +920,11 @@
         // offset to that line, not a curve.
         let releaseProgress = 0.5;
         // The fixed pixel budget `progress` (the card-parallax driver below)
-        // spans, and the fixed pixel window the fly-off + incoming-section
-        // crossfade takes — both set from `height` in cacheSectionGeometry
-        // so they track viewport size, and both read by render() and by
-        // initStrings() (same top-level script scope) as the single shared
-        // source of truth for the hand-off timing.
+        // spans, and the fixed pixel window the fly-off + particle-morph
+        // takes — both set from `height` in cacheSectionGeometry so they
+        // track viewport size.
         let PROGRESS_SCROLL_PX = 0;
         let RELEASE_WINDOW_PX = 0;
-        // Exposes render()'s per-frame `time` and the corona/orbit-ring's
-        // current fly-off offset outside render() itself, so the strings
-        // section can compute where the SAME orbit particles are on screen
-        // right now — needed for the oval-to-strings hand-off — without
-        // duplicating render()'s own scroll/time bookkeeping.
-        let lastRenderTime = 0;
-        let lastFlyOffsetPx = 0;
-        // Same releaseAmount render() already computes for the fly-off,
-        // exposed so the strings section can drive its own "shoot" entrance
-        // off the identical 0..1 progress instead of a second, possibly
-        // drifting copy of the same math.
-        let lastReleaseAmount = 0;
         function cacheSectionGeometry() {
             portfolioTopCached = portfolioSection.offsetTop;
             portfolioHeightCached = portfolioSection.offsetHeight;
@@ -1039,6 +1053,8 @@
             height = window.innerHeight;
             resizeCanvasForDPR();
             cacheSectionGeometry();
+            computeStringTargets();
+            cacheExpertiseGeometry();
         });
 
         // Edge-triggered — the position reshuffle below must fire exactly once
@@ -1046,8 +1062,6 @@
         let wasAtTop = true;
 
         function render(time) {
-            lastRenderTime = time;
-
             const scrollY = window.scrollY;
 
             // Energy decays every single frame, independent of whether a scroll
@@ -1169,9 +1183,8 @@
             const releaseStartPx = releaseProgress * PROGRESS_SCROLL_PX;
             const releaseAmount = Math.max(0, Math.min(1, (scrollY - portfolioTopCached - releaseStartPx) / RELEASE_WINDOW_PX));
             const flyOffsetPx = releaseAmount * height;
-            lastFlyOffsetPx = flyOffsetPx;
-            lastReleaseAmount = releaseAmount;
             portfolioStickyZone.style.transform = flyOffsetPx > 0 ? `translateY(${-flyOffsetPx}px)` : '';
+            updateExpertiseHeadings();
 
             // --- nebula clouds — Hero-only now. Swells through the first half
             // of the burst, then fades out over the second half so it's
@@ -1240,30 +1253,8 @@
                 // this shape supports; real "bigger and bolder" now comes
                 // from the stardust ring's own size/brightness below, not
                 // from stretching the ellipse further.
-                // Gravitational collapse: as releaseAmount runs 0->1 (the
-                // exact same trigger the card fly-off uses — "Innovative
-                // Ink" crossing the release line), everything radial here
-                // shrinks toward its own center instead of just flying up
-                // and off flat. Compressed into the FIRST HALF of
-                // releaseAmount's range (collapseT reaches 1 by
-                // releaseAmount 0.5) rather than the full range — cy
-                // already carries flyOffsetPx (see below), which crosses
-                // above the visible viewport once flyOffsetPx exceeds half
-                // a screen height, i.e. exactly releaseAmount 0.5. Tying
-                // the collapse to the full 0..1 range meant the galaxy was
-                // still mostly full-size by the time it flew off-screen —
-                // measured on a real render (releaseAmount 0.77: center
-                // sample already off-canvas, collapse only 59% done) — so
-                // it never actually finished collapsing while still in
-                // view. Finishing it by the halfway point means the
-                // audience sees the full shrink-to-a-point before it flies
-                // away, and what leaves the screen afterward is genuinely
-                // just the small bright point, not the whole galaxy.
-                const collapseT = Math.min(1, releaseAmount / 0.5);
-                const collapseEase = collapseT * collapseT;
-                const collapseScale = 1 - collapseEase;
-                const rimRx = width * 0.54 * breathe * collapseScale;
-                const rimRy = height * 0.54 * breathe * collapseScale;
+                const rimRx = width * 0.54 * breathe;
+                const rimRy = height * 0.54 * breathe;
                 // cy carries the same flyOffsetPx the DOM sticky-zone is
                 // being translated by, so the corona/galaxy/ring ride up in
                 // lockstep with the text and cards rather than staying put
@@ -1272,6 +1263,17 @@
                 // to be baked into the center coordinate directly.
                 const cx = width / 2, cy = height / 2 - flyOffsetPx;
                 const a = horizonAlpha * pulse;
+                // Single unified transition: as releaseAmount runs 0->1
+                // (the exact same trigger the card fly-off uses —
+                // "Innovative Ink" crossing the release line), the corona's
+                // OWN decoration (rays, galaxy sprite, side streamers, rim
+                // dust, sparks, ripples) dissolves away via this fade,
+                // while orbitParticles (below) do the opposite — they stay
+                // fully present and morph into the Expertise strings. One
+                // shared array, one shared progress value, no separate
+                // "collapse to a point" stage and no second canvas to hand
+                // off to.
+                const decorAlpha = a * (1 - releaseAmount);
 
                 // rot still drives the streamers/sparks below, just no
                 // longer a gradient rotation for a stroke that no longer
@@ -1284,25 +1286,80 @@
                 // genuinely reaches closer to the corners without losing
                 // visible arc the way scaling up a true ellipse does.
                 // Shared angle = time * orbitSpeed (pure function of time,
-                // nothing accumulates). One plain fill per point, alpha
-                // fixed per particle at init — no gradient, no shadowBlur,
-                // no per-frame randomness anywhere in this loop.
+                // nothing accumulates).
+                //
+                // Particle morph (releaseAmount 0->1): each particle's
+                // live ring position (gx, gy — exactly what it would be at
+                // releaseAmount===0) is the interpolation's START point;
+                // the END point is its own targetYFrac down whichever of
+                // the STRING_COUNT vertical lines currently sits nearest
+                // its ring position, picked fresh every frame so the
+                // assignment tracks the ring's own slow rotation instead
+                // of going stale. Color lerps blue -> Aurora Green
+                // (#00FF66) over the same progress. At releaseAmount===0
+                // this is identical to the old squircle-only draw (finalX
+                // = gx, finalY = gy); at releaseAmount===1 every particle
+                // sits exactly on its target line, forming the strings.
                 const orbitAngle = time * 0.00002;
                 ctx.save();
                 ctx.shadowBlur = 0;
+                const morphT = releaseAmount;
                 orbitParticles.forEach(p => {
                     const ang = p.angleOffset + orbitAngle;
                     const c = Math.cos(ang), s = Math.sin(ang);
                     const ex = Math.sign(c) * Math.pow(Math.abs(c), SQUIRCLE_EXP);
                     const ey = Math.sign(s) * Math.pow(Math.abs(s), SQUIRCLE_EXP);
-                    const px = cx + ex * width * 0.5 * p.kJitter * collapseScale;
-                    const py = cy + ey * height * 0.5 * p.kJitter * collapseScale;
+                    const gx = cx + ex * width * 0.5 * p.kJitter;
+                    const gy = cy + ey * height * 0.5 * p.kJitter;
+
+                    let px = gx, py = gy;
+                    let pr = 60, pg = 120, pb = 255;
+                    if (morphT > 0.001) {
+                        let nearestX = stringTargetX[0], bestD = Infinity;
+                        for (let si = 0; si < stringTargetX.length; si++) {
+                            const d = Math.abs(gx - stringTargetX[si]);
+                            if (d < bestD) { bestD = d; nearestX = stringTargetX[si]; }
+                        }
+                        const targetY = p.targetYFrac * height;
+                        px = gx + (nearestX - gx) * morphT;
+                        py = gy + (targetY - gy) * morphT;
+                        pr = Math.round(60 + (0 - 60) * morphT);
+                        pg = Math.round(120 + (255 - 120) * morphT);
+                        pb = Math.round(255 + (102 - 255) * morphT);
+                    }
+                    // A gentle idle twinkle once mostly settled, so the
+                    // formed strings still read as living dust rather than
+                    // a frozen static image.
+                    const twinkle = morphT > 0.9 ? (0.85 + 0.15 * Math.sin(time * 0.002 + p.seed)) : 1;
                     ctx.beginPath();
                     ctx.arc(px, py, p.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(60, 120, 255, ${p.alpha * a})`;
+                    ctx.fillStyle = `rgba(${pr}, ${pg}, ${pb}, ${p.alpha * a * twinkle})`;
                     ctx.fill();
                 });
                 ctx.restore();
+
+                // The strings themselves — a crisp stroke under the dust so
+                // the "particles becoming a clean neon line" reads
+                // immediately rather than only once the dust is dense
+                // enough to look solid on its own.
+                if (releaseAmount > 0.15) {
+                    const lineAlpha = Math.min(1, (releaseAmount - 0.15) / 0.65) * 0.5;
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    stringTargetX.forEach((sx, i) => {
+                        const depth = i / (STRING_COUNT - 1);
+                        const grad = ctx.createLinearGradient(sx, 0, sx, height);
+                        grad.addColorStop(0, `rgba(58, 52, 214, ${lineAlpha})`);
+                        grad.addColorStop(1, `rgba(0, 255, 102, ${lineAlpha * (1 - depth * 0.4)})`);
+                        ctx.strokeStyle = grad;
+                        ctx.lineWidth = 1.6 - depth * 0.8;
+                        ctx.beginPath();
+                        ctx.moveTo(sx, 0);
+                        ctx.lineTo(sx, height);
+                        ctx.stroke();
+                    });
+                    ctx.restore();
+                }
 
                 // Streamers — thin rays radiating out from points around the
                 // rim, varying length/brightness per ray (fixed per index, so
@@ -1336,33 +1393,11 @@
                 ctx.globalCompositeOperation = 'screen';
                 ctx.imageSmoothingEnabled = false;
                 ctx.shadowBlur = 0;
-                ctx.globalAlpha = horizonAlpha;
+                ctx.globalAlpha = decorAlpha;
                 ctx.translate(cx, cy);
                 ctx.rotate(time * galaxyRotSpeed); // autonomous, own clock only — no mouse term anywhere in this block
-                ctx.scale(collapseScale, collapseScale); // same collapse pull as the ring/rim above — shrinks toward this same translate origin
                 ctx.drawImage(galaxySprite, -galaxyDraw / 2, -galaxyDraw / 2, galaxyDraw, galaxyDraw);
                 ctx.restore();
-
-                // The collapsing core itself — an additive bright point at
-                // the exact same (cx, cy) everything above is shrinking
-                // toward, growing and brightening as collapseEase runs
-                // 0->1. Without this the galaxy just shrinks into nothing;
-                // this is what actually reads as "collapsing into one
-                // ultra-bright point" rather than fading away.
-                if (collapseEase > 0.001) {
-                    ctx.save();
-                    ctx.globalCompositeOperation = 'lighter';
-                    const coreR = 4 + collapseEase * 50;
-                    const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
-                    coreGrad.addColorStop(0, `rgba(255, 255, 255, ${collapseEase * 0.9})`);
-                    coreGrad.addColorStop(0.4, `rgba(120, 255, 190, ${collapseEase * 0.55})`);
-                    coreGrad.addColorStop(1, `rgba(80, 120, 255, 0)`);
-                    ctx.beginPath();
-                    ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
-                    ctx.fillStyle = coreGrad;
-                    ctx.fill();
-                    ctx.restore();
-                }
 
                 // Side streamers — sparse dust flanking the screen's left/
                 // right edges, outside the card oval, filling what was
@@ -1372,7 +1407,7 @@
                 // part of the same structure, not a bolted-on extra.
                 ctx.save();
                 ctx.globalCompositeOperation = 'screen';
-                ctx.globalAlpha = horizonAlpha * 0.55;
+                ctx.globalAlpha = decorAlpha * 0.55;
                 sideStreamers.forEach(sp => {
                     // Symmetric sweep centered on due-left (PI) or due-right
                     // (0) — spans both above and below the horizontal, not
@@ -1403,7 +1438,7 @@
                     const dx = cx + Math.cos(d.angle) * (rimRx + d.radiusJitter);
                     const dy = cy + Math.sin(d.angle) * (rimRy + d.radiusJitter);
                     const twinkle = 0.3 + Math.sin(time * d.twinkleSpeed + d.seed) * 0.35 + 0.35;
-                    const da = a * twinkle * 0.8;
+                    const da = decorAlpha * twinkle * 0.8;
                     ctx.beginPath();
                     ctx.arc(dx, dy, d.size, 0, Math.PI * 2);
                     ctx.fillStyle = `rgba(${d.r}, ${d.g}, ${d.b}, ${da})`;
@@ -1415,16 +1450,16 @@
                 // own small glowing point — separate from the dust, these
                 // move continuously rather than just twinkling in place.
                 ctx.save();
-                ctx.shadowBlur = 20 * horizonAlpha;
+                ctx.shadowBlur = 20 * decorAlpha;
                 for (let s = 0; s < 4; s++) {
                     const sAngle = rot * 3 + (s / 4) * Math.PI * 2 + time * 0.0006;
                     const sx = cx + Math.cos(sAngle) * rimRx;
                     const sy = cy + Math.sin(sAngle) * rimRy;
                     const sc = horizonColors[s % horizonColors.length];
-                    ctx.shadowColor = `rgba(${sc.r}, ${sc.g}, ${sc.b}, ${a})`;
+                    ctx.shadowColor = `rgba(${sc.r}, ${sc.g}, ${sc.b}, ${decorAlpha})`;
                     ctx.beginPath();
                     ctx.arc(sx, sy, 2.2, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(255, 255, 255, ${a})`;
+                    ctx.fillStyle = `rgba(255, 255, 255, ${decorAlpha})`;
                     ctx.fill();
                 }
                 ctx.restore();
@@ -1433,7 +1468,11 @@
                 // moves, expands and fades, cycling through the same 3
                 // brand colors. Throttled by both a cooldown and a minimum-
                 // movement threshold so resting the mouse spawns nothing.
-                if (horizonAlpha > 0.5 && mouse.x > -900) {
+                // Stops spawning new ones once the transition is well
+                // underway (releaseAmount > 0.5) — existing ripples still
+                // decay out naturally, just nothing fresh spawns over a
+                // corridor that's actively dissolving.
+                if (horizonAlpha > 0.5 && releaseAmount < 0.5 && mouse.x > -900) {
                     rippleCooldown--;
                     const moved = Math.hypot(mouse.x - lastRippleX, mouse.y - lastRippleY);
                     if (moved > 40 && rippleCooldown <= 0) {
@@ -1450,7 +1489,7 @@
                     r.radius += 3.4;
                     r.alpha *= 0.93;
                     if (r.alpha < 0.01) { horizonRipples.splice(i, 1); continue; }
-                    const ra = r.alpha * horizonAlpha;
+                    const ra = r.alpha * decorAlpha;
                     ctx.shadowColor = `rgba(${r.r}, ${r.g}, ${r.b}, ${ra})`;
                     ctx.beginPath();
                     ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
@@ -1609,505 +1648,51 @@
         requestAnimationFrame(render);
 
         // ============================================================
-        // Block 2 — Expertise & Tech Stack: vibrating string physics
+        // Block 2 — Expertise & Tech Stack
         // ============================================================
-        // A real damped wave equation (finite-difference), not a faked
-        // sine bump: each string is a chain of points, and every frame
-        // each interior point accelerates toward its two neighbors'
-        // average (accel = tension * (left + right - 2*self)), then that
-        // velocity gets damped and integrated into position — the same
-        // core update any 1D wave/string simulation uses. The traveling
-        // "light pulse" is literally this equation's own propagating
-        // disturbance: the bright overlay pass is colored by each point's
-        // own |velocity|, not a separate particle system drawn on top of
-        // an unrelated curve.
-        (function initStrings() {
-            const stringsCanvas = document.getElementById('strings-canvas');
-            const sctx = stringsCanvas.getContext('2d');
-            const expertiseSection = document.getElementById('expertise');
-            const expertiseStack = document.querySelector('.expertise-stack');
-            const headingEls = Array.from(document.querySelectorAll('.expertise-heading'));
+        // No canvas of its own anymore, no separate physics/rAF loop —
+        // the strings themselves are drawn by render() above, as part of
+        // the single orbitParticles morph on the one shared #space-canvas.
+        // All that's left here is: (1) sizing #expertise so its own
+        // sticky-zone hands off from #portfolio with zero gap, exactly
+        // the same principle #portfolio's own height already uses, and
+        // (2) fading each heading in, once pinned, as the user scrolls
+        // through a short settle window after the morph completes.
+        const expertiseSection = document.getElementById('expertise');
+        const expertiseHeadingEls = Array.from(document.querySelectorAll('.expertise-heading'));
 
-            const STRING_COUNT = 8;
-            const SEGMENTS = 40; // 41 points per string
-            // Verlet, not explicit-velocity Euler — position-based, no
-            // separate velocity array to integrate (velocity is implicit
-            // as y - yPrev), which is both what was asked for and
-            // generally the more stable/elastic-feeling choice for a
-            // mass-spring chain at this stiffness.
-            //
-            // TENSION/DAMPING found by actually testing stability, not
-            // guessed: the first values tried (0.12 / 0.965) looked fine
-            // in a quick "excite once, watch it settle" spot check, but a
-            // longer run (500+ steps) blew up to ~2e17 — nowhere near
-            // damped, just exploding slowly enough that a short test
-            // didn't catch it. Re-swept a new grid afterward, this time
-            // biased toward the "heavy, slow, lazy" feel asked for: lower
-            // TENSION softens the spring (slower wave period, deeper bend
-            // for the same push), higher DAMPING keeps more of each
-            // step's velocity (sustains the sway longer instead of
-            // stopping abruptly). Verified 0.045 / 0.94 over 200,000
-            // steps, both from a single excite and under sustained
-            // re-excitation (matching the hover-boost jitter) — stays
-            // bounded in the ~0.3-1.7 range the whole run, no growth
-            // trend, comfortably clear of the earlier blow-up.
-            const TENSION = 0.045;
-            const DAMPING = 0.94;
-            const PROXIMITY = 46; // px — how close the cursor needs to be to touch a string
+        // A short additional scroll-through budget, purely for the
+        // heading reveal — the particle morph itself lives entirely
+        // within #portfolio's own box (unchanged, ends exactly at
+        // expertiseTopCached, per the zero-gap fix from an earlier
+        // round). This is genuinely additional content to scroll through
+        // (the section settling into view and its text appearing), not
+        // dead space.
+        let expertiseTopCached = 0;
+        let settleWindowPx = 0;
+        function cacheExpertiseGeometry() {
+            settleWindowPx = height * 0.8;
+            expertiseSection.style.height = (height + settleWindowPx) + 'px';
+            expertiseTopCached = expertiseSection.offsetTop;
+        }
+        cacheExpertiseGeometry();
 
-            // Where the strings "shoot" from: the portfolio galaxy's own
-            // live collapsing-core position, tracked into this canvas's
-            // local coordinates every frame in drawStrings (see its own
-            // comment there for why this needs the section's extra
-            // pull-up transform to be geometrically reachable at all).
-            // Ratcheted forward-only across the transition, reset to 0
-            // whenever the section isn't in its reveal window.
-            let liveCoreJ = 0;
-            // Each heading's Y position relative to the strings canvas,
-            // cached once (not a per-frame layout read) and refreshed on
-            // resize — compared every frame against the strings' own
-            // growth front to fade each heading in exactly as the strings
-            // grow past it.
-            let headingLocalTops = [];
-            function cacheHeadingPositions() {
-                const cRect = stringsCanvas.getBoundingClientRect();
-                headingLocalTops = headingEls.map(h => h.getBoundingClientRect().top - cRect.top);
-            }
+        function settleProgress() {
+            return Math.max(0, Math.min(1, (window.scrollY - expertiseTopCached) / settleWindowPx));
+        }
 
-            let sWidth = 0, sHeight = 0;
-            const sDpr = Math.min(window.devicePixelRatio || 1, 2);
-            const strings = [];
-
-            // Depth (0 = leftmost/nearest the text mass, 1 = rightmost,
-            // furthest into open space) drives width, brightness, and how
-            // far each string's own gradient reaches into green before
-            // staying blue — "those toward the right are thinner and a
-            // deeper blue" from a single interpolated parameter, not a
-            // second hand-tuned system.
-            function buildGradient(x, h, depth) {
-                const g = sctx.createLinearGradient(x, 0, x, h);
-                const bottomGreen = { r: 0, g: 255, b: 102 };   // Aurora Green — #00FF66
-                const deepBlue = { r: 40, g: 40, b: 190 };      // where far strings settle instead of green
-                const mix = depth * 0.75; // how much a far string's bottom stays blue instead of reaching green
-                const br = Math.round(bottomGreen.r + (deepBlue.r - bottomGreen.r) * mix);
-                const bg = Math.round(bottomGreen.g + (deepBlue.g - bottomGreen.g) * mix);
-                const bb = Math.round(bottomGreen.b + (deepBlue.b - bottomGreen.b) * mix);
-                const topAlpha = 0.85 - depth * 0.3;
-                g.addColorStop(0, `rgba(58, 52, 214, ${topAlpha})`);        // deep ultramarine — same hue as the portfolio galaxy
-                g.addColorStop(0.55, `rgba(18, 140, 158, ${topAlpha})`);     // transition tone
-                g.addColorStop(1, `rgba(${br}, ${bg}, ${bb}, ${topAlpha + 0.1})`);
-                return g;
-            }
-
-            function layoutStrings() {
-                sWidth = expertiseSection.clientWidth;
-                sHeight = expertiseSection.clientHeight;
-                stringsCanvas.width = sWidth * sDpr;
-                stringsCanvas.height = sHeight * sDpr;
-                sctx.setTransform(sDpr, 0, 0, sDpr, 0, 0);
-
-                const margin = sWidth * 0.06;
-                const usable = sWidth - margin * 2;
-                strings.length = 0;
-                for (let i = 0; i < STRING_COUNT; i++) {
-                    const x = margin + (usable / (STRING_COUNT - 1)) * i;
-                    const depth = i / (STRING_COUNT - 1);
-                    strings.push({
-                        x,
-                        length: sHeight,
-                        depth,
-                        lineWidth: 2.6 - depth * 1.5, // near = thick, far = thin
-                        y: new Float32Array(SEGMENTS + 1),     // current horizontal displacement
-                        yPrev: new Float32Array(SEGMENTS + 1), // previous frame's displacement (Verlet)
-                        boosted: false,
-                        energy: 0,      // smoothed excitement level, drives the echo glow
-                        peakIndex: 0,   // which point currently has the most energy — where the echo centers
-                        gradient: buildGradient(x, sHeight, depth)
-                    });
-                }
-            }
-            layoutStrings();
-
-            // Oval-to-strings hand-off: each string gets a small group of
-            // REAL entries from the portfolio's own `orbitParticles` array
-            // (same object references, not a fabricated look-alike set) —
-            // evenly spaced picks across the 900-particle ring so the
-            // whole ring feeds the whole row of strings. Every frame their
-            // CURRENT on-screen position is recomputed with the exact same
-            // squircle formula render() uses for the galaxy ring (see
-            // drawStrings below), so this is genuinely the same particles,
-            // still live, just also being drawn a second time as they
-            // drift toward this section's string tops.
-            const FEEDERS_PER_STRING = 6;
-            let stringFeeders = [];
-            function buildFeeders() {
-                stringFeeders = strings.map((s, i) => {
-                    const group = [];
-                    for (let k = 0; k < FEEDERS_PER_STRING; k++) {
-                        const idx = Math.floor(((i * FEEDERS_PER_STRING + k) / (STRING_COUNT * FEEDERS_PER_STRING)) * orbitParticles.length);
-                        group.push(orbitParticles[idx]);
-                    }
-                    return group;
-                });
-            }
-            buildFeeders();
-            cacheHeadingPositions();
-
-            // Scroll-linked materialize reveal — this is the actual fix
-            // for "huge empty gap between blocks," not a CSS margin
-            // change. The strings start growing in BEFORE the user
-            // physically reaches this section (a lead window, same
-            // pattern this file already used for the old skills-approach
-            // fade), so the transition out of the portfolio overlaps with
-            // this block coming alive instead of a dead scroll in
-            // between. Growth is driven by drawing only the top fraction
-            // of each string's length — reads as the thin trailing dust
-            // from the portfolio's own ring "stretching" downward into a
-            // full string as you scroll, rather than a hard cut-in.
-            let expertiseTopCached = 0;
-            function cacheExpertiseGeometry() { expertiseTopCached = expertiseSection.offsetTop; }
-            cacheExpertiseGeometry();
-            window.addEventListener('resize', () => { layoutStrings(); buildFeeders(); cacheExpertiseGeometry(); cacheHeadingPositions(); });
-
-            // The reveal window is now locked to RELEASE_WINDOW_PX (the
-            // same shared constant the portfolio's fly-off uses, set in
-            // cacheSectionGeometry) instead of flat pixel constants tuned
-            // by eye — start = the exact scrollY the cards begin flying
-            // off, end = the exact scrollY #expertise fully fills the
-            // viewport. One shared window driving both animations means
-            // the strings materialize AS the cards fly off, not on their
-            // own separate schedule, and it stays reachable regardless of
-            // page length since it still sits entirely at/before
-            // expertiseTopCached.
-            function revealProgress() {
-                const start = expertiseTopCached - RELEASE_WINDOW_PX;
-                const end = expertiseTopCached;
-                return Math.max(0, Math.min(1, (window.scrollY - start) / (end - start)));
-            }
-
-            // Reuses the site-wide `mouse` object (already updated by the
-            // existing mousemove listener above) instead of adding a
-            // second one — only tracks the frame-to-frame delta locally,
-            // for a "brush past" excitation proportional to cursor speed
-            // rather than a constant force while merely hovering near.
-            let lastMx = mouse.x, lastMy = mouse.y;
-
-            function excite() {
-                const mvx = mouse.x - lastMx, mvy = mouse.y - lastMy;
-                const speed = Math.min(18, Math.hypot(mvx, mvy));
-                lastMx = mouse.x; lastMy = mouse.y;
-                if (mouse.x < -900) return; // sentinel: cursor hasn't moved yet
-
-                const rect = stringsCanvas.getBoundingClientRect();
-                const localX = mouse.x - rect.left;
-                const localY = mouse.y - rect.top;
-                if (localY < 0 || localY > sHeight || speed < 0.6) return;
-
-                strings.forEach(s => {
-                    const dx = Math.abs(localX - s.x);
-                    if (dx < PROXIMITY) {
-                        const j = Math.round((localY / s.length) * SEGMENTS);
-                        if (j > 0 && j < SEGMENTS) {
-                            // Verlet has no explicit velocity to push — a
-                            // point's implicit velocity is (y - yPrev), so
-                            // pulling yPrev back is what injects momentum.
-                            s.yPrev[j] -= (1 - dx / PROXIMITY) * speed * 0.09;
-                        }
-                    }
-                });
-            }
-
-            function stepPhysics() {
-                strings.forEach(s => {
-                    const y = s.y, yPrev = s.yPrev;
-                    if (s.boosted) {
-                        // Sustained low-level plasma jitter while a linked
-                        // heading is hovered — more frequent small pushes
-                        // read as higher apparent frequency without raising
-                        // TENSION itself, which would risk instability.
-                        const j = 4 + Math.floor(Math.random() * (SEGMENTS - 8));
-                        yPrev[j] -= (Math.random() - 0.5) * 1.4;
-                    }
-                    let peakV = 0, peakJ = SEGMENTS >> 1;
-                    for (let j = 1; j < SEGMENTS; j++) {
-                        const springForce = TENSION * (y[j - 1] + y[j + 1] - 2 * y[j]);
-                        const velocity = (y[j] - yPrev[j]) * DAMPING;
-                        const newY = y[j] + velocity + springForce;
-                        yPrev[j] = y[j];
-                        y[j] = newY;
-                        const av = Math.abs(velocity);
-                        if (av > peakV) { peakV = av; peakJ = j; }
-                    }
-                    // Slow, asymmetric lerp toward the target instead of an
-                    // instant jump-then-decay — that's what made the glow
-                    // "flash" on. A slow rise and an even slower fall reads
-                    // as the light softly breathing in and out, matching
-                    // the same heavy/lazy feel as the string physics above.
-                    const energyTarget = Math.min(1, peakV * 0.6);
-                    const energyRate = energyTarget > s.energy ? 0.05 : 0.02;
-                    s.energy += (energyTarget - s.energy) * energyRate;
-                    s.peakIndex = peakJ;
-                });
-            }
-
-            // Smooth curve through the point cloud via quadratic-curve
-            // midpoint interpolation (the standard technique for a smooth
-            // line through a set of points without spline math) — no
-            // sharp kinks at any point, regardless of how much energy is
-            // in the string. Draws only the [jLo, jHi] sub-range, growing
-            // outward from CORE_J in both directions as the string "shoots"
-            // in, rather than always starting at the top.
-            function pxOf(s, j) { return s.x + s.y[j]; }
-            function pyOf(s, j) { return (j / SEGMENTS) * s.length; }
-            function strokeSmoothString(s, jLo, jHi) {
-                if (jHi - jLo < 1) return;
-                sctx.beginPath();
-                sctx.moveTo(pxOf(s, jLo), pyOf(s, jLo));
-                for (let j = jLo + 1; j < jHi; j++) {
-                    const cx = pxOf(s, j), cy = pyOf(s, j);
-                    const mx = (cx + pxOf(s, j + 1)) / 2, my = (cy + pyOf(s, j + 1)) / 2;
-                    sctx.quadraticCurveTo(cx, cy, mx, my);
-                }
-                sctx.lineTo(pxOf(s, jHi), pyOf(s, jHi));
-                sctx.stroke();
-            }
-
-            function drawStrings() {
-                sctx.clearRect(0, 0, sWidth, sHeight);
-                const reveal = revealProgress();
-
-                // Pull the whole section up during the transition so it
-                // overlaps the still-visible collapsing galaxy instead of
-                // leaving empty space below it — a hump, not a ramp: 0 at
-                // both ends of the window, peaking mid-transition. Easing
-                // back to exactly 0 by full reveal matters: a pull that
-                // stayed applied at reveal===1 would leave the section
-                // permanently offset from its natural resting position for
-                // the rest of the page, opening a gap at the BOTTOM once
-                // the transition is long over. This way it settles exactly
-                // back onto its native document-flow position with zero
-                // lasting offset.
-                const pullShape = 4 * reveal * (1 - reveal);
-                const expertisePull = pullShape * height * 0.65;
-                expertiseSection.style.transform = expertisePull > 0.5 ? `translateY(${-expertisePull}px)` : '';
-
-                if (reveal <= 0.001) {
-                    liveCoreJ = 0;
-                    headingEls.forEach(h => { h.style.opacity = 0; });
-                    // CRITICAL BUG FIXED HERE: this used to also call
-                    // requestAnimationFrame(stringsFrame) before returning —
-                    // but stringsFrame() ALREADY schedules its own next frame
-                    // unconditionally right after calling drawStrings(). Since
-                    // reveal is 0 for the entire time a visitor is anywhere in
-                    // Hero/Portfolio (i.e. almost the whole page, and always
-                    // true at initial load), that meant EVERY frame was
-                    // scheduling two next-frame callbacks instead of one —
-                    // the number of pending rAF callbacks doubled every
-                    // frame, an exponential blowup that saturates the event
-                    // loop within seconds and looks exactly like "frozen,
-                    // won't scroll, infinite loading." Just return here; the
-                    // one real requestAnimationFrame(stringsFrame) call
-                    // belongs solely at the end of stringsFrame().
-                    return;
-                }
-
-                // Where the strings actually shoot from: the portfolio
-                // galaxy's real collapsing-core position, converted into
-                // this canvas's local coordinates the same cheap way the
-                // feeder particles below already do (viewport position
-                // minus the section's current on-screen top — which now
-                // has to include expertisePull, since that's a real visual
-                // offset on top of the section's native scroll position).
-                // Tracking this literally (no pull) doesn't work: the
-                // core's fly-off and the section's native scroll-entry
-                // share the exact same rate, so in section-local
-                // coordinates the two cancel and the point sits
-                // permanently just outside the canvas the whole time. The
-                // pull above is what actually breaks that cancellation and
-                // lets the core genuinely arrive inside the frame around
-                // the transition's midpoint. Ratcheted forward-only
-                // (liveCoreJ never decreases) because the core's local
-                // position isn't monotonic across the window — it rises
-                // into view then the pull eases back off near full reveal —
-                // and the strings should keep growing from wherever
-                // they've already reached, not visually retreat toward a
-                // receding point.
-                const sectionViewportTop = (expertiseTopCached - window.scrollY) - expertisePull;
-                const coreYViewport = (height / 2) - lastFlyOffsetPx;
-                const coreYLocal = coreYViewport - sectionViewportTop;
-                const coreJRaw = Math.max(0, Math.min(SEGMENTS, Math.round((coreYLocal / sHeight) * SEGMENTS)));
-                liveCoreJ = Math.max(liveCoreJ, coreJRaw);
-                const centerJ = liveCoreJ;
-
-                // Shoots outward from centerJ in both directions instead of
-                // growing top-down — jLo/jHi both start pinned at centerJ
-                // and spread apart as reveal runs 0->1, clamped to the
-                // string's real ends. Max(centerJ, SEGMENTS-centerJ) as the
-                // spread target guarantees the full string is visible by
-                // reveal===1 regardless of which side is longer.
-                const spreadJ = reveal * Math.max(centerJ, SEGMENTS - centerJ);
-                const jLo = Math.max(0, Math.round(centerJ - spreadJ));
-                const jHi = Math.min(SEGMENTS, Math.round(centerJ + spreadJ));
-                sctx.lineCap = 'round';
-
-                // Per-heading fade-in: each heading lights up exactly when
-                // the strings' downward growth front (jHi, the edge headed
-                // toward the text mass) passes its own cached Y position,
-                // instead of the whole stack fading on one shared timer —
-                // "струны пролетают под его координатами."
-                const growthFrontY = (jHi / SEGMENTS) * sHeight;
-                headingEls.forEach((h, i) => {
-                    const localTop = headingLocalTops[i] || 0;
-                    const dist = growthFrontY - localTop;
-                    h.style.opacity = Math.max(0, Math.min(1, dist / 40));
-                });
-
-                // Oval-to-strings hand-off. Each feeder's CURRENT position
-                // on the fixed space-canvas is recomputed live (same cx/cy/
-                // orbitAngle/squircle formula render() uses for the
-                // corona's orbit ring — see orbitParticles' own init
-                // comment), then converted into this canvas's local space
-                // via the same sectionViewportTop computed above (pull
-                // included, so the feeders and the strings agree on where
-                // the core actually is). `t` (== reveal, the same value
-                // driving the shoot-out above) lerps each feeder from that
-                // live oval position to its assigned string's own centerJ
-                // anchor — the same point the strings themselves are
-                // shooting out from — crossfading blue -> Aurora Green as
-                // it goes, then fades out near the end as it "becomes" the
-                // string's own core rather than a separate dot.
-                if (reveal < 0.999) {
-                    const cx = width / 2, cy = height / 2 - lastFlyOffsetPx;
-                    const orbitAngle = lastRenderTime * 0.00002;
-                    const t = reveal;
-                    sctx.save();
-                    sctx.shadowBlur = 0;
-                    strings.forEach((s, i) => {
-                        stringFeeders[i].forEach(p => {
-                            const ang = p.angleOffset + orbitAngle;
-                            const c = Math.cos(ang), sn = Math.sin(ang);
-                            const ex = Math.sign(c) * Math.pow(Math.abs(c), SQUIRCLE_EXP);
-                            const ey = Math.sign(sn) * Math.pow(Math.abs(sn), SQUIRCLE_EXP);
-                            const ovalX = cx + ex * width * 0.5 * p.kJitter;
-                            const ovalY = (cy + ey * height * 0.5 * p.kJitter) - sectionViewportTop;
-
-                            const targetX = s.x, targetY = pyOf(s, centerJ);
-                            const px = ovalX + (targetX - ovalX) * t;
-                            const py = ovalY + (targetY - ovalY) * t;
-
-                            const r = Math.round(60 + (3 - 60) * t);
-                            const g = Math.round(120 + (192 - 120) * t);
-                            const b = Math.round(255 + (122 - 255) * t);
-                            const alpha = p.alpha * (1 - t * 0.85);
-                            sctx.beginPath();
-                            sctx.arc(px, py, p.radius, 0, Math.PI * 2);
-                            sctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-                            sctx.fill();
-                        });
-                    });
-                    sctx.restore();
-                }
-
-                // Echo glow — a soft, low-opacity radial bloom centered on
-                // whichever point currently carries the most energy,
-                // drawn additively and BEFORE the string strokes so it
-                // reads as light sitting behind the line/letters, not on
-                // top of them. Fed by the exact same `energy` value
-                // whether it came from the cursor brushing the string
-                // directly or from a linked heading's hover-boost — one
-                // mechanism covers both triggers named in the brief.
-                sctx.save();
-                sctx.globalCompositeOperation = 'lighter';
-                strings.forEach(s => {
-                    if (s.energy < 0.03 || s.peakIndex < jLo || s.peakIndex > jHi) return;
-                    const gx = pxOf(s, s.peakIndex), gy = pyOf(s, s.peakIndex);
-                    const r = 50 + s.energy * 70;
-                    const glowGrad = sctx.createRadialGradient(gx, gy, 0, gx, gy, r);
-                    const alpha = Math.min(0.4, s.energy * 0.4);
-                    glowGrad.addColorStop(0, `rgba(0, 255, 150, ${alpha})`);
-                    glowGrad.addColorStop(1, 'rgba(0, 255, 150, 0)');
-                    sctx.beginPath();
-                    sctx.arc(gx, gy, r, 0, Math.PI * 2);
-                    sctx.fillStyle = glowGrad;
-                    sctx.fill();
-                });
-                sctx.restore();
-
-                // Entrance color-morph: while still shooting out, stroke in
-                // a solid blue-violet -> Aurora Green (#00FF66) lerp
-                // instead of the string's permanent depth gradient — the
-                // "выстрел" flash asked for. It converges exactly onto the
-                // gradient's own bottom color by reveal===1, so the switch
-                // to the resting per-depth gradient at full reveal doesn't
-                // pop at the bottom (only the top settles from green back
-                // to its resting ultramarine, read as the flash cooling
-                // into place).
-                const entryR = Math.round(90 + (0 - 90) * reveal);
-                const entryG = Math.round(60 + (255 - 60) * reveal);
-                const entryB = Math.round(220 + (102 - 220) * reveal);
-
-                strings.forEach(s => {
-                    sctx.globalAlpha = reveal;
-                    sctx.strokeStyle = reveal < 0.999 ? `rgba(${entryR}, ${entryG}, ${entryB}, 1)` : s.gradient;
-                    sctx.lineWidth = s.lineWidth;
-                    strokeSmoothString(s, jLo, jHi);
-
-                    // Small bright sparks at BOTH growing tips while still
-                    // shooting out — sells the "erupting from the core"
-                    // read at each leading edge, fade away once the string
-                    // reaches its full length in that direction.
-                    if (reveal < 0.999) {
-                        if (jLo > 0) {
-                            sctx.beginPath();
-                            sctx.arc(pxOf(s, jLo), pyOf(s, jLo), 2.2, 0, Math.PI * 2);
-                            sctx.fillStyle = `rgba(200, 255, 220, ${0.6 * reveal})`;
-                            sctx.fill();
-                        }
-                        if (jHi < SEGMENTS) {
-                            sctx.beginPath();
-                            sctx.arc(pxOf(s, jHi), pyOf(s, jHi), 2.2, 0, Math.PI * 2);
-                            sctx.fillStyle = `rgba(200, 255, 220, ${0.6 * reveal})`;
-                            sctx.fill();
-                        }
-                    }
-                });
-                sctx.globalAlpha = 1;
-            }
-
-            function stringsFrame() {
-                excite();
-                stepPhysics();
-                drawStrings();
-                requestAnimationFrame(stringsFrame);
-            }
-            requestAnimationFrame(stringsFrame);
-
-            // Hover linkage: a string is "behind" a heading if its resting
-            // X position falls within that heading's own horizontal
-            // range (both converted to the same canvas-local coordinate
-            // space via getBoundingClientRect(), since the canvas fills
-            // the section edge-to-edge).
-            headingEls.forEach(h => {
-                function linkedStrings() {
-                    const hRect = h.getBoundingClientRect();
-                    const cRect = stringsCanvas.getBoundingClientRect();
-                    const left = hRect.left - cRect.left, right = hRect.right - cRect.left;
-                    return strings.filter(s => s.x >= left - 20 && s.x <= right + 20);
-                }
-                h.addEventListener('mouseenter', () => {
-                    linkedStrings().forEach(s => {
-                        s.boosted = true;
-                        // immediate strong pluck across the whole string, so hovering reads as an instant energy burst, not a slow ramp-up
-                        for (let j = 4; j < SEGMENTS - 4; j++) {
-                            s.yPrev[j] -= (Math.random() - 0.5) * 2.8;
-                        }
-                    });
-                });
-                h.addEventListener('mouseleave', () => {
-                    linkedStrings().forEach(s => { s.boosted = false; });
-                });
+        // Staggered opacity-only reveal — no translateY, no growth-front
+        // tracking, just each heading fading in in its own slice of the
+        // settle window once the strings have already fully formed
+        // behind it. Called from render() every frame.
+        function updateExpertiseHeadings() {
+            const sp = settleProgress();
+            expertiseHeadingEls.forEach((h, i) => {
+                const start = i * 0.15;
+                const local = Math.max(0, Math.min(1, (sp - start) / 0.4));
+                h.style.opacity = local;
             });
-        })();
+        }
     </script>
 </body>
 </html>
