@@ -502,6 +502,139 @@
         }
 
         /* ============================================================
+           Block: Problems — inserted between Portfolio and Expertise.
+           Same pattern as both neighbors: a plain scroll-through box
+           whose height is set in JS (cacheProblemsGeometry) so its own
+           sticky-zone hands off from #portfolio with zero gap, and
+           #expertise hands off from THIS with zero gap in turn — see
+           the JS comment for how the two-stage particle morph
+           (galaxy -> horizon line -> vertical strings) splits across
+           this section's own entry/exit windows.
+           ============================================================ */
+        #problems {
+            position: relative;
+            width: 100%;
+            height: 200vh;
+            background: transparent;
+        }
+        .problems-sticky-zone {
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            width: 100vw;
+            /* border-box is load-bearing, not cosmetic — see the same
+               note on .expertise-sticky-zone; a real bug there (padding
+               silently growing the box past 100vh) broke this file's
+               zero-gap scroll math once already. */
+            box-sizing: border-box;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            /* Same fixed-px header clearance as Portfolio/Expertise —
+               120px = 92px header + a comfortable margin below it,
+               not a vh value (which would drift the gap at different
+               viewport heights). */
+            padding: 120px 24px 40px;
+        }
+        .problems-content {
+            position: relative;
+            z-index: 3;
+            max-width: 900px;
+            text-align: center;
+            pointer-events: auto;
+        }
+        .problems-manifest {
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-weight: 700;
+            font-size: clamp(26px, 4.4vw, 60px);
+            line-height: 1.25;
+            letter-spacing: -0.01em;
+            color: #fff;
+            margin: 0;
+            user-select: none;
+        }
+        .problems-seo-text {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
+            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.6);
+            max-width: 560px;
+            margin: 20px auto 0;
+            /* Hidden at rest — this is the "скрытая текстовая строка"
+               asked for. Revealed via JS mouseenter/mouseleave on
+               .problems-content (see initProblems), not a pure-CSS
+               :hover, so the same interaction can be driven by a
+               touch/tap on mobile too. */
+            opacity: 0;
+            transition: opacity 0.6s ease;
+        }
+        .problems-seo-text.is-visible {
+            opacity: 1;
+        }
+        .problems-tags {
+            position: absolute;
+            inset: 0;
+            z-index: 2;
+            pointer-events: none;
+        }
+        .problem-tag {
+            position: absolute;
+            left: var(--tx);
+            top: var(--ty);
+            transform: translate(-50%, -50%);
+            font-family: 'DM Sans', monospace;
+            font-size: 13px;
+            letter-spacing: 0.02em;
+            color: rgba(180, 185, 200, 0.5);
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 6px;
+            padding: 7px 14px;
+            white-space: nowrap;
+            user-select: none;
+            cursor: crosshair;
+            pointer-events: auto;
+            transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+        }
+        .problem-tag:hover,
+        .problem-tag.is-touched {
+            color: rgba(255, 255, 255, 0.85);
+            border-color: rgba(0, 229, 255, 0.4);
+            background: rgba(0, 229, 255, 0.06);
+        }
+        /* RGB-shift digital glitch — stepped timing (not eased) is what
+           reads as "digital" rather than a smooth wobble. The tag is
+           removed from layout (display:none, set in JS) once this
+           finishes; the canvas spark burst is what actually sells the
+           destruction, this is just the initial snap. */
+        @keyframes problemTagGlitch {
+            0%   { transform: translate(-50%, -50%) skew(0deg); text-shadow: 0 0 rgba(0,0,0,0); opacity: 1; }
+            15%  { transform: translate(calc(-50% - 4px), calc(-50% + 2px)) skew(-3deg); text-shadow: 3px 0 #ff2d55, -3px 0 #00e5ff; opacity: 1; }
+            30%  { transform: translate(calc(-50% + 3px), calc(-50% - 3px)) skew(2deg); text-shadow: -3px 0 #ff2d55, 3px 0 #00e5ff; opacity: 0.8; }
+            45%  { transform: translate(calc(-50% - 5px), calc(-50% + 1px)) skew(-4deg); text-shadow: 4px 0 #ff2d55, -4px 0 #00e5ff; opacity: 0.6; }
+            60%  { transform: translate(calc(-50% + 2px), calc(-50% - 2px)) skew(1deg); opacity: 0.4; }
+            100% { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
+        }
+        .problem-tag.glitching {
+            animation: problemTagGlitch 0.36s steps(2, end) forwards;
+            pointer-events: none;
+        }
+        @media (max-width: 768px) {
+            .problems-sticky-zone { padding: 100px 16px 32px; }
+            .problems-manifest { font-size: clamp(22px, 6.5vw, 34px); }
+            .problems-seo-text { font-size: 13px; max-width: 90vw; }
+            /* Scattered percentage positions can still push a long tag's
+               TEXT past the viewport edge even though its own anchor
+               point (--tx/--ty) is a valid percentage — clamp the tags
+               into a safe inner margin and shrink them instead of
+               letting text width overflow. */
+            .problem-tag { font-size: 11px; padding: 5px 10px; max-width: 36vw; white-space: normal; text-align: center; }
+            .problems-tags { inset: 15vw; }
+        }
+
+        /* ============================================================
            Block 2 — Expertise & Tech Stack
            ============================================================ */
         /* Mirrors #portfolio's own pattern exactly: a plain scroll-through
@@ -720,6 +853,22 @@
             </div>
         </section>
 
+        <section id="problems">
+            <div class="problems-sticky-zone">
+                <div class="problems-tags">
+                    <span class="problem-tag" data-tag="0" style="--tx: 12%; --ty: 20%;">[outdated template]</span>
+                    <span class="problem-tag" data-tag="1" style="--tx: 84%; --ty: 24%;">[broken mobile layout]</span>
+                    <span class="problem-tag" data-tag="2" style="--tx: 9%; --ty: 76%;">[slow loading speed]</span>
+                    <span class="problem-tag" data-tag="3" style="--tx: 87%; --ty: 74%;">[invisible on google]</span>
+                    <span class="problem-tag" data-tag="4" style="--tx: 50%; --ty: 90%;">[lost clients]</span>
+                </div>
+                <div class="problems-content">
+                    <h2 class="problems-manifest">In a digital space full of noise, invisible businesses fade away.</h2>
+                    <p class="problems-seo-text">Blackveil Studio creates high-end websites with custom frontend development, premium UI/UX design, and 60fps motion engineering to make your business dominate Google searches.</p>
+                </div>
+            </div>
+        </section>
+
         <section id="expertise">
             <div class="expertise-sticky-zone">
                 <div class="expertise-stack">
@@ -841,6 +990,50 @@
                 }
             }
             return { ox, oy, dissolve };
+        }
+
+        // Problem-tag shatter sparks — a small, transient particle burst,
+        // kept entirely separate from orbitParticles (which are a
+        // persistent, structural part of the scene) since these are
+        // short-lived one-off effects with their own simple physics:
+        // brief outward burst, then pulled toward the Space Horizon's
+        // screen-center point and faded out as they approach it.
+        const glitchSparks = [];
+        function spawnGlitchSparks(x, y, count) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 1.5 + Math.random() * 5;
+                glitchSparks.push({
+                    x, y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 1,
+                    decay: 0.012 + Math.random() * 0.01,
+                    size: 0.8 + Math.random() * 1.4
+                });
+            }
+        }
+        function stepAndDrawGlitchSparks() {
+            if (!glitchSparks.length) return;
+            const targetX = width / 2, targetY = height / 2;
+            ctx.save();
+            ctx.globalCompositeOperation = 'lighter';
+            for (let i = glitchSparks.length - 1; i >= 0; i--) {
+                const sp = glitchSparks[i];
+                const dx = targetX - sp.x, dy = targetY - sp.y;
+                const dist = Math.hypot(dx, dy) || 1;
+                sp.vx *= 0.94; sp.vy *= 0.94;
+                sp.vx += (dx / dist) * 0.25;
+                sp.vy += (dy / dist) * 0.25;
+                sp.x += sp.vx; sp.y += sp.vy;
+                sp.life -= sp.decay;
+                if (sp.life <= 0 || dist < 16) { glitchSparks.splice(i, 1); continue; }
+                ctx.beginPath();
+                ctx.arc(sp.x, sp.y, sp.size, 0, Math.PI * 2);
+                ctx.fillStyle = `rgba(0, 229, 255, ${Math.min(1, sp.life) * 0.9})`;
+                ctx.fill();
+            }
+            ctx.restore();
         }
 
         function lerp(start, end, amt) {
@@ -1437,6 +1630,34 @@
         }
         cacheSectionGeometry();
 
+        // Block: Problems — sits between #portfolio and #expertise. No
+        // separate "trigger point" mechanic like #portfolio's own
+        // releaseProgress needs (that one's tied to a specific card's
+        // position): the interactive dwell here is simply "the user
+        // hasn't scrolled further yet" — problemsReleaseAmount stays at
+        // 0, and however long they linger interacting with the tags
+        // costs zero scroll budget. It only starts advancing once they
+        // actually scroll past problemsTopCached, over one full
+        // viewport height (problemsExitWindowPx), driving the second
+        // morph stage (horizon line -> vertical strings, see render()).
+        // #problems's own CSS height (100vh sticky + this same exit
+        // window) is set here so #expertise hands off from THIS section
+        // with zero gap, same principle as every other boundary in this
+        // file.
+        const problemsSection = document.getElementById('problems');
+        let problemsTopCached = 0;
+        let problemsExitWindowPx = 0;
+        function cacheProblemsGeometry() {
+            problemsExitWindowPx = height;
+            problemsSection.style.height = (height + problemsExitWindowPx) + 'px';
+            problemsTopCached = problemsSection.offsetTop;
+        }
+        cacheProblemsGeometry();
+
+        function problemsReleaseAmount() {
+            return Math.max(0, Math.min(1, (window.scrollY - problemsTopCached) / problemsExitWindowPx));
+        }
+
         // The whole hero -> portfolio handoff — burst, title exit, text-in,
         // cards-in — lives in one compact, fixed 0-500px window driven by a
         // single scrollPercent value (computed in render()). No spacer, no
@@ -1494,6 +1715,7 @@
             height = window.innerHeight;
             resizeCanvasForDPR();
             cacheSectionGeometry();
+            cacheProblemsGeometry();
             computeStringTargets();
             cacheExpertiseGeometry();
             cacheHeadingRanges();
@@ -1739,54 +1961,63 @@
                 // Shared angle = time * orbitSpeed (pure function of time,
                 // nothing accumulates).
                 //
-                // Particle morph (releaseAmount 0->1): each particle's
-                // live ring position (gx, gy — exactly what it would be at
-                // releaseAmount===0) is the interpolation's START point;
-                // the END point is its own targetYFrac down whichever of
-                // the STRING_COUNT vertical lines currently sits nearest
-                // its ring position, picked fresh every frame so the
-                // assignment tracks the ring's own slow rotation instead
-                // of going stale. Color lerps blue -> deep cosmic
-                // aquamarine (#00E5FF) over the same progress — computed
-                // ONCE per frame (morphColorR/G/B below), not per
-                // particle, since every particle shares the identical
-                // global morphT; at releaseAmount===0 this evaluates to
-                // the same base blue as the old squircle-only draw. Blue
-                // channel stays pinned at 255 the whole way — the base
-                // blue and the aquamarine target share it, so this is a
-                // hue shift within the blue/cyan family rather than the
-                // blue->green swing the first pass used.
+                // TWO-STAGE morph, one particle array carrying the whole
+                // journey: galaxy ring -> horizon line (#problems) ->
+                // vertical strings (#expertise). Stage 1 uses morphT
+                // (releaseAmount, unchanged from before #problems
+                // existed); stage 2 uses morphT2 (problemsReleaseAmount,
+                // new). Since #problems only begins after #portfolio's
+                // own box ends, morphT is always pinned at 1 by the time
+                // morphT2 becomes relevant — stage 2 always starts from
+                // the fully-formed horizon line, never mid-flight from
+                // the galaxy. Color still lerps blue -> aquamarine
+                // (#00E5FF) over morphT alone (unchanged) — that's
+                // already the "неоново-бирюзовая" the horizon line needs,
+                // and it stays at that color through stage 2 too (the
+                // strings' own resting gradient is applied separately by
+                // the line-stroke pass below, same as before).
                 const orbitAngle = time * 0.00002;
                 const morphT = releaseAmount;
+                const morphT2 = problemsReleaseAmount();
                 const morphColorR = Math.round(60 + (0 - 60) * morphT);
                 const morphColorG = Math.round(120 + (229 - 120) * morphT);
                 const morphColorB = 255;
 
-                // Brightness surge, in two layers: a broad hump across the
-                // middle of the transition (0.2-0.8, peaking at 2x right
-                // at the midpoint — the "ядерный вау-эффект" during the
-                // actual flight), plus a sharper, shorter spike right as
-                // particles land on their line (~0.9 — the docking flash).
-                // Deliberately NOT done via per-particle shadowBlur: this
-                // file already tried a live, unbaked ~900-particle pass
-                // with per-particle glow once before and measured it too
-                // expensive for a 16.6ms frame budget (see the galaxy
-                // sprite's own baking comment above) — radius + alpha
-                // scale the same "burning brighter" read without paying
-                // a shadow-blur cost 900 times a frame.
-                const midBoostT = Math.max(0, Math.min(1, (morphT - 0.2) / 0.6));
-                const midBoost = Math.sin(midBoostT * Math.PI);
-                const dockFlashT = Math.max(0, 1 - Math.abs(morphT - 0.9) / 0.12);
-                const dockFlash = dockFlashT * dockFlashT;
-                const brightnessBoost = 1 + midBoost + dockFlash * 0.8;
+                // Brightness surge, duplicated per stage (each stage gets
+                // its own "energy" flight — the galaxy rushing into the
+                // horizon, then later the horizon shattering into
+                // strings) rather than one shared curve, so both
+                // transitions get the same "ядерный вау-эффект" instead
+                // of just the first one. Combined multiplicatively —
+                // each settles back to 1 once its own stage is inactive,
+                // so they never double up. Deliberately NOT done via
+                // per-particle shadowBlur: this file already tried a
+                // live, unbaked ~900-particle pass with per-particle glow
+                // once before and measured it too expensive for a 16.6ms
+                // frame budget — radius + alpha scale the same "burning
+                // brighter" read without paying a shadow-blur cost 900
+                // times a frame.
+                function surgeBoost(t) {
+                    const midT = Math.max(0, Math.min(1, (t - 0.2) / 0.6));
+                    const mid = Math.sin(midT * Math.PI);
+                    const flashT = Math.max(0, 1 - Math.abs(t - 0.9) / 0.12);
+                    const flash = flashT * flashT;
+                    return { boost: 1 + mid + flash * 0.8, flash };
+                }
+                const surge1 = surgeBoost(morphT);
+                const surge2 = surgeBoost(morphT2);
+                const brightnessBoost = surge1.boost * surge2.boost;
+                const dockFlash = surge2.flash; // only stage 2's flash drives the string line-stroke's own width pulse below
 
                 // Per-string hover physics — cursor proximity to a
                 // string's own X is the ONLY trigger; no heading/text
                 // involvement anywhere in this file drives the strings.
                 // Only live once the strings are a recognizable thing to
-                // touch (releaseAmount > 0.6); stepped every frame
-                // regardless so residual energy keeps decaying properly.
-                if (releaseAmount > 0.6) {
+                // touch (morphT2 > 0.6 — the OLD gate was releaseAmount,
+                // which now just means "horizon formed", not "strings
+                // formed"); stepped every frame regardless so residual
+                // energy keeps decaying properly.
+                if (morphT2 > 0.6) {
                     exciteStrings();
                     stepStringWaves();
                 }
@@ -1801,16 +2032,33 @@
                     const gx = cx + ex * width * 0.5 * p.kJitter;
                     const gy = cy + ey * height * 0.5 * p.kJitter;
 
-                    let px = gx, py = gy, nearestX = gx, targetY = gy, nearestIdx = 0;
+                    // Stage 1 target: an even spot along a horizontal
+                    // line at screen-center, with a little per-particle
+                    // Y jitter (reusing kJitter, already a stable
+                    // per-particle 0.97-1.03 value) so it reads as a
+                    // "dense glowing line" with real thickness rather
+                    // than a mathematically flat one.
+                    const horizonTargetX = p.targetYFrac * width;
+                    const horizonTargetY = height / 2 + (p.kJitter - 1) * 400;
+                    let hx = gx, hy = gy;
                     if (morphT > 0.001) {
+                        hx = gx + (horizonTargetX - gx) * morphT;
+                        hy = gy + (horizonTargetY - gy) * morphT;
+                    }
+
+                    // Stage 2 target: same nearest-vertical-string logic
+                    // the old single-stage morph used, just now measured
+                    // from hx (the horizon position) instead of gx.
+                    let px = hx, py = hy, nearestX = hx, targetY = hy, nearestIdx = 0;
+                    if (morphT2 > 0.001) {
                         let bestD = Infinity;
                         for (let si = 0; si < stringTargetX.length; si++) {
-                            const d = Math.abs(gx - stringTargetX[si]);
+                            const d = Math.abs(hx - stringTargetX[si]);
                             if (d < bestD) { bestD = d; nearestX = stringTargetX[si]; nearestIdx = si; }
                         }
                         targetY = p.targetYFrac * height;
-                        px = gx + (nearestX - gx) * morphT;
-                        py = gy + (targetY - gy) * morphT;
+                        px = hx + (nearestX - hx) * morphT2;
+                        py = hy + (targetY - hy) * morphT2;
                         px += waveAt(nearestIdx, py);
                     }
 
@@ -1830,11 +2078,13 @@
                         gravDissolveOrbit = g.dissolve;
                     }
 
-                    // Trail: a short streak back along this SAME straight-
-                    // line interpolation, evaluated at a slightly earlier
-                    // point on the 0..1 path — stateless (no per-particle
-                    // history buffer needed) since the whole flight path
-                    // is already a deterministic function of morphT. Flat
+                    // Trail: a short streak back along whichever stage is
+                    // ACTIVELY in flight right now — stateless (no per-
+                    // particle history buffer needed) since both flight
+                    // paths are already deterministic functions of their
+                    // own stage progress. The two conditions are mutually
+                    // exclusive in practice (stage 2 only ever becomes
+                    // non-zero once stage 1 has already reached 1). Flat
                     // color, no gradient object per particle (900 of
                     // those every frame would be the expensive part, not
                     // the stroke itself) — the 'screen' composite already
@@ -1842,8 +2092,19 @@
                     // as a soft glow rather than a hard line.
                     if (morphT > 0.03 && morphT < 0.97) {
                         const trailT = Math.max(0, morphT - 0.1);
-                        const tailX = gx + (nearestX - gx) * trailT;
-                        const tailY = gy + (targetY - gy) * trailT;
+                        const tailX = gx + (horizonTargetX - gx) * trailT;
+                        const tailY = gy + (horizonTargetY - gy) * trailT;
+                        ctx.strokeStyle = `rgba(${morphColorR}, ${morphColorG}, ${morphColorB}, ${p.alpha * a * 0.4 * brightnessBoost})`;
+                        ctx.lineWidth = p.radius * 0.9;
+                        ctx.lineCap = 'round';
+                        ctx.beginPath();
+                        ctx.moveTo(tailX, tailY);
+                        ctx.lineTo(hx, hy);
+                        ctx.stroke();
+                    } else if (morphT2 > 0.03 && morphT2 < 0.97) {
+                        const trailT2 = Math.max(0, morphT2 - 0.1);
+                        const tailX = hx + (nearestX - hx) * trailT2;
+                        const tailY = hy + (targetY - hy) * trailT2;
                         ctx.strokeStyle = `rgba(${morphColorR}, ${morphColorG}, ${morphColorB}, ${p.alpha * a * 0.4 * brightnessBoost})`;
                         ctx.lineWidth = p.radius * 0.9;
                         ctx.lineCap = 'round';
@@ -1856,7 +2117,7 @@
                     // A gentle idle twinkle once mostly settled, so the
                     // formed strings still read as living dust rather than
                     // a frozen static image.
-                    const twinkle = morphT > 0.9 ? (0.85 + 0.15 * Math.sin(time * 0.002 + p.seed)) : 1;
+                    const twinkle = morphT2 > 0.9 ? (0.85 + 0.15 * Math.sin(time * 0.002 + p.seed)) : 1;
                     const headingBoost = 1 + stringHeadingBoostByIndex[nearestIdx] * 0.8;
                     const finalAlpha = Math.min(1, p.alpha * a * twinkle * brightnessBoost * headingBoost * gravDissolveOrbit);
                     const finalRadius = p.radius * (1 + (brightnessBoost - 1) * 0.35);
@@ -1867,6 +2128,40 @@
                 });
                 ctx.restore();
 
+                // The horizon line itself — a crisp stroke + soft glow
+                // band under the dust, same "clean line reads immediately"
+                // principle the string stroke below already uses. Visible
+                // once the dust has substantially formed the line
+                // (morphT > 0.15) and fades back out once stage 2 starts
+                // pulling it apart into strings, rather than lingering
+                // through that transition looking static.
+                if (morphT > 0.15) {
+                    const horizonAlphaLocal = Math.min(1, (morphT - 0.15) / 0.65) * Math.max(0, 1 - morphT2 / 0.3);
+                    if (horizonAlphaLocal > 0.01) {
+                        ctx.save();
+                        ctx.globalCompositeOperation = 'lighter';
+                        const glowGrad = ctx.createLinearGradient(0, height / 2 - 90, 0, height / 2 + 90);
+                        glowGrad.addColorStop(0, 'rgba(0, 229, 255, 0)');
+                        glowGrad.addColorStop(0.5, `rgba(0, 229, 255, ${horizonAlphaLocal * 0.16})`);
+                        glowGrad.addColorStop(1, 'rgba(0, 229, 255, 0)');
+                        ctx.fillStyle = glowGrad;
+                        ctx.fillRect(0, height / 2 - 90, width, 180);
+
+                        const lineGrad = ctx.createLinearGradient(0, height / 2, width, height / 2);
+                        lineGrad.addColorStop(0, 'rgba(0, 229, 255, 0)');
+                        lineGrad.addColorStop(0.12, `rgba(0, 229, 255, ${horizonAlphaLocal * 0.85})`);
+                        lineGrad.addColorStop(0.88, `rgba(0, 229, 255, ${horizonAlphaLocal * 0.85})`);
+                        lineGrad.addColorStop(1, 'rgba(0, 229, 255, 0)');
+                        ctx.strokeStyle = lineGrad;
+                        ctx.lineWidth = 2.5 * (1 + surge1.flash * 0.8);
+                        ctx.beginPath();
+                        ctx.moveTo(width * 0.04, height / 2);
+                        ctx.lineTo(width * 0.96, height / 2);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                }
+
                 // The strings themselves — a crisp stroke under the dust so
                 // the "particles becoming a clean neon line" reads
                 // immediately rather than only once the dust is dense
@@ -1876,8 +2171,8 @@
                 // draws smooth cubic curves through the actual simulated
                 // wave points — with no active touch, every point sits at
                 // 0 and it draws pixel-identical to a straight line.
-                if (releaseAmount > 0.15) {
-                    const lineAlpha = Math.min(1, (releaseAmount - 0.15) / 0.65) * 0.5 * Math.min(1.6, brightnessBoost);
+                if (morphT2 > 0.15) {
+                    const lineAlpha = Math.min(1, (morphT2 - 0.15) / 0.65) * 0.5 * Math.min(1.6, brightnessBoost);
                     ctx.save();
                     ctx.globalCompositeOperation = 'lighter';
                     stringTargetX.forEach((sx, i) => {
@@ -1902,7 +2197,7 @@
                 // nothing shows before docking begins. Speed halved and
                 // radius scaled 1.5x from the first pass — a slow, lazy,
                 // hypnotic drift rather than a quick flicker.
-                const dockEnergy = Math.max(0, Math.min(1, (releaseAmount - 0.7) / 0.3));
+                const dockEnergy = Math.max(0, Math.min(1, (morphT2 - 0.7) / 0.3));
                 if (dockEnergy > 0.01) {
                     ctx.save();
                     ctx.globalCompositeOperation = 'lighter';
@@ -1926,6 +2221,12 @@
                     });
                     ctx.restore();
                 }
+
+                // Problem-tag shatter sparks — drawn here so they sit
+                // visually on top of the horizon/string dust, converging
+                // on the same screen-center point that dust radiates
+                // from/into.
+                stepAndDrawGlitchSparks();
 
                 // Streamers — thin rays radiating out from points around the
                 // rim, varying length/brightness per ray (fixed per index, so
@@ -1955,6 +2256,13 @@
                 // Baking keeps this back to a single cheap blit.
                 const galaxyDraw = GALAXY_SPRITE_SIZE;
                 const galaxyRotSpeed = 0.000028;
+                // Zooms toward the camera as releaseAmount runs 0->1 (up
+                // to 2.2x) WHILE decorAlpha is simultaneously fading it
+                // out — the two together read as "rushes forward, then
+                // dissolves" rather than a flat fade-in-place. Most
+                // visible in the early-mid part of the transition, since
+                // by releaseAmount->1 alpha itself is already near 0.
+                const galaxyZoom = 1 + releaseAmount * 1.2;
                 ctx.save();
                 ctx.globalCompositeOperation = 'screen';
                 ctx.imageSmoothingEnabled = false;
@@ -1962,6 +2270,7 @@
                 ctx.globalAlpha = decorAlpha;
                 ctx.translate(cx, cy);
                 ctx.rotate(time * galaxyRotSpeed); // autonomous, own clock only — no mouse term anywhere in this block
+                ctx.scale(galaxyZoom, galaxyZoom);
                 ctx.drawImage(galaxySprite, -galaxyDraw / 2, -galaxyDraw / 2, galaxyDraw, galaxyDraw);
                 ctx.restore();
 
@@ -2388,6 +2697,65 @@
             h.addEventListener('mouseleave', () => {
                 h.style.transform = '';
             });
+        });
+
+        // ============================================================
+        // Block: Problems — tag glitch-shatter interaction + hidden SEO
+        // text reveal. No canvas geometry of its own to manage here
+        // (that's the two-stage particle morph inside render() above),
+        // just DOM interaction.
+        // ============================================================
+        const problemTags = Array.from(document.querySelectorAll('.problem-tag'));
+        const problemsContentEl = document.querySelector('.problems-content');
+        const problemsSeoText = document.querySelector('.problems-seo-text');
+
+        // "Скрытая текстовая строка" — hidden at rest (see the CSS),
+        // revealed once the cursor has been over the manifest and then
+        // leaves it ("очищает экран мышью"). Touch devices don't have a
+        // meaningful "leave" gesture, so a tap toggles it directly.
+        if (problemsContentEl && problemsSeoText) {
+            problemsContentEl.addEventListener('mouseenter', () => {
+                problemsSeoText.classList.remove('is-visible');
+            });
+            problemsContentEl.addEventListener('mouseleave', () => {
+                problemsSeoText.classList.add('is-visible');
+            });
+            problemsContentEl.addEventListener('touchstart', () => {
+                problemsSeoText.classList.toggle('is-visible');
+            }, { passive: true });
+        }
+
+        // Glitch-shatter: dataset.shattered guards against a repeat
+        // trigger (mouseenter firing again mid-animation, or a touch
+        // landing on an already-vanished tag) — once destroyed, a tag
+        // stays gone for the rest of the visit rather than resetting,
+        // matching "оставляя экран абсолютно чистым" as a real,
+        // permanent-feeling result rather than a replayable toy. Spark
+        // count halved under 768px per the brief — this file already
+        // resizes the canvas backing store for devicePixelRatio
+        // (resizeCanvasForDPR, called on load/resize); this is the other
+        // half of "don't tax a mobile GPU": fewer transient particles on
+        // the burst itself, on top of that.
+        function shatterProblemTag(tag) {
+            if (tag.classList.contains('glitching') || tag.dataset.shattered === '1') return;
+            tag.dataset.shattered = '1';
+            tag.classList.add('glitching');
+            const rect = tag.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            const sparkCount = width < 768 ? 60 : 130;
+            spawnGlitchSparks(cx, cy, sparkCount);
+            setTimeout(() => { tag.style.display = 'none'; }, 360);
+        }
+        problemTags.forEach(tag => {
+            tag.addEventListener('mouseenter', () => shatterProblemTag(tag));
+            // No preventDefault here on purpose — these tags are small
+            // and scattered, not a scroll-blocking surface; passive:true
+            // keeps a touch that starts on a tag free to still scroll
+            // the page if that's what the gesture turns out to be. The
+            // dataset guard above already makes a duplicate synthetic
+            // mouseenter (common on touch browsers) harmless.
+            tag.addEventListener('touchstart', () => shatterProblemTag(tag), { passive: true });
         });
     </script>
 </body>
