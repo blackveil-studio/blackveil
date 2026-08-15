@@ -682,6 +682,38 @@
         }
         computeStringTargets();
 
+        // Individual per-string hover: honest cursor-driven physics, no
+        // text/heading involvement at all — the cursor's own proximity to
+        // a string's X is the only trigger. One touch-state slot per
+        // string (index-aligned with stringTargetX, so it stays valid
+        // across resizes even though the X values themselves shift), plus
+        // a speed-gate so simply resting the cursor near a string doesn't
+        // perpetually re-trigger the ripple — only genuinely crossing it
+        // does, same spirit as the old (now-removed) excite() this
+        // replaces.
+        const stringTouches = stringTargetX.map(() => ({ y: 0, t: -9999 }));
+        let lastStringMouseX = mouse.x, lastStringMouseY = mouse.y;
+        const STRING_TOUCH_RADIUS = 13; // px — within the requested 10-15px comfort band
+
+        // A damped sinusoid, evaluated analytically (not simulated) —
+        // localized around the touch point both in space (exp falloff
+        // along the string's own length) and in time (fast exponential
+        // decay), giving a light, quick shiver rather than a sustained
+        // oscillation. Returns a horizontal displacement in px; 0 for any
+        // string with no recent touch (cheap early-out, checked before
+        // the trig).
+        function stringDisplacement(i, y, timeNow) {
+            const touch = stringTouches[i];
+            const dt = (timeNow - touch.t) / 1000;
+            if (dt < 0 || dt > 0.8) return 0;
+            const dy = y - touch.y;
+            const spatialFalloff = Math.exp(-Math.abs(dy) / 70);
+            if (spatialFalloff < 0.01) return 0;
+            const amplitude = 16 * Math.exp(-dt * 7);
+            const wave = Math.sin(dy * 0.07 - dt * 26);
+            return amplitude * spatialFalloff * wave;
+        }
+
         // Galaxy: baked ONCE into an offscreen sprite, same as before — but
         // this time the sprite canvas is sized to MATCH its final on-screen
         // draw size (~2350px) instead of a smaller 900px canvas scaled up.
@@ -1325,6 +1357,25 @@
                 const dockFlash = dockFlashT * dockFlashT;
                 const brightnessBoost = 1 + midBoost + dockFlash * 0.8;
 
+                // Per-string hover detection — cursor proximity to a
+                // string's own X is the ONLY trigger; no heading/text
+                // involvement anywhere in this file drives the strings
+                // anymore. Only live once the strings are a recognizable
+                // thing to touch (releaseAmount > 0.6), speed-gated so a
+                // resting cursor doesn't keep re-triggering the ripple.
+                if (releaseAmount > 0.6 && mouse.x > -900) {
+                    const mvx = mouse.x - lastStringMouseX, mvy = mouse.y - lastStringMouseY;
+                    const moveSpeed = Math.hypot(mvx, mvy);
+                    lastStringMouseX = mouse.x; lastStringMouseY = mouse.y;
+                    if (moveSpeed > 0.8 && mouse.y >= 0 && mouse.y <= height) {
+                        stringTargetX.forEach((sx, i) => {
+                            if (Math.abs(mouse.x - sx) < STRING_TOUCH_RADIUS) {
+                                stringTouches[i] = { y: mouse.y, t: time };
+                            }
+                        });
+                    }
+                }
+
                 ctx.save();
                 ctx.shadowBlur = 0;
                 orbitParticles.forEach(p => {
@@ -1335,16 +1386,17 @@
                     const gx = cx + ex * width * 0.5 * p.kJitter;
                     const gy = cy + ey * height * 0.5 * p.kJitter;
 
-                    let px = gx, py = gy, nearestX = gx, targetY = gy;
+                    let px = gx, py = gy, nearestX = gx, targetY = gy, nearestIdx = 0;
                     if (morphT > 0.001) {
                         let bestD = Infinity;
                         for (let si = 0; si < stringTargetX.length; si++) {
                             const d = Math.abs(gx - stringTargetX[si]);
-                            if (d < bestD) { bestD = d; nearestX = stringTargetX[si]; }
+                            if (d < bestD) { bestD = d; nearestX = stringTargetX[si]; nearestIdx = si; }
                         }
                         targetY = p.targetYFrac * height;
                         px = gx + (nearestX - gx) * morphT;
                         py = gy + (targetY - gy) * morphT;
+                        px += stringDisplacement(nearestIdx, py, time);
                     }
 
                     // Trail: a short streak back along this SAME straight-
@@ -1388,7 +1440,13 @@
                 // immediately rather than only once the dust is dense
                 // enough to look solid on its own. Alpha rides the same
                 // brightnessBoost as the dust so the line surges in sync
-                // with the particles landing on it.
+                // with the particles landing on it. Sampled in 32 short
+                // segments (instead of one straight moveTo/lineTo) with
+                // stringDisplacement() applied at each sample — this is
+                // what makes the LINE itself visibly shiver at a hover
+                // point, not just the dust sitting on it; with no active
+                // touch, displacement is 0 everywhere and it draws
+                // pixel-identical to the old straight line.
                 if (releaseAmount > 0.15) {
                     const lineAlpha = Math.min(1, (releaseAmount - 0.15) / 0.65) * 0.5 * Math.min(1.6, brightnessBoost);
                     ctx.save();
@@ -1400,9 +1458,13 @@
                         grad.addColorStop(1, `rgba(0, 255, 102, ${lineAlpha * (1 - depth * 0.4)})`);
                         ctx.strokeStyle = grad;
                         ctx.lineWidth = (1.6 - depth * 0.8) * (1 + dockFlash * 0.5);
+                        const SEG = 32;
                         ctx.beginPath();
-                        ctx.moveTo(sx, 0);
-                        ctx.lineTo(sx, height);
+                        ctx.moveTo(sx + stringDisplacement(i, 0, time), 0);
+                        for (let j = 1; j <= SEG; j++) {
+                            const sy = (j / SEG) * height;
+                            ctx.lineTo(sx + stringDisplacement(i, sy, time), sy);
+                        }
                         ctx.stroke();
                     });
                     ctx.restore();
@@ -1414,19 +1476,21 @@
                 // arriving particles are charging the line — time-driven
                 // phase (not scroll) so the motion itself stays smooth
                 // regardless of scroll speed, gated by dockEnergy so
-                // nothing shows before docking begins.
+                // nothing shows before docking begins. Speed halved and
+                // radius scaled 1.5x from the first pass — a slow, lazy,
+                // hypnotic drift rather than a quick flicker.
                 const dockEnergy = Math.max(0, Math.min(1, (releaseAmount - 0.7) / 0.3));
                 if (dockEnergy > 0.01) {
                     ctx.save();
                     ctx.globalCompositeOperation = 'lighter';
                     stringTargetX.forEach((sx, i) => {
                         const depth = i / (STRING_COUNT - 1);
-                        const speed = 0.00042 + depth * 0.00008;
+                        const speed = (0.00042 + depth * 0.00008) / 2;
                         for (let pulseI = 0; pulseI < 2; pulseI++) {
                             const phase = (time * speed + pulseI * 0.5) % 1;
                             const py = phase * height;
                             const fade = Math.sin(phase * Math.PI); // soft appear/disappear at both ends of the run
-                            const glowR = 24;
+                            const glowR = 24 * 1.5;
                             const grad = ctx.createRadialGradient(sx, py, 0, sx, py, glowR);
                             const alpha = dockEnergy * fade * 0.5;
                             grad.addColorStop(0, `rgba(150, 255, 200, ${alpha})`);
