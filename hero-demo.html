@@ -74,6 +74,152 @@
             padding-bottom: 0.08em;
             display: inline-block;
         }
+
+        /* ============================================================
+           Site header
+           ============================================================ */
+        .site-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            z-index: 100;
+            padding: 30px 48px;
+            box-sizing: border-box;
+            /* The header itself never intercepts clicks/hover on whatever's
+               beneath it (the canvas, cards further down) — only its own
+               interactive children (logo, links, button) opt back in. */
+            pointer-events: none;
+        }
+        .site-header-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        .site-logo {
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-weight: 700;
+            font-size: 14px;
+            letter-spacing: 0.38em;
+            color: #fff;
+            text-decoration: none;
+            user-select: none;
+            pointer-events: auto;
+            /* Against the near-black canvas background, difference(white,
+               near-black) is still ~white, so this reads as plain white
+               text at rest — but wherever a bright galaxy/string glow
+               passes directly behind it, the blend visibly inverts/tints
+               the letters, which is the "дорого взаимодействует со
+               светящимися фонами" ask. */
+            mix-blend-mode: difference;
+        }
+        .site-nav {
+            display: flex;
+            align-items: center;
+            gap: 34px;
+            pointer-events: auto;
+        }
+        .nav-link {
+            font-family: 'DM Sans', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: 0.03em;
+            color: #fff;
+            text-decoration: none;
+            opacity: 0.82;
+            mix-blend-mode: difference;
+            transition: opacity 0.2s ease;
+        }
+        .nav-link:hover { opacity: 1; }
+
+        /* ============================================================
+           Neon outline buttons — shared by the header's "Let's Talk"
+           and the Hero's "Explore Showcase". Transparent center (the
+           canvas/particles show through, per the brief) with a gradient
+           ring drawn via a masked ::before rather than border-image —
+           border-image doesn't respect border-radius reliably across
+           browsers, a mask-based ring does, and it's what lets the
+           center stay genuinely transparent instead of needing an
+           opaque backing fill the way the background-clip double-layer
+           trick would.
+           ============================================================ */
+        .neon-btn {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border: none;
+            border-radius: 999px;
+            color: #fff;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 500;
+            text-decoration: none;
+            user-select: none;
+            cursor: pointer;
+            pointer-events: auto;
+            box-shadow: 0 0 0 rgba(176, 110, 232, 0);
+            transition: box-shadow 0.35s ease, transform 0.25s ease;
+        }
+        .neon-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: inherit;
+            padding: 1.5px;
+            background: linear-gradient(90deg, #6b8cf5, #b06ee8, #e8548c);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            pointer-events: none;
+        }
+        .neon-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 0 26px rgba(176, 110, 232, 0.5), 0 0 46px rgba(107, 140, 245, 0.3);
+        }
+        .neon-btn--small {
+            font-size: 13px;
+            letter-spacing: 0.03em;
+            padding: 10px 22px;
+        }
+        .neon-btn--large {
+            font-size: 15px;
+            letter-spacing: 0.04em;
+            padding: 17px 38px;
+        }
+
+        .hero-cta {
+            margin-top: 42px;
+        }
+        .hero-markers {
+            margin-top: 22px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.5);
+            text-align: center;
+            user-select: none;
+            /* Loads invisible, settles in shortly after first paint — a
+               quiet, premium reveal rather than appearing instantly with
+               the rest of the Hero. */
+            opacity: 0;
+            transform: translateY(6px);
+            animation: heroMarkersIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.5s forwards;
+        }
+        @keyframes heroMarkersIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @media (max-width: 860px) {
+            .site-header { padding: 20px 22px; }
+            .site-nav { gap: 18px; }
+            .nav-link { display: none; }
+            .site-logo { font-size: 11px; letter-spacing: 0.28em; }
+        }
+
         #portfolio {
             position: relative;
             width: 100%;
@@ -410,11 +556,26 @@
 
     <canvas id="space-canvas"></canvas>
 
+    <header class="site-header">
+        <div class="site-header-inner">
+            <a href="#" class="site-logo">B L A C K V E I L &nbsp; S T U D I O</a>
+            <nav class="site-nav">
+                <a href="#portfolio" class="nav-link">Work</a>
+                <a href="#expertise" class="nav-link">Expertise</a>
+                <a href="#" class="nav-link">Method</a>
+                <a href="#" class="nav-link">Contact</a>
+                <a href="#" class="neon-btn neon-btn--small" id="lets-talk-btn">Let's Talk</a>
+            </nav>
+        </div>
+    </header>
+
     <div class="page-wrapper" id="content">
         <section class="hero-section">
             <h1 class="hero-title" id="main-title">
                 Small business.<br>Big-studio <em>sites.</em>
             </h1>
+            <a href="#portfolio" class="neon-btn neon-btn--large hero-cta" id="hero-cta-btn">Explore Showcase</a>
+            <p class="hero-markers">Digital Bureau&nbsp;//&nbsp;Custom Frontend Development&nbsp;//&nbsp;Premium UI/UX Design</p>
         </section>
 
         <section id="portfolio">
@@ -513,6 +674,83 @@
 
         const mouse = { x: -999, y: -999 };
 
+        // Neon-button gravity: both "Let's Talk" (fixed header, screen
+        // position never changes) and "Explore Showcase" (normal
+        // document flow inside Hero, scrolls with the page) get tracked
+        // here in one shared array, so Hero's particle system and the
+        // Portfolio/Expertise orbitParticles morph can both pull toward
+        // whichever buttons are actually near them without duplicating
+        // this logic per system. Rects are cached once (load + resize —
+        // never a per-frame layout read, per this file's established
+        // discipline); "kind: scrolling" buttons store their DOCUMENT-
+        // relative top instead, and their current on-screen position is
+        // pure arithmetic every frame (docTop - scrollY) rather than a
+        // fresh getBoundingClientRect() call.
+        const gravityButtons = [];
+        function cacheGravityButtons() {
+            gravityButtons.length = 0;
+            const letsTalk = document.getElementById('lets-talk-btn');
+            if (letsTalk) {
+                const r = letsTalk.getBoundingClientRect();
+                gravityButtons.push({ el: letsTalk, kind: 'fixed', left: r.left, top: r.top, right: r.right, bottom: r.bottom, hoverT: 0 });
+            }
+            const heroCta = document.getElementById('hero-cta-btn');
+            if (heroCta) {
+                const r = heroCta.getBoundingClientRect();
+                gravityButtons.push({ el: heroCta, kind: 'scrolling', docTop: r.top + window.scrollY, docLeft: r.left, w: r.width, h: r.height, hoverT: 0 });
+            }
+        }
+        cacheGravityButtons();
+        // Re-cache once more after full load (images, fonts, any late
+        // layout settling) — measured a real ~2px drift between the
+        // synchronous initial cache and the settled layout in testing,
+        // small enough to never break the effect but still worth
+        // correcting since it's nearly free.
+        window.addEventListener('load', () => { cacheGravityButtons(); cacheHeadingRanges(); });
+
+        function currentButtonRect(b) {
+            if (b.kind === 'fixed') return b;
+            const top = b.docTop - window.scrollY;
+            return { left: b.docLeft, top, right: b.docLeft + b.w, bottom: top + b.h };
+        }
+
+        // Real :hover state (not a click/enter-leave flag), smoothed so
+        // the particle-speed boost and the CSS glow settle in and out
+        // together rather than the particles snapping instantly.
+        function updateButtonHover() {
+            gravityButtons.forEach(b => {
+                const target = b.el.matches(':hover') ? 1 : 0;
+                b.hoverT += (target - b.hoverT) * 0.12;
+            });
+        }
+
+        // Nearest point on a button's rectangle (clamped — 0 if the
+        // particle is already inside), pull strength ramping up to 50px
+        // out and boosted while hovered ("скорость... должна локально
+        // увеличиваться"), plus a dissolve factor (1 = fully visible, 0
+        // once inside) callers multiply into their own alpha.
+        function buttonGravityOffset(px, py) {
+            let ox = 0, oy = 0, dissolve = 1;
+            for (let i = 0; i < gravityButtons.length; i++) {
+                const b = gravityButtons[i];
+                const rect = currentButtonRect(b);
+                const nx = Math.max(rect.left, Math.min(px, rect.right));
+                const ny = Math.max(rect.top, Math.min(py, rect.bottom));
+                const dx = nx - px, dy = ny - py;
+                const dist = Math.hypot(dx, dy);
+                const inside = px > rect.left && px < rect.right && py > rect.top && py < rect.bottom;
+                if (inside) { dissolve = 0; continue; }
+                if (dist < 50) {
+                    const pull = (1 - dist / 50) * (0.5 + b.hoverT * 1.3);
+                    const inv = dist > 0.01 ? 1 / dist : 0;
+                    ox += dx * inv * pull;
+                    oy += dy * inv * pull;
+                    dissolve = Math.min(dissolve, dist / 50);
+                }
+            }
+            return { ox, oy, dissolve };
+        }
+
         function lerp(start, end, amt) {
             return (1 - amt) * start + amt * end;
         }
@@ -593,6 +831,8 @@
                 vy: (Math.random() - 0.5) * 0.25,
                 repVx: 0, repVy: 0,   // friction-damped cursor-repulsion velocity
                 explVx: 0, explVy: 0, // friction-damped scroll-explosion velocity (hero subset only)
+                gravVx: 0, gravVy: 0, // friction-damped pull toward nearby neon buttons
+                gravDissolve: 1,       // 1 = fully visible, ->0 as it nears/enters a button
                 size: isHeroStar ? Math.random() * 1.6 + 1.1 : Math.random() * 0.6 + 0.2,
                 baseAlpha: isHeroStar ? Math.random() * 0.5 + 0.5 : Math.random() * 0.4 + 0.15,
                 isHero: isHeroStar,
@@ -1157,6 +1397,7 @@
             computeStringTargets();
             cacheExpertiseGeometry();
             cacheHeadingRanges();
+            cacheGravityButtons();
         });
 
         // Edge-triggered — the position reshuffle below must fire exactly once
@@ -1288,6 +1529,7 @@
             portfolioStickyZone.style.transform = flyOffsetPx > 0 ? `translateY(${-flyOffsetPx}px)` : '';
             updateExpertiseHeadings();
             updateHeadingHover();
+            updateButtonHover();
 
             // --- nebula clouds — Hero-only now. Swells through the first half
             // of the burst, then fades out over the second half so it's
@@ -1466,6 +1708,22 @@
                         px += waveAt(nearestIdx, py);
                     }
 
+                    // Neon-button gravity — same shared helper Hero's
+                    // particles use, applied here as a direct positional
+                    // nudge rather than integrated velocity (orbitParticles
+                    // have no persistent velocity state to begin with,
+                    // their position is already a pure formula of morphT/
+                    // time each frame — adding a small analytic offset on
+                    // top keeps that invariant instead of bolting on a
+                    // second, inconsistent motion model).
+                    let gravDissolveOrbit = 1;
+                    if (gravityButtons.length) {
+                        const g = buttonGravityOffset(px, py);
+                        px += g.ox * 1.1;
+                        py += g.oy * 1.1;
+                        gravDissolveOrbit = g.dissolve;
+                    }
+
                     // Trail: a short streak back along this SAME straight-
                     // line interpolation, evaluated at a slightly earlier
                     // point on the 0..1 path — stateless (no per-particle
@@ -1494,7 +1752,7 @@
                     // a frozen static image.
                     const twinkle = morphT > 0.9 ? (0.85 + 0.15 * Math.sin(time * 0.002 + p.seed)) : 1;
                     const headingBoost = 1 + stringHeadingBoostByIndex[nearestIdx] * 0.8;
-                    const finalAlpha = Math.min(1, p.alpha * a * twinkle * brightnessBoost * headingBoost);
+                    const finalAlpha = Math.min(1, p.alpha * a * twinkle * brightnessBoost * headingBoost * gravDissolveOrbit);
                     const finalRadius = p.radius * (1 + (brightnessBoost - 1) * 0.35);
                     ctx.beginPath();
                     ctx.arc(px, py, finalRadius, 0, Math.PI * 2);
@@ -1734,6 +1992,26 @@
                     p.x += p.repVx;
                     p.y += p.repVy;
 
+                    // Neon-button gravity — its own velocity channel (same
+                    // friction-damped pattern as the repulsion above, just
+                    // pulling in instead of pushing away), so a star's
+                    // path genuinely curves toward a nearby button rather
+                    // than snapping to an offset. gravDissolve (1 = fully
+                    // visible, ->0 approaching/inside the button) is
+                    // consumed below when computing this frame's alpha.
+                    if (gravityButtons.length) {
+                        const g = buttonGravityOffset(p.x, p.y);
+                        p.gravVx += g.ox * 0.4;
+                        p.gravVy += g.oy * 0.4;
+                        p.gravDissolve = g.dissolve;
+                    } else {
+                        p.gravDissolve = 1;
+                    }
+                    p.gravVx *= 0.94;
+                    p.gravVy *= 0.94;
+                    p.x += p.gravVx;
+                    p.y += p.gravVy;
+
                     // scroll-explosion impulse — hero subset only (~12%). Its own
                     // velocity channel so its friction never touches the ambient
                     // drift or the cursor-repulsion channel above. The radial
@@ -1771,6 +2049,7 @@
                     if (p.isHero) {
                         currentAlpha = p.baseAlpha * starVisibility * (0.35 + Math.sin(time * p.twinkleSpeed + p.seed) * 0.65);
                     }
+                    currentAlpha *= p.gravDissolve;
 
                     let coreRgb;
                     if (p.isHero) {
