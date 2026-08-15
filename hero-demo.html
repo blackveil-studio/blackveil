@@ -900,6 +900,11 @@
         // duplicating render()'s own scroll/time bookkeeping.
         let lastRenderTime = 0;
         let lastFlyOffsetPx = 0;
+        // Same releaseAmount render() already computes for the fly-off,
+        // exposed so the strings section can drive its own "shoot" entrance
+        // off the identical 0..1 progress instead of a second, possibly
+        // drifting copy of the same math.
+        let lastReleaseAmount = 0;
         function cacheSectionGeometry() {
             portfolioTopCached = portfolioSection.offsetTop;
             portfolioHeightCached = portfolioSection.offsetHeight;
@@ -1159,6 +1164,7 @@
             const releaseAmount = Math.max(0, Math.min(1, (scrollY - portfolioTopCached - releaseStartPx) / RELEASE_WINDOW_PX));
             const flyOffsetPx = releaseAmount * height;
             lastFlyOffsetPx = flyOffsetPx;
+            lastReleaseAmount = releaseAmount;
             portfolioStickyZone.style.transform = flyOffsetPx > 0 ? `translateY(${-flyOffsetPx}px)` : '';
 
             // --- nebula clouds — Hero-only now. Swells through the first half
@@ -1228,8 +1234,30 @@
                 // this shape supports; real "bigger and bolder" now comes
                 // from the stardust ring's own size/brightness below, not
                 // from stretching the ellipse further.
-                const rimRx = width * 0.54 * breathe;
-                const rimRy = height * 0.54 * breathe;
+                // Gravitational collapse: as releaseAmount runs 0->1 (the
+                // exact same trigger the card fly-off uses — "Innovative
+                // Ink" crossing the release line), everything radial here
+                // shrinks toward its own center instead of just flying up
+                // and off flat. Compressed into the FIRST HALF of
+                // releaseAmount's range (collapseT reaches 1 by
+                // releaseAmount 0.5) rather than the full range — cy
+                // already carries flyOffsetPx (see below), which crosses
+                // above the visible viewport once flyOffsetPx exceeds half
+                // a screen height, i.e. exactly releaseAmount 0.5. Tying
+                // the collapse to the full 0..1 range meant the galaxy was
+                // still mostly full-size by the time it flew off-screen —
+                // measured on a real render (releaseAmount 0.77: center
+                // sample already off-canvas, collapse only 59% done) — so
+                // it never actually finished collapsing while still in
+                // view. Finishing it by the halfway point means the
+                // audience sees the full shrink-to-a-point before it flies
+                // away, and what leaves the screen afterward is genuinely
+                // just the small bright point, not the whole galaxy.
+                const collapseT = Math.min(1, releaseAmount / 0.5);
+                const collapseEase = collapseT * collapseT;
+                const collapseScale = 1 - collapseEase;
+                const rimRx = width * 0.54 * breathe * collapseScale;
+                const rimRy = height * 0.54 * breathe * collapseScale;
                 // cy carries the same flyOffsetPx the DOM sticky-zone is
                 // being translated by, so the corona/galaxy/ring ride up in
                 // lockstep with the text and cards rather than staying put
@@ -1261,8 +1289,8 @@
                     const c = Math.cos(ang), s = Math.sin(ang);
                     const ex = Math.sign(c) * Math.pow(Math.abs(c), SQUIRCLE_EXP);
                     const ey = Math.sign(s) * Math.pow(Math.abs(s), SQUIRCLE_EXP);
-                    const px = cx + ex * width * 0.5 * p.kJitter;
-                    const py = cy + ey * height * 0.5 * p.kJitter;
+                    const px = cx + ex * width * 0.5 * p.kJitter * collapseScale;
+                    const py = cy + ey * height * 0.5 * p.kJitter * collapseScale;
                     ctx.beginPath();
                     ctx.arc(px, py, p.radius, 0, Math.PI * 2);
                     ctx.fillStyle = `rgba(60, 120, 255, ${p.alpha * a})`;
@@ -1305,8 +1333,30 @@
                 ctx.globalAlpha = horizonAlpha;
                 ctx.translate(cx, cy);
                 ctx.rotate(time * galaxyRotSpeed); // autonomous, own clock only — no mouse term anywhere in this block
+                ctx.scale(collapseScale, collapseScale); // same collapse pull as the ring/rim above — shrinks toward this same translate origin
                 ctx.drawImage(galaxySprite, -galaxyDraw / 2, -galaxyDraw / 2, galaxyDraw, galaxyDraw);
                 ctx.restore();
+
+                // The collapsing core itself — an additive bright point at
+                // the exact same (cx, cy) everything above is shrinking
+                // toward, growing and brightening as collapseEase runs
+                // 0->1. Without this the galaxy just shrinks into nothing;
+                // this is what actually reads as "collapsing into one
+                // ultra-bright point" rather than fading away.
+                if (collapseEase > 0.001) {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    const coreR = 4 + collapseEase * 50;
+                    const coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+                    coreGrad.addColorStop(0, `rgba(255, 255, 255, ${collapseEase * 0.9})`);
+                    coreGrad.addColorStop(0.4, `rgba(120, 255, 190, ${collapseEase * 0.55})`);
+                    coreGrad.addColorStop(1, `rgba(80, 120, 255, 0)`);
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
+                    ctx.fillStyle = coreGrad;
+                    ctx.fill();
+                    ctx.restore();
+                }
 
                 // Side streamers — sparse dust flanking the screen's left/
                 // right edges, outside the card oval, filling what was
@@ -1599,6 +1649,20 @@
             const DAMPING = 0.94;
             const PROXIMITY = 46; // px — how close the cursor needs to be to touch a string
 
+            // Where the strings "shoot" from. Tried tracking the portfolio
+            // galaxy's actual collapsing point across the two canvases
+            // (viewport position minus the section's own scroll offset) —
+            // but that point's fly-off and this section's own entry are
+            // driven by the identical linear window, so in section-local
+            // coordinates it stays mathematically pinned at a constant
+            // -height/2 (always just above the canvas, never inside it):
+            // the two rates cancel exactly. A fixed point near the top of
+            // this canvas is what actually lets the "shoot up AND down"
+            // read — a little burst upward, a longer unfurl downward —
+            // instead of silently degenerating back into the old top-down
+            // growth.
+            const CORE_J = Math.round(SEGMENTS * 0.14);
+
             let sWidth = 0, sHeight = 0;
             const sDpr = Math.min(window.devicePixelRatio || 1, 2);
             const strings = [];
@@ -1611,7 +1675,7 @@
             // second hand-tuned system.
             function buildGradient(x, h, depth) {
                 const g = sctx.createLinearGradient(x, 0, x, h);
-                const bottomGreen = { r: 3, g: 192, b: 122 };   // Aurora Green
+                const bottomGreen = { r: 0, g: 255, b: 102 };   // Aurora Green — #00FF66
                 const deepBlue = { r: 40, g: 40, b: 190 };      // where far strings settle instead of green
                 const mix = depth * 0.75; // how much a far string's bottom stays blue instead of reaching green
                 const br = Math.round(bottomGreen.r + (deepBlue.r - bottomGreen.r) * mix);
@@ -1778,20 +1842,21 @@
             // midpoint interpolation (the standard technique for a smooth
             // line through a set of points without spline math) — no
             // sharp kinks at any point, regardless of how much energy is
-            // in the string. `visibleCount` is how many of the string's
-            // points to actually draw, driving the materialize growth.
+            // in the string. Draws only the [jLo, jHi] sub-range, growing
+            // outward from CORE_J in both directions as the string "shoots"
+            // in, rather than always starting at the top.
             function pxOf(s, j) { return s.x + s.y[j]; }
             function pyOf(s, j) { return (j / SEGMENTS) * s.length; }
-            function strokeSmoothString(s, visibleCount) {
-                if (visibleCount < 2) return;
+            function strokeSmoothString(s, jLo, jHi) {
+                if (jHi - jLo < 1) return;
                 sctx.beginPath();
-                sctx.moveTo(pxOf(s, 0), pyOf(s, 0));
-                for (let j = 1; j < visibleCount - 1; j++) {
+                sctx.moveTo(pxOf(s, jLo), pyOf(s, jLo));
+                for (let j = jLo + 1; j < jHi; j++) {
                     const cx = pxOf(s, j), cy = pyOf(s, j);
                     const mx = (cx + pxOf(s, j + 1)) / 2, my = (cy + pyOf(s, j + 1)) / 2;
                     sctx.quadraticCurveTo(cx, cy, mx, my);
                 }
-                sctx.lineTo(pxOf(s, visibleCount - 1), pyOf(s, visibleCount - 1));
+                sctx.lineTo(pxOf(s, jHi), pyOf(s, jHi));
                 sctx.stroke();
             }
 
@@ -1815,7 +1880,15 @@
                 // belongs solely at the end of stringsFrame().
                 if (reveal <= 0.001) return;
 
-                const visibleCount = Math.max(2, Math.round(reveal * (SEGMENTS + 1)));
+                // Shoots outward from CORE_J in both directions instead of
+                // growing top-down — jLo/jHi both start pinned at CORE_J
+                // and spread apart as reveal runs 0->1, clamped to the
+                // string's real ends. Max(CORE_J, SEGMENTS-CORE_J) as the
+                // spread target guarantees the full string is visible by
+                // reveal===1 regardless of which side is longer.
+                const spreadJ = reveal * Math.max(CORE_J, SEGMENTS - CORE_J);
+                const jLo = Math.max(0, Math.round(CORE_J - spreadJ));
+                const jHi = Math.min(SEGMENTS, Math.round(CORE_J + spreadJ));
                 sctx.lineCap = 'round';
 
                 // Oval-to-strings hand-off. Each feeder's CURRENT position
@@ -1827,12 +1900,13 @@
                 // via `expertiseTopCached - scrollY` (the section's own
                 // current viewport-top, cheap arithmetic — no
                 // getBoundingClientRect layout read in the hot path). `t`
-                // (== reveal, the same value driving the materialize
-                // growth above) lerps each feeder from that live oval
-                // position to its assigned string's own top anchor,
-                // crossfading blue -> Aurora Green as it goes, then fades
-                // out near the end as it "becomes" the string's own
-                // materializing tip rather than a separate dot.
+                // (== reveal, the same value driving the shoot-out above)
+                // lerps each feeder from that live oval position to its
+                // assigned string's own CORE_J anchor — the same point the
+                // strings themselves are shooting out from — crossfading
+                // blue -> Aurora Green as it goes, then fades out near the
+                // end as it "becomes" the string's own core rather than a
+                // separate dot.
                 if (reveal < 0.999) {
                     const cx = width / 2, cy = height / 2 - lastFlyOffsetPx;
                     const orbitAngle = lastRenderTime * 0.00002;
@@ -1849,7 +1923,7 @@
                             const ovalX = cx + ex * width * 0.5 * p.kJitter;
                             const ovalY = (cy + ey * height * 0.5 * p.kJitter) - sectionViewportTop;
 
-                            const targetX = s.x, targetY = 4;
+                            const targetX = s.x, targetY = pyOf(s, CORE_J);
                             const px = ovalX + (targetX - ovalX) * t;
                             const py = ovalY + (targetY - ovalY) * t;
 
@@ -1877,7 +1951,7 @@
                 sctx.save();
                 sctx.globalCompositeOperation = 'lighter';
                 strings.forEach(s => {
-                    if (s.energy < 0.03 || s.peakIndex >= visibleCount) return;
+                    if (s.energy < 0.03 || s.peakIndex < jLo || s.peakIndex > jHi) return;
                     const gx = pxOf(s, s.peakIndex), gy = pyOf(s, s.peakIndex);
                     const r = 50 + s.energy * 70;
                     const glowGrad = sctx.createRadialGradient(gx, gy, 0, gx, gy, r);
@@ -1891,21 +1965,42 @@
                 });
                 sctx.restore();
 
+                // Entrance color-morph: while still shooting out, stroke in
+                // a solid blue-violet -> Aurora Green (#00FF66) lerp
+                // instead of the string's permanent depth gradient — the
+                // "выстрел" flash asked for. It converges exactly onto the
+                // gradient's own bottom color by reveal===1, so the switch
+                // to the resting per-depth gradient at full reveal doesn't
+                // pop at the bottom (only the top settles from green back
+                // to its resting ultramarine, read as the flash cooling
+                // into place).
+                const entryR = Math.round(90 + (0 - 90) * reveal);
+                const entryG = Math.round(60 + (255 - 60) * reveal);
+                const entryB = Math.round(220 + (102 - 220) * reveal);
+
                 strings.forEach(s => {
                     sctx.globalAlpha = reveal;
-                    sctx.strokeStyle = s.gradient;
+                    sctx.strokeStyle = reveal < 0.999 ? `rgba(${entryR}, ${entryG}, ${entryB}, 1)` : s.gradient;
                     sctx.lineWidth = s.lineWidth;
-                    strokeSmoothString(s, visibleCount);
+                    strokeSmoothString(s, jLo, jHi);
 
-                    // A small bright tip spark while still growing — sells
-                    // the "materializing out of dust" read at the leading
-                    // edge, fades away once the string reaches full length.
+                    // Small bright sparks at BOTH growing tips while still
+                    // shooting out — sells the "erupting from the core"
+                    // read at each leading edge, fade away once the string
+                    // reaches its full length in that direction.
                     if (reveal < 0.999) {
-                        const tipJ = visibleCount - 1;
-                        sctx.beginPath();
-                        sctx.arc(pxOf(s, tipJ), pyOf(s, tipJ), 2.2, 0, Math.PI * 2);
-                        sctx.fillStyle = `rgba(180, 220, 255, ${0.5 * reveal})`;
-                        sctx.fill();
+                        if (jLo > 0) {
+                            sctx.beginPath();
+                            sctx.arc(pxOf(s, jLo), pyOf(s, jLo), 2.2, 0, Math.PI * 2);
+                            sctx.fillStyle = `rgba(200, 255, 220, ${0.6 * reveal})`;
+                            sctx.fill();
+                        }
+                        if (jHi < SEGMENTS) {
+                            sctx.beginPath();
+                            sctx.arc(pxOf(s, jHi), pyOf(s, jHi), 2.2, 0, Math.PI * 2);
+                            sctx.fillStyle = `rgba(200, 255, 220, ${0.6 * reveal})`;
+                            sctx.fill();
+                        }
                     }
                 });
                 sctx.globalAlpha = 1;
