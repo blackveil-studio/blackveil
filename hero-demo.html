@@ -562,76 +562,20 @@
             color: rgba(255, 255, 255, 0.6);
             max-width: 560px;
             margin: 20px auto 0;
-            /* Hidden at rest — this is the "скрытая текстовая строка"
-               asked for. Revealed via JS mouseenter/mouseleave on
-               .problems-content (see initProblems), not a pure-CSS
-               :hover, so the same interaction can be driven by a
-               touch/tap on mobile too. */
+            /* Hidden at rest — opacity is now set every frame from
+               render() (updateProblemsSeoText, driven by
+               problemsReleaseAmount), not a CSS transition off a hover
+               class. No transition property here on purpose: a CSS
+               transition layered on top of a value already being
+               updated continuously by scroll would just lag behind it
+               (the same reason the Expertise headings' opacity has no
+               transition either). */
             opacity: 0;
-            transition: opacity 0.6s ease;
-        }
-        .problems-seo-text.is-visible {
-            opacity: 1;
-        }
-        .problems-tags {
-            position: absolute;
-            inset: 0;
-            z-index: 2;
-            pointer-events: none;
-        }
-        .problem-tag {
-            position: absolute;
-            left: var(--tx);
-            top: var(--ty);
-            transform: translate(-50%, -50%);
-            font-family: 'DM Sans', monospace;
-            font-size: 13px;
-            letter-spacing: 0.02em;
-            color: rgba(180, 185, 200, 0.5);
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 6px;
-            padding: 7px 14px;
-            white-space: nowrap;
-            user-select: none;
-            cursor: crosshair;
-            pointer-events: auto;
-            transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
-        }
-        .problem-tag:hover,
-        .problem-tag.is-touched {
-            color: rgba(255, 255, 255, 0.85);
-            border-color: rgba(0, 229, 255, 0.4);
-            background: rgba(0, 229, 255, 0.06);
-        }
-        /* RGB-shift digital glitch — stepped timing (not eased) is what
-           reads as "digital" rather than a smooth wobble. The tag is
-           removed from layout (display:none, set in JS) once this
-           finishes; the canvas spark burst is what actually sells the
-           destruction, this is just the initial snap. */
-        @keyframes problemTagGlitch {
-            0%   { transform: translate(-50%, -50%) skew(0deg); text-shadow: 0 0 rgba(0,0,0,0); opacity: 1; }
-            15%  { transform: translate(calc(-50% - 4px), calc(-50% + 2px)) skew(-3deg); text-shadow: 3px 0 #ff2d55, -3px 0 #00e5ff; opacity: 1; }
-            30%  { transform: translate(calc(-50% + 3px), calc(-50% - 3px)) skew(2deg); text-shadow: -3px 0 #ff2d55, 3px 0 #00e5ff; opacity: 0.8; }
-            45%  { transform: translate(calc(-50% - 5px), calc(-50% + 1px)) skew(-4deg); text-shadow: 4px 0 #ff2d55, -4px 0 #00e5ff; opacity: 0.6; }
-            60%  { transform: translate(calc(-50% + 2px), calc(-50% - 2px)) skew(1deg); opacity: 0.4; }
-            100% { transform: translate(-50%, -50%) scale(0.7); opacity: 0; }
-        }
-        .problem-tag.glitching {
-            animation: problemTagGlitch 0.36s steps(2, end) forwards;
-            pointer-events: none;
         }
         @media (max-width: 768px) {
             .problems-sticky-zone { padding: 100px 16px 32px; }
             .problems-manifest { font-size: clamp(22px, 6.5vw, 34px); }
             .problems-seo-text { font-size: 13px; max-width: 90vw; }
-            /* Scattered percentage positions can still push a long tag's
-               TEXT past the viewport edge even though its own anchor
-               point (--tx/--ty) is a valid percentage — clamp the tags
-               into a safe inner margin and shrink them instead of
-               letting text width overflow. */
-            .problem-tag { font-size: 11px; padding: 5px 10px; max-width: 36vw; white-space: normal; text-align: center; }
-            .problems-tags { inset: 15vw; }
         }
 
         /* ============================================================
@@ -855,13 +799,6 @@
 
         <section id="problems">
             <div class="problems-sticky-zone">
-                <div class="problems-tags">
-                    <span class="problem-tag" data-tag="0" style="--tx: 12%; --ty: 20%;">[outdated template]</span>
-                    <span class="problem-tag" data-tag="1" style="--tx: 84%; --ty: 24%;">[broken mobile layout]</span>
-                    <span class="problem-tag" data-tag="2" style="--tx: 9%; --ty: 76%;">[slow loading speed]</span>
-                    <span class="problem-tag" data-tag="3" style="--tx: 87%; --ty: 74%;">[invisible on google]</span>
-                    <span class="problem-tag" data-tag="4" style="--tx: 50%; --ty: 90%;">[lost clients]</span>
-                </div>
                 <div class="problems-content">
                     <h2 class="problems-manifest">In a digital space full of noise, invisible businesses fade away.</h2>
                     <p class="problems-seo-text">Blackveil Studio creates high-end websites with custom frontend development, premium UI/UX design, and 60fps motion engineering to make your business dominate Google searches.</p>
@@ -992,48 +929,129 @@
             return { ox, oy, dissolve };
         }
 
-        // Problem-tag shatter sparks — a small, transient particle burst,
-        // kept entirely separate from orbitParticles (which are a
-        // persistent, structural part of the scene) since these are
-        // short-lived one-off effects with their own simple physics:
-        // brief outward burst, then pulled toward the Space Horizon's
-        // screen-center point and faded out as they approach it.
-        const glitchSparks = [];
-        function spawnGlitchSparks(x, y, count) {
-            for (let i = 0; i < count; i++) {
+        // Problem words — drawn directly on canvas now, no DOM tags.
+        // Deliberately NOT a mutable particle simulation (no persisted
+        // velocity, no spawn/decay arrays) — everything here is a PURE
+        // function of problemsReleaseAmount() and time, recomputed fresh
+        // every frame. That's what makes "scroll down and back up, it
+        // all returns to place, no reload" actually true: a stateful
+        // simulation only ever runs forward, so scrolling backward
+        // couldn't un-happen it without separate rewind logic. An
+        // analytic function evaluated at whatever progress value you're
+        // currently at is reversible for free.
+        //
+        // Each word gets a fixed base position (fraction of width/
+        // height — chosen once, positioned around the manifest, not
+        // regenerated), a slow idle wobble (time-driven, fades out as it
+        // nears the horizon), and a fixed set of shatter-particle offset
+        // vectors generated ONCE at init (Math.random() here only ever
+        // runs at page load, not per frame — the shatter "shape" is
+        // stable and reversible, not re-randomized every scroll tick).
+        const PROBLEM_WORDS_DATA = [
+            { text: 'outdated template', fx: 0.14, fy: 0.24 },
+            { text: 'broken mobile layout', fx: 0.84, fy: 0.28 },
+            { text: 'slow loading speed', fx: 0.12, fy: 0.76 },
+            { text: 'invisible on google', fx: 0.86, fy: 0.74 },
+            { text: 'lost clients', fx: 0.50, fy: 0.88 }
+        ];
+        const problemsSeoTextEl = document.querySelector('.problems-seo-text');
+        const SHATTER_PARTICLES_PER_WORD = 26;
+        const problemWords = PROBLEM_WORDS_DATA.map((w, i) => ({
+            text: w.text,
+            fx: w.fx,
+            fy: w.fy,
+            wobbleSpeedX: 0.00028 + Math.random() * 0.00018,
+            wobbleSpeedY: 0.00022 + Math.random() * 0.00016,
+            wobblePhaseX: Math.random() * Math.PI * 2,
+            wobblePhaseY: Math.random() * Math.PI * 2,
+            wobbleAmp: 10 + Math.random() * 8,
+            seed: Math.random() * 1000,
+            shatter: Array.from({ length: SHATTER_PARTICLES_PER_WORD }, () => {
                 const angle = Math.random() * Math.PI * 2;
-                const speed = 1.5 + Math.random() * 5;
-                glitchSparks.push({
-                    x, y,
-                    vx: Math.cos(angle) * speed,
-                    vy: Math.sin(angle) * speed,
-                    life: 1,
-                    decay: 0.012 + Math.random() * 0.01,
-                    size: 0.8 + Math.random() * 1.4
-                });
-            }
+                const dist = 14 + Math.random() * 46;
+                return { ox: Math.cos(angle) * dist, oy: Math.sin(angle) * dist, size: 0.8 + Math.random() * 1.3 };
+            })
+        }));
+
+        // Mild elastic ease-out — bounded overshoot (peaks ~1.27 around
+        // t=0.2, settles to exactly 1 by t~0.65, see the file's own
+        // offline verification before this was picked) rather than the
+        // textbook easeOutElastic's much larger swing, which read as too
+        // bouncy for body text. Pure function of t, same reversibility
+        // reasoning as above.
+        function easeOutElasticMild(t) {
+            if (t <= 0) return 0;
+            if (t >= 1) return 1;
+            const c = (2 * Math.PI) / 4.5;
+            return Math.pow(2, -9 * t) * Math.sin((t * 8 - 0.7) * c) + 1;
         }
-        function stepAndDrawGlitchSparks() {
-            if (!glitchSparks.length) return;
-            const targetX = width / 2, targetY = height / 2;
+
+        // On narrow viewports, pull each word's base X position in
+        // toward center so it can't run off the side of the screen —
+        // the JS equivalent of the manifest/SEO text's own CSS clamp(),
+        // since canvas text can't use CSS media queries directly.
+        function mobileRemap(frac) {
+            if (width >= 768) return frac;
+            return 0.5 + (frac - 0.5) * 0.55;
+        }
+
+        function drawProblemWords(pProgress, timeNow) {
+            const pullT = Math.max(0, Math.min(1, pProgress / 0.7));
+            const pullEased = easeOutElasticMild(pullT);
+            const shatterT = Math.max(0, Math.min(1, (pProgress - 0.7) / 0.2));
+            const shatterBurst = Math.sin(shatterT * Math.PI); // 0 -> peak mid-shatter -> 0, particles burst out then get reabsorbed into the line
+            const wordAlphaMul = 1 - Math.min(1, shatterT * 1.15); // main text fades out slightly ahead of the particles fully reabsorbing
+
+            const baseFontSize = Math.max(11, Math.min(16, width * 0.0125));
             ctx.save();
-            ctx.globalCompositeOperation = 'lighter';
-            for (let i = glitchSparks.length - 1; i >= 0; i--) {
-                const sp = glitchSparks[i];
-                const dx = targetX - sp.x, dy = targetY - sp.y;
-                const dist = Math.hypot(dx, dy) || 1;
-                sp.vx *= 0.94; sp.vy *= 0.94;
-                sp.vx += (dx / dist) * 0.25;
-                sp.vy += (dy / dist) * 0.25;
-                sp.x += sp.vx; sp.y += sp.vy;
-                sp.life -= sp.decay;
-                if (sp.life <= 0 || dist < 16) { glitchSparks.splice(i, 1); continue; }
-                ctx.beginPath();
-                ctx.arc(sp.x, sp.y, sp.size, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(0, 229, 255, ${Math.min(1, sp.life) * 0.9})`;
-                ctx.fill();
-            }
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = `300 ${baseFontSize}px 'DM Sans', sans-serif`;
+
+            problemWords.forEach(w => {
+                const baseX = mobileRemap(w.fx) * width;
+                const baseY = w.fy * height;
+                const wobbleFade = 1 - pullEased * 0.85;
+                const wx = baseX + Math.sin(timeNow * w.wobbleSpeedX + w.wobblePhaseX) * w.wobbleAmp * wobbleFade;
+                const wy = baseY + Math.cos(timeNow * w.wobbleSpeedY + w.wobblePhaseY) * w.wobbleAmp * wobbleFade;
+
+                // Pull is vertical only, toward the horizon's own Y — X
+                // stays put, per the brief ("притягиваться по вертикали").
+                const horizonY = height / 2;
+                const curX = wx;
+                const curY = wy + (horizonY - wy) * pullEased;
+
+                if (wordAlphaMul > 0.01) {
+                    const alpha = (0.3 + 0.1 * Math.sin(timeNow * 0.0007 + w.seed)) * wordAlphaMul;
+                    ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, alpha)})`;
+                    ctx.fillText(w.text, curX, curY);
+                }
+
+                if (shatterBurst > 0.01) {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    w.shatter.forEach(sp => {
+                        const px = curX + sp.ox * shatterBurst;
+                        const py = curY + sp.oy * shatterBurst;
+                        ctx.beginPath();
+                        ctx.arc(px, py, sp.size, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(0, 229, 255, ${shatterBurst * 0.85})`;
+                        ctx.fill();
+                    });
+                    ctx.restore();
+                }
+            });
             ctx.restore();
+        }
+
+        // "Плавно и благородно проявиться" once the noise has fully
+        // cleared (pProgress > 0.9) — a direct per-frame opacity set
+        // (see .problems-seo-text's own CSS comment for why there's no
+        // transition property fighting this).
+        function updateProblemsSeoText(pProgress) {
+            if (!problemsSeoTextEl) return;
+            const t = Math.max(0, Math.min(1, (pProgress - 0.9) / 0.1));
+            problemsSeoTextEl.style.opacity = t;
         }
 
         function lerp(start, end, amt) {
@@ -2222,11 +2240,14 @@
                     ctx.restore();
                 }
 
-                // Problem-tag shatter sparks — drawn here so they sit
-                // visually on top of the horizon/string dust, converging
-                // on the same screen-center point that dust radiates
-                // from/into.
-                stepAndDrawGlitchSparks();
+                // Problem words — drawn here so they sit visually on top
+                // of the horizon/string dust. Reuses morphT2
+                // (problemsReleaseAmount(), already computed above for
+                // the horizon->strings morph) as the same single shared
+                // progress value driving the pull-and-shatter animation,
+                // rather than calling the function a second time.
+                drawProblemWords(morphT2, time);
+                updateProblemsSeoText(morphT2);
 
                 // Streamers — thin rays radiating out from points around the
                 // rim, varying length/brightness per ray (fixed per index, so
@@ -2699,64 +2720,6 @@
             });
         });
 
-        // ============================================================
-        // Block: Problems — tag glitch-shatter interaction + hidden SEO
-        // text reveal. No canvas geometry of its own to manage here
-        // (that's the two-stage particle morph inside render() above),
-        // just DOM interaction.
-        // ============================================================
-        const problemTags = Array.from(document.querySelectorAll('.problem-tag'));
-        const problemsContentEl = document.querySelector('.problems-content');
-        const problemsSeoText = document.querySelector('.problems-seo-text');
-
-        // "Скрытая текстовая строка" — hidden at rest (see the CSS),
-        // revealed once the cursor has been over the manifest and then
-        // leaves it ("очищает экран мышью"). Touch devices don't have a
-        // meaningful "leave" gesture, so a tap toggles it directly.
-        if (problemsContentEl && problemsSeoText) {
-            problemsContentEl.addEventListener('mouseenter', () => {
-                problemsSeoText.classList.remove('is-visible');
-            });
-            problemsContentEl.addEventListener('mouseleave', () => {
-                problemsSeoText.classList.add('is-visible');
-            });
-            problemsContentEl.addEventListener('touchstart', () => {
-                problemsSeoText.classList.toggle('is-visible');
-            }, { passive: true });
-        }
-
-        // Glitch-shatter: dataset.shattered guards against a repeat
-        // trigger (mouseenter firing again mid-animation, or a touch
-        // landing on an already-vanished tag) — once destroyed, a tag
-        // stays gone for the rest of the visit rather than resetting,
-        // matching "оставляя экран абсолютно чистым" as a real,
-        // permanent-feeling result rather than a replayable toy. Spark
-        // count halved under 768px per the brief — this file already
-        // resizes the canvas backing store for devicePixelRatio
-        // (resizeCanvasForDPR, called on load/resize); this is the other
-        // half of "don't tax a mobile GPU": fewer transient particles on
-        // the burst itself, on top of that.
-        function shatterProblemTag(tag) {
-            if (tag.classList.contains('glitching') || tag.dataset.shattered === '1') return;
-            tag.dataset.shattered = '1';
-            tag.classList.add('glitching');
-            const rect = tag.getBoundingClientRect();
-            const cx = rect.left + rect.width / 2;
-            const cy = rect.top + rect.height / 2;
-            const sparkCount = width < 768 ? 60 : 130;
-            spawnGlitchSparks(cx, cy, sparkCount);
-            setTimeout(() => { tag.style.display = 'none'; }, 360);
-        }
-        problemTags.forEach(tag => {
-            tag.addEventListener('mouseenter', () => shatterProblemTag(tag));
-            // No preventDefault here on purpose — these tags are small
-            // and scattered, not a scroll-blocking surface; passive:true
-            // keeps a touch that starts on a tag free to still scroll
-            // the page if that's what the gesture turns out to be. The
-            // dataset guard above already makes a duplicate synthetic
-            // mouseenter (common on touch browsers) harmless.
-            tag.addEventListener('touchstart', () => shatterProblemTag(tag), { passive: true });
-        });
     </script>
 </body>
 </html>
