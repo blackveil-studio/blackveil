@@ -1296,14 +1296,37 @@
                 // its ring position, picked fresh every frame so the
                 // assignment tracks the ring's own slow rotation instead
                 // of going stale. Color lerps blue -> Aurora Green
-                // (#00FF66) over the same progress. At releaseAmount===0
-                // this is identical to the old squircle-only draw (finalX
-                // = gx, finalY = gy); at releaseAmount===1 every particle
-                // sits exactly on its target line, forming the strings.
+                // (#00FF66) over the same progress — computed ONCE per
+                // frame (morphColorR/G/B below), not per particle, since
+                // every particle shares the identical global morphT; at
+                // releaseAmount===0 this evaluates to the same base blue
+                // as the old squircle-only draw.
                 const orbitAngle = time * 0.00002;
+                const morphT = releaseAmount;
+                const morphColorR = Math.round(60 + (0 - 60) * morphT);
+                const morphColorG = Math.round(120 + (255 - 120) * morphT);
+                const morphColorB = Math.round(255 + (102 - 255) * morphT);
+
+                // Brightness surge, in two layers: a broad hump across the
+                // middle of the transition (0.2-0.8, peaking at 2x right
+                // at the midpoint — the "ядерный вау-эффект" during the
+                // actual flight), plus a sharper, shorter spike right as
+                // particles land on their line (~0.9 — the docking flash).
+                // Deliberately NOT done via per-particle shadowBlur: this
+                // file already tried a live, unbaked ~900-particle pass
+                // with per-particle glow once before and measured it too
+                // expensive for a 16.6ms frame budget (see the galaxy
+                // sprite's own baking comment above) — radius + alpha
+                // scale the same "burning brighter" read without paying
+                // a shadow-blur cost 900 times a frame.
+                const midBoostT = Math.max(0, Math.min(1, (morphT - 0.2) / 0.6));
+                const midBoost = Math.sin(midBoostT * Math.PI);
+                const dockFlashT = Math.max(0, 1 - Math.abs(morphT - 0.9) / 0.12);
+                const dockFlash = dockFlashT * dockFlashT;
+                const brightnessBoost = 1 + midBoost + dockFlash * 0.8;
+
                 ctx.save();
                 ctx.shadowBlur = 0;
-                const morphT = releaseAmount;
                 orbitParticles.forEach(p => {
                     const ang = p.angleOffset + orbitAngle;
                     const c = Math.cos(ang), s = Math.sin(ang);
@@ -1312,28 +1335,50 @@
                     const gx = cx + ex * width * 0.5 * p.kJitter;
                     const gy = cy + ey * height * 0.5 * p.kJitter;
 
-                    let px = gx, py = gy;
-                    let pr = 60, pg = 120, pb = 255;
+                    let px = gx, py = gy, nearestX = gx, targetY = gy;
                     if (morphT > 0.001) {
-                        let nearestX = stringTargetX[0], bestD = Infinity;
+                        let bestD = Infinity;
                         for (let si = 0; si < stringTargetX.length; si++) {
                             const d = Math.abs(gx - stringTargetX[si]);
                             if (d < bestD) { bestD = d; nearestX = stringTargetX[si]; }
                         }
-                        const targetY = p.targetYFrac * height;
+                        targetY = p.targetYFrac * height;
                         px = gx + (nearestX - gx) * morphT;
                         py = gy + (targetY - gy) * morphT;
-                        pr = Math.round(60 + (0 - 60) * morphT);
-                        pg = Math.round(120 + (255 - 120) * morphT);
-                        pb = Math.round(255 + (102 - 255) * morphT);
                     }
+
+                    // Trail: a short streak back along this SAME straight-
+                    // line interpolation, evaluated at a slightly earlier
+                    // point on the 0..1 path — stateless (no per-particle
+                    // history buffer needed) since the whole flight path
+                    // is already a deterministic function of morphT. Flat
+                    // color, no gradient object per particle (900 of
+                    // those every frame would be the expensive part, not
+                    // the stroke itself) — the 'screen' composite already
+                    // active in this block is what makes the overlap read
+                    // as a soft glow rather than a hard line.
+                    if (morphT > 0.03 && morphT < 0.97) {
+                        const trailT = Math.max(0, morphT - 0.1);
+                        const tailX = gx + (nearestX - gx) * trailT;
+                        const tailY = gy + (targetY - gy) * trailT;
+                        ctx.strokeStyle = `rgba(${morphColorR}, ${morphColorG}, ${morphColorB}, ${p.alpha * a * 0.4 * brightnessBoost})`;
+                        ctx.lineWidth = p.radius * 0.9;
+                        ctx.lineCap = 'round';
+                        ctx.beginPath();
+                        ctx.moveTo(tailX, tailY);
+                        ctx.lineTo(px, py);
+                        ctx.stroke();
+                    }
+
                     // A gentle idle twinkle once mostly settled, so the
                     // formed strings still read as living dust rather than
                     // a frozen static image.
                     const twinkle = morphT > 0.9 ? (0.85 + 0.15 * Math.sin(time * 0.002 + p.seed)) : 1;
+                    const finalAlpha = Math.min(1, p.alpha * a * twinkle * brightnessBoost);
+                    const finalRadius = p.radius * (1 + (brightnessBoost - 1) * 0.35);
                     ctx.beginPath();
-                    ctx.arc(px, py, p.radius, 0, Math.PI * 2);
-                    ctx.fillStyle = `rgba(${pr}, ${pg}, ${pb}, ${p.alpha * a * twinkle})`;
+                    ctx.arc(px, py, finalRadius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${morphColorR}, ${morphColorG}, ${morphColorB}, ${finalAlpha})`;
                     ctx.fill();
                 });
                 ctx.restore();
@@ -1341,9 +1386,11 @@
                 // The strings themselves — a crisp stroke under the dust so
                 // the "particles becoming a clean neon line" reads
                 // immediately rather than only once the dust is dense
-                // enough to look solid on its own.
+                // enough to look solid on its own. Alpha rides the same
+                // brightnessBoost as the dust so the line surges in sync
+                // with the particles landing on it.
                 if (releaseAmount > 0.15) {
-                    const lineAlpha = Math.min(1, (releaseAmount - 0.15) / 0.65) * 0.5;
+                    const lineAlpha = Math.min(1, (releaseAmount - 0.15) / 0.65) * 0.5 * Math.min(1.6, brightnessBoost);
                     ctx.save();
                     ctx.globalCompositeOperation = 'lighter';
                     stringTargetX.forEach((sx, i) => {
@@ -1352,11 +1399,43 @@
                         grad.addColorStop(0, `rgba(58, 52, 214, ${lineAlpha})`);
                         grad.addColorStop(1, `rgba(0, 255, 102, ${lineAlpha * (1 - depth * 0.4)})`);
                         ctx.strokeStyle = grad;
-                        ctx.lineWidth = 1.6 - depth * 0.8;
+                        ctx.lineWidth = (1.6 - depth * 0.8) * (1 + dockFlash * 0.5);
                         ctx.beginPath();
                         ctx.moveTo(sx, 0);
                         ctx.lineTo(sx, height);
                         ctx.stroke();
+                    });
+                    ctx.restore();
+                }
+
+                // Energy strike: once particles are actually landing
+                // (releaseAmount past ~0.7), soft traveling pulses run the
+                // full length of each string, up and down, as if the
+                // arriving particles are charging the line — time-driven
+                // phase (not scroll) so the motion itself stays smooth
+                // regardless of scroll speed, gated by dockEnergy so
+                // nothing shows before docking begins.
+                const dockEnergy = Math.max(0, Math.min(1, (releaseAmount - 0.7) / 0.3));
+                if (dockEnergy > 0.01) {
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    stringTargetX.forEach((sx, i) => {
+                        const depth = i / (STRING_COUNT - 1);
+                        const speed = 0.00042 + depth * 0.00008;
+                        for (let pulseI = 0; pulseI < 2; pulseI++) {
+                            const phase = (time * speed + pulseI * 0.5) % 1;
+                            const py = phase * height;
+                            const fade = Math.sin(phase * Math.PI); // soft appear/disappear at both ends of the run
+                            const glowR = 24;
+                            const grad = ctx.createRadialGradient(sx, py, 0, sx, py, glowR);
+                            const alpha = dockEnergy * fade * 0.5;
+                            grad.addColorStop(0, `rgba(150, 255, 200, ${alpha})`);
+                            grad.addColorStop(1, `rgba(0, 255, 102, 0)`);
+                            ctx.beginPath();
+                            ctx.arc(sx, py, glowR, 0, Math.PI * 2);
+                            ctx.fillStyle = grad;
+                            ctx.fill();
+                        }
                     });
                     ctx.restore();
                 }
