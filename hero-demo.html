@@ -592,10 +592,20 @@
         // BufferGeometry arrays; render() below only ever touches
         // .rotation.z (pure rotation, no per-frame vertex/attribute
         // rewrites, no per-frame texture/geometry construction).
+        // Two separate palettes now, not one shared one — sharing a palette
+        // was exactly why the galaxy and ring read as a single undifferentiated
+        // purple smear. Galaxy burns hot pink/magenta; the ring stays a
+        // distinct, deep ultramarine/blue so it visibly separates as its own
+        // structure behind the galaxy rather than blending into it.
         const galaxyNeon = [
-            new THREE.Color(0x3a34d6), // deep ultramarine
-            new THREE.Color(0xa83ae8), // violet
-            new THREE.Color(0xe620a8)  // magenta
+            new THREE.Color(0xff2fb0), // hot neon magenta
+            new THREE.Color(0xff5fc9), // neon pink
+            new THREE.Color(0xd91e8c)  // deep magenta
+        ];
+        const ringNeon = [
+            new THREE.Color(0x2f6bff), // bright ultramarine blue
+            new THREE.Color(0x1e3fd9), // deep royal blue
+            new THREE.Color(0x4d8bff)  // lighter azure accent
         ];
 
         const glCanvas = document.getElementById('galaxy-webgl');
@@ -633,7 +643,13 @@
         const SPIRAL_B = Math.log(SPIRAL_MAX_R / SPIRAL_A) / SPIRAL_THETA_MAX;
 
         function buildGalaxyPoints() {
-            const CORE_COUNT = 260, ARMS = 3, POINTS_PER_ARM = 300;
+            // Count roughly 3x the previous pass (260->800, 300->900/arm) —
+            // "dense, thick, monolithic streams of plasma," not thin single
+            // threads. Draw-call count stays at 1 regardless of point count
+            // (GPU point rendering scales to tens of thousands fine), so
+            // this is essentially free at render time; the only real cost
+            // is the one-time BufferGeometry build at init.
+            const CORE_COUNT = 800, ARMS = 3, POINTS_PER_ARM = 900;
             const maxTotal = CORE_COUNT + ARMS * POINTS_PER_ARM;
             const positions = new Float32Array(maxTotal * 3);
             const colors = new Float32Array(maxTotal * 3);
@@ -679,17 +695,24 @@
             const geo = new THREE.BufferGeometry();
             geo.setAttribute('position', new THREE.BufferAttribute(positions.subarray(0, n * 3), 3));
             geo.setAttribute('color', new THREE.BufferAttribute(colors.subarray(0, n * 3), 3));
+            // Size ~2.8x the previous pass (11 -> 31) and opacity pinned to
+            // full — "soft, large, glowing spheres," particles overlapping
+            // under AdditiveBlending should genuinely burn bright, not stay
+            // as microscopic points.
             const mat = new THREE.PointsMaterial({
-                size: 11, map: circleTexture, vertexColors: true, transparent: true,
-                blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+                size: 31, map: circleTexture, vertexColors: true, transparent: true,
+                opacity: 1.0, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
             });
             return new THREE.Points(geo, mat);
         }
 
-        // The wide "Saturn ring" — thousands of faint particles distributed
+        // The wide "Saturn ring" — thousands of particles distributed
         // through a torus volume (major radius wider than the galaxy's own
         // extent, so it visibly extends past it and behind the cards),
         // independently rotating for a parallax read against the galaxy.
+        // Deep ultramarine/blue now (was sharing the galaxy's own palette,
+        // which is exactly why the two systems read as one purple smear
+        // instead of two separated structures).
         function buildRingPoints() {
             const COUNT = 2600;
             const majorR = 320, tubeR = 34;
@@ -704,26 +727,29 @@
                 positions[i * 3] = ringX + Math.cos(theta) * tubeOffset;
                 positions[i * 3 + 1] = ringY + Math.sin(theta) * tubeOffset;
                 positions[i * 3 + 2] = Math.sin(phi) * tube;
-                const c = galaxyNeon[i % 3];
+                const c = ringNeon[i % 3];
                 colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
             }
             const geo = new THREE.BufferGeometry();
             geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
             geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            // Size bumped 4.2 -> 12 and opacity raised so the ring reads as
+            // its own clear, panoramic structure behind the cards instead
+            // of a faint, barely-there haze.
             const mat = new THREE.PointsMaterial({
-                size: 4.2, map: circleTexture, vertexColors: true, transparent: true,
-                opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
+                size: 12, map: circleTexture, vertexColors: true, transparent: true,
+                opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
             });
             return new THREE.Points(geo, mat);
         }
 
         const glGalaxy = buildGalaxyPoints();
-        glGalaxy.rotation.x = 0.5; // tilt — reads as a disc in perspective, not a flat blob
+        glGalaxy.rotation.x = 0.8; // steeper tilt — the 3D read needs to be obvious at a glance
         glGalaxy.scale.setScalar(1.6);
         glScene.add(glGalaxy);
 
         const glRing = buildRingPoints();
-        glRing.rotation.x = 0.5; // same plane as the galaxy, just wider
+        glRing.rotation.x = 0.8; // same plane as the galaxy, just wider
         glRing.position.z = -70; // slightly behind, for depth separation
         // Scaled up so the ring genuinely reaches past the card columns
         // (measured against their actual on-screen position, not guessed) —
