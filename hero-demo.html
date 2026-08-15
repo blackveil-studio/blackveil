@@ -292,6 +292,79 @@
             .playground-title { font-size: 32px; }
             .playground-subtext { font-size: 13px; }
         }
+
+        /* ============================================================
+           Block 2 — Expertise & Tech Stack
+           ============================================================ */
+        #expertise {
+            position: relative;
+            width: 100%;
+            min-height: 100vh;
+            background: #03030c;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            padding: 12vh 0;
+        }
+        #strings-canvas {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .expertise-stack {
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 2.4vh;
+            pointer-events: none;
+        }
+        .expertise-row {
+            display: flex;
+            pointer-events: auto;
+        }
+        /* Asymmetric placement — alternating left/right indent instead of a
+           uniform left-aligned block, so the stack reads as an editorial
+           composition rather than a form list. */
+        .expertise-row:nth-child(1) { justify-content: flex-start; padding-left: 6vw; }
+        .expertise-row:nth-child(2) { justify-content: flex-start; padding-left: 12vw; }
+        .expertise-row:nth-child(3) { justify-content: flex-start; padding-left: 6vw; }
+        .expertise-row:nth-child(4) { justify-content: flex-start; padding-left: 16vw; }
+
+        .expertise-heading {
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-weight: 700;
+            font-size: clamp(28px, 5.6vw, 84px);
+            letter-spacing: -0.02em;
+            line-height: 1;
+            color: #fff;
+            margin: 0;
+            cursor: default;
+            user-select: none;
+            /* The "3D-shift" — a barely-there perspective tilt + lateral
+               nudge, not a dramatic rotation. Kept intentionally subtle
+               ("едва заметно"): this is a hover cue on plain body text, not
+               a showpiece animation. */
+            transform: perspective(600px) rotateY(0deg) translateX(0);
+            transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), color 0.3s ease;
+            will-change: transform;
+        }
+        .expertise-heading:hover {
+            transform: perspective(600px) rotateY(3deg) translateX(8px);
+            color: #eafff5; /* the faintest mint tint on hover, not a full color swap — stays "почти белый" */
+        }
+        @media (max-width: 900px) {
+            .expertise-row:nth-child(1),
+            .expertise-row:nth-child(2),
+            .expertise-row:nth-child(3),
+            .expertise-row:nth-child(4) {
+                padding-left: 6vw;
+            }
+            .expertise-heading { font-size: 9vw; }
+        }
     </style>
 </head>
 <body>
@@ -352,6 +425,16 @@
                         </a>
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <section id="expertise">
+            <canvas id="strings-canvas"></canvas>
+            <div class="expertise-stack">
+                <div class="expertise-row"><h2 class="expertise-heading" data-heading="0">Design &amp; Art Direction</h2></div>
+                <div class="expertise-row"><h2 class="expertise-heading" data-heading="1">Frontend Development</h2></div>
+                <div class="expertise-row"><h2 class="expertise-heading" data-heading="2">Motion &amp; Interactive Web</h2></div>
+                <div class="expertise-row"><h2 class="expertise-heading" data-heading="3">AI-Driven Workflow</h2></div>
             </div>
         </section>
     </div>
@@ -1403,6 +1486,192 @@
         }
 
         requestAnimationFrame(render);
+
+        // ============================================================
+        // Block 2 — Expertise & Tech Stack: vibrating string physics
+        // ============================================================
+        // A real damped wave equation (finite-difference), not a faked
+        // sine bump: each string is a chain of points, and every frame
+        // each interior point accelerates toward its two neighbors'
+        // average (accel = tension * (left + right - 2*self)), then that
+        // velocity gets damped and integrated into position — the same
+        // core update any 1D wave/string simulation uses. The traveling
+        // "light pulse" is literally this equation's own propagating
+        // disturbance: the bright overlay pass is colored by each point's
+        // own |velocity|, not a separate particle system drawn on top of
+        // an unrelated curve.
+        (function initStrings() {
+            const stringsCanvas = document.getElementById('strings-canvas');
+            const sctx = stringsCanvas.getContext('2d');
+            const expertiseSection = document.getElementById('expertise');
+            const headingEls = Array.from(document.querySelectorAll('.expertise-heading'));
+
+            const STRING_COUNT = 8;
+            const SEGMENTS = 40; // 41 points per string
+            const TENSION = 0.15; // kept well under the explicit-integrator stability limit
+            const DAMPING = 0.965;
+            const PROXIMITY = 46; // px — how close the cursor needs to be to touch a string
+
+            let sWidth = 0, sHeight = 0;
+            const sDpr = Math.min(window.devicePixelRatio || 1, 2);
+            const strings = [];
+
+            // Gradient built ONCE per string (cached CanvasGradient object),
+            // never reconstructed per frame — the exact per-frame-gradient
+            // cost this project already fixed once elsewhere in this file.
+            function buildGradient(x, h) {
+                const g = sctx.createLinearGradient(x, 0, x, h);
+                g.addColorStop(0, 'rgba(58, 52, 214, 0.9)');    // deep ultramarine — same hue as the portfolio galaxy's own palette
+                g.addColorStop(0.55, 'rgba(18, 140, 158, 0.9)'); // transition tone
+                g.addColorStop(1, 'rgba(3, 192, 122, 0.95)');    // Aurora Green
+                return g;
+            }
+
+            function layoutStrings() {
+                sWidth = expertiseSection.clientWidth;
+                sHeight = expertiseSection.clientHeight;
+                stringsCanvas.width = sWidth * sDpr;
+                stringsCanvas.height = sHeight * sDpr;
+                sctx.setTransform(sDpr, 0, 0, sDpr, 0, 0);
+
+                const margin = sWidth * 0.06;
+                const usable = sWidth - margin * 2;
+                strings.length = 0;
+                for (let i = 0; i < STRING_COUNT; i++) {
+                    const x = margin + (usable / (STRING_COUNT - 1)) * i;
+                    strings.push({
+                        x,
+                        length: sHeight,
+                        y: new Float32Array(SEGMENTS + 1), // horizontal displacement per point
+                        v: new Float32Array(SEGMENTS + 1), // velocity per point
+                        boosted: false,
+                        gradient: buildGradient(x, sHeight)
+                    });
+                }
+            }
+            layoutStrings();
+            window.addEventListener('resize', layoutStrings);
+
+            // Reuses the site-wide `mouse` object (already updated by the
+            // existing mousemove listener above) instead of adding a
+            // second one — only tracks the frame-to-frame delta locally,
+            // for a "brush past" excitation proportional to cursor speed
+            // rather than a constant force while merely hovering near.
+            let lastMx = mouse.x, lastMy = mouse.y;
+
+            function excite() {
+                const mvx = mouse.x - lastMx, mvy = mouse.y - lastMy;
+                const speed = Math.min(18, Math.hypot(mvx, mvy));
+                lastMx = mouse.x; lastMy = mouse.y;
+                if (mouse.x < -900) return; // sentinel: cursor hasn't moved yet
+
+                const rect = stringsCanvas.getBoundingClientRect();
+                const localX = mouse.x - rect.left;
+                const localY = mouse.y - rect.top;
+                if (localY < 0 || localY > sHeight || speed < 0.6) return;
+
+                strings.forEach(s => {
+                    const dx = Math.abs(localX - s.x);
+                    if (dx < PROXIMITY) {
+                        const j = Math.round((localY / s.length) * SEGMENTS);
+                        if (j > 0 && j < SEGMENTS) {
+                            s.v[j] += (1 - dx / PROXIMITY) * speed * 0.09;
+                        }
+                    }
+                });
+            }
+
+            function stepPhysics() {
+                strings.forEach(s => {
+                    const y = s.y, v = s.v;
+                    for (let j = 1; j < SEGMENTS; j++) {
+                        const accel = TENSION * (y[j - 1] + y[j + 1] - 2 * y[j]);
+                        v[j] = (v[j] + accel) * DAMPING;
+                    }
+                    for (let j = 1; j < SEGMENTS; j++) {
+                        y[j] += v[j];
+                    }
+                    if (s.boosted) {
+                        // Sustained low-level plasma jitter while a linked
+                        // heading is hovered — more frequent small pushes
+                        // read as higher apparent frequency without raising
+                        // TENSION itself, which would risk instability.
+                        const j = 4 + Math.floor(Math.random() * (SEGMENTS - 8));
+                        s.v[j] += (Math.random() - 0.5) * 1.6;
+                    }
+                });
+            }
+
+            function drawStrings() {
+                sctx.clearRect(0, 0, sWidth, sHeight);
+                sctx.lineCap = 'round';
+                strings.forEach(s => {
+                    // Base resting curve — always drawn, the calm gradient
+                    // look. No shadowBlur, no per-frame gradient rebuild.
+                    sctx.beginPath();
+                    for (let j = 0; j <= SEGMENTS; j++) {
+                        const py = (j / SEGMENTS) * s.length;
+                        const px = s.x + s.y[j];
+                        if (j === 0) sctx.moveTo(px, py); else sctx.lineTo(px, py);
+                    }
+                    sctx.strokeStyle = s.gradient;
+                    sctx.lineWidth = 1.6;
+                    sctx.stroke();
+
+                    // Bright overlay, per segment, colored by that
+                    // segment's own |velocity| — this IS the traveling
+                    // pulse: wherever the wave equation's disturbance
+                    // currently sits, that's where this lights up, moving
+                    // exactly as the simulation itself moves.
+                    for (let j = 0; j < SEGMENTS; j++) {
+                        const localSpeed = (Math.abs(s.v[j]) + Math.abs(s.v[j + 1])) * 0.5;
+                        const glow = Math.min(1, localSpeed * 0.5);
+                        if (glow < 0.04) continue;
+                        const p0y = (j / SEGMENTS) * s.length, p1y = ((j + 1) / SEGMENTS) * s.length;
+                        sctx.beginPath();
+                        sctx.moveTo(s.x + s.y[j], p0y);
+                        sctx.lineTo(s.x + s.y[j + 1], p1y);
+                        sctx.strokeStyle = `rgba(0, 255, 150, ${glow})`;
+                        sctx.lineWidth = 1.6 + glow * 1.4;
+                        sctx.stroke();
+                    }
+                });
+            }
+
+            function stringsFrame() {
+                excite();
+                stepPhysics();
+                drawStrings();
+                requestAnimationFrame(stringsFrame);
+            }
+            requestAnimationFrame(stringsFrame);
+
+            // Hover linkage: a string is "behind" a heading if its resting
+            // X position falls within that heading's own horizontal
+            // range (both converted to the same canvas-local coordinate
+            // space via getBoundingClientRect(), since the canvas fills
+            // the section edge-to-edge).
+            headingEls.forEach(h => {
+                function linkedStrings() {
+                    const hRect = h.getBoundingClientRect();
+                    const cRect = stringsCanvas.getBoundingClientRect();
+                    const left = hRect.left - cRect.left, right = hRect.right - cRect.left;
+                    return strings.filter(s => s.x >= left - 20 && s.x <= right + 20);
+                }
+                h.addEventListener('mouseenter', () => {
+                    linkedStrings().forEach(s => {
+                        s.boosted = true;
+                        // immediate strong pluck across the whole string, so hovering reads as an instant energy burst, not a slow ramp-up
+                        for (let j = 4; j < SEGMENTS - 4; j++) {
+                            s.v[j] += (Math.random() - 0.5) * 3.2;
+                        }
+                    });
+                });
+                h.addEventListener('mouseleave', () => {
+                    linkedStrings().forEach(s => { s.boosted = false; });
+                });
+            });
+        })();
     </script>
 </body>
 </html>
