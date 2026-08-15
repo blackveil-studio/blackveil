@@ -110,23 +110,35 @@
             opacity: 1;
             transform: translate(-50%, -50%);
         }
-        /* Contrast comes from mix-blend-mode: difference, not from shadows
-           sitting on top of the galaxy. The letters invert against whatever
-           color is directly behind them at that pixel, so they stay
-           readable no matter how the canvas underneath changes — no
-           canvas-side darkening needed either, that would just blunt the
-           same effect. Opacity raised toward 1 on the smaller labels
-           specifically because this technique: alpha and blend strength
-           are the same knob here — a translucent element blends weakly
-           (mostly falls back to backdrop color = mostly invisible), so
-           hierarchy has to come from size/weight instead of transparency. */
+        /* Contrast now comes from an actual glass panel sitting behind the
+           text — a real optical technique (backdrop-filter samples and
+           blurs whatever's painted behind it, including the canvas), not a
+           color trick on the text itself. Text goes back to plain solid
+           color; the galaxy underneath can run at full brightness without
+           fighting the letters, because the letters are no longer reading
+           the galaxy's raw color at all — they're sitting on frosted glass. */
+        .playground-glass {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 640px;
+            height: 320px;
+            max-width: 92vw;
+            border-radius: 50%;
+            background: rgba(2, 2, 5, 0.2);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            pointer-events: none;
+        }
         .playground-eyebrow {
+            position: relative;
             font-family: 'DM Sans', sans-serif;
             font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase;
-            color: #fff; opacity: 0.75; font-weight: 700; margin-bottom: 12px; display: block;
-            mix-blend-mode: difference;
+            color: rgba(255,255,255,.55); font-weight: 700; margin-bottom: 12px; display: block;
         }
         .playground-title {
+            position: relative;
             font-family: 'Bricolage Grotesque', sans-serif;
             font-size: clamp(36px, 4.6vw, 76px);
             font-weight: 700;
@@ -134,7 +146,6 @@
             color: #f5f5f7;
             margin: 0 0 18px;
             line-height: 1;
-            mix-blend-mode: difference;
         }
         .playground-title span {
             font-style: italic;
@@ -142,12 +153,12 @@
             -webkit-background-clip: text; background-clip: text; color: transparent;
         }
         .playground-subtext {
+            position: relative;
             font-family: 'DM Sans', sans-serif;
             font-size: 14px;
             line-height: 1.5;
-            color: #fff; opacity: 0.7;
+            color: rgba(255,255,255,.55);
             margin: 0;
-            mix-blend-mode: difference;
         }
 
         .portfolio-columns-container {
@@ -324,6 +335,11 @@
         @media (max-width: 700px) {
             .portfolio-col-left { left: 4vw; width: 32vw; }
             .portfolio-col-right { right: 4vw; width: 32vw; }
+            /* The container itself already becomes a glass panel below
+               900px (next rule) — the separate circular .playground-glass
+               div would just be a second, redundant blur layer stacked
+               inside it on small screens. */
+            .playground-glass { display: none; }
             .playground-center-content,
             .skills-center-content {
                 max-width: 220px;
@@ -353,6 +369,7 @@
         <section id="portfolio">
             <div class="portfolio-sticky-zone">
                 <div class="playground-center-content">
+                    <div class="playground-glass"></div>
                     <span class="playground-eyebrow">Explorations</span>
                     <h2 class="playground-title">Visual <span>playground.</span></h2>
                     <p class="playground-subtext">Коллекция реальных проектов студии &mdash; кликните на любую карточку, чтобы открыть живой сайт.</p>
@@ -450,10 +467,6 @@
             return (1 - amt) * start + amt * end;
         }
 
-        // Smoothed galaxy tilt — lerped once per frame in render(), toward
-        // a target derived from mouse position, so the parallax below reads
-        // as a slow, premium settle rather than snapping to the cursor.
-        let galaxyTiltX = 0, galaxyTiltY = 0;
 
         function spawnShootingStar() {
             const startX = Math.random() * width * 0.7 + width * 0.15;
@@ -605,8 +618,8 @@
             const scx = GALAXY_SPRITE_SIZE / 2, scy = GALAXY_SPRITE_SIZE / 2;
 
             const haze = sctx.createRadialGradient(scx, scy, 0, scx, scy, GALAXY_SPRITE_SIZE * 0.42);
-            haze.addColorStop(0, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0.12)`);
-            haze.addColorStop(0.5, `rgba(${horizonColors[1].r}, ${horizonColors[1].g}, ${horizonColors[1].b}, 0.05)`);
+            haze.addColorStop(0, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0.16)`);
+            haze.addColorStop(0.5, `rgba(${horizonColors[1].r}, ${horizonColors[1].g}, ${horizonColors[1].b}, 0.07)`);
             haze.addColorStop(1, `rgba(${horizonColors[1].r}, ${horizonColors[1].g}, ${horizonColors[1].b}, 0)`);
             sctx.beginPath();
             sctx.arc(scx, scy, GALAXY_SPRITE_SIZE * 0.42, 0, Math.PI * 2);
@@ -638,23 +651,28 @@
 
             // Core cluster — a dense pack of small soft round stars instead
             // of one blurred disc (that disc is what blew out to white
-            // before). Bumped 60 -> 110 for the "наполненная" density ask.
+            // before). No radius-based fade on size or alpha anymore —
+            // every star in the cluster is drawn at full, uniform
+            // brightness regardless of how close to dead-center it lands,
+            // per direct instruction ("no dips in brightness anywhere").
+            // Only per-star randomness varies now, for organic texture
+            // rather than a systematic dimming pattern.
             for (let i = 0; i < 110; i++) {
                 const ang = Math.random() * Math.PI * 2;
                 const rad = Math.pow(Math.random(), 1.6) * GALAXY_SPRITE_SIZE * 0.11;
                 const px = scx + Math.cos(ang) * rad;
                 const py = scy + Math.sin(ang) * rad * 0.55;
-                const fade = 1 - rad / (GALAXY_SPRITE_SIZE * 0.11);
-                const size = 1.6 + fade * 3.2;
+                const size = 2.2 + Math.random() * 2.4;
                 const color = horizonColors[4];
-                softStar(px, py, size * 2.4, color.r, color.g, color.b, 0.3 + fade * 0.25);
-                softStar(px, py, Math.max(0.8, size * 0.55), 255, 255, 255, Math.min(0.65, 0.4 + fade * 0.3));
+                softStar(px, py, size * 2.4, color.r, color.g, color.b, 0.42 + Math.random() * 0.2);
+                softStar(px, py, Math.max(0.9, size * 0.55), 255, 255, 255, 0.5 + Math.random() * 0.15);
             }
 
             // 3 spiral arms, each a trail of small round glowing stars.
-            // Density bumped 42 -> 65/arm for a fuller field; radius step
-            // pulled in slightly to keep the same spiral extent at the
-            // higher count.
+            // Density bumped 42 -> 65/arm for a fuller field. Same as the
+            // core cluster: no radius-based alpha or size falloff — every
+            // star along the arm, near or far from center, burns at the
+            // same uniform brightness and roughly the same size.
             const arms = 3;
             for (let arm = 0; arm < arms; arm++) {
                 const armOffset = (arm / arms) * Math.PI * 2;
@@ -665,11 +683,10 @@
                     if (r > GALAXY_SPRITE_SIZE * 0.48) break;
                     const px = scx + Math.cos(theta) * r;
                     const py = scy + Math.sin(theta) * r * 0.55; // flattened, like a galaxy seen at an angle
-                    const fade = 1 - r / (GALAXY_SPRITE_SIZE * 0.48);
-                    const dotAlpha = fade * (0.5 + Math.random() * 0.3);
-                    const size = (1.3 + fade * 2.2) * (0.75 + Math.random() * 0.6);
-                    softStar(px, py, size * 2.2, color.r, color.g, color.b, dotAlpha * 0.5);
-                    softStar(px, py, Math.max(0.7, size * 0.5), 255, 255, 255, Math.min(0.65, dotAlpha * 0.75));
+                    const size = 2.0 + Math.random() * 2.0;
+                    const dotAlpha = 0.5 + Math.random() * 0.22;
+                    softStar(px, py, size * 2.2, color.r, color.g, color.b, dotAlpha * 0.55);
+                    softStar(px, py, Math.max(0.8, size * 0.5), 255, 255, 255, Math.min(0.65, dotAlpha * 0.9));
                 }
             }
         })();
@@ -1132,26 +1149,17 @@
                 }
                 ctx.stroke();
 
-                // Spiral galaxy sprite — 3 depth layers now instead of 2,
-                // each just a drawImage blit (still no per-frame gradient
-                // or per-particle construction, that cost stays paid once
-                // at bake time above). Real parallax depth: each layer
-                // offsets and shears by a different fraction of the smoothed
-                // mouse tilt, so nearer layers swing further than farther
-                // ones as the cursor moves — that difference IS the 3D read,
-                // not a single flat image tilting as one rigid plane.
+                // Spiral galaxy sprite — 3 depth layers, each just a
+                // drawImage blit (no per-frame gradient or per-particle
+                // construction, that cost stays paid once at bake time
+                // above). No mouse coupling of any kind: every layer stays
+                // pinned to (cx, cy), the exact screen center, and only
+                // rotates on its own clock. The 3 layers still give real
+                // depth (different sizes/speeds/counter-rotation), just
+                // none of it responds to the cursor anymore.
                 const galaxyPulse = 0.85 + 0.15 * Math.sin(time * 0.0006);
                 const galaxyDraw = 2070; // 3x the previous 690 (9x the original 230)
                 const galaxyScale = galaxyDraw / GALAXY_SPRITE_SIZE;
-
-                // Smoothed tilt target from mouse position, clamped to
-                // [-1, 1]. Guarded against the initial (-999, -999) sentinel
-                // so the galaxy sits neutral until the cursor actually
-                // moves, instead of snapping toward a corner on load.
-                const tiltTargetX = mouse.x > -900 ? Math.max(-1, Math.min(1, (mouse.x - cx) / (width / 2))) : 0;
-                const tiltTargetY = mouse.y > -900 ? Math.max(-1, Math.min(1, (mouse.y - cy) / (height / 2))) : 0;
-                galaxyTiltX = lerp(galaxyTiltX, tiltTargetX, 0.04);
-                galaxyTiltY = lerp(galaxyTiltY, tiltTargetY, 0.04);
 
                 // Composite mode is set explicitly at each blit rather than
                 // inherited — that ambiguity (inheriting 'screen' from the
@@ -1163,13 +1171,12 @@
                 // — the fix was making the choice explicit and pairing it
                 // with a sprite whose own peak brightness per star is capped
                 // (see paintGalaxySprite), not avoiding 'screen' altogether.
-                function drawGalaxyLayer(depth, drawSize, alphaMul, rotSpeed, rotDir, withSparkles) {
+                function drawGalaxyLayer(drawSize, alphaMul, rotSpeed, rotDir, withSparkles) {
                     ctx.save();
                     ctx.globalCompositeOperation = 'screen';
                     ctx.imageSmoothingEnabled = true;
                     ctx.globalAlpha = a * alphaMul * galaxyPulse;
-                    ctx.translate(cx + galaxyTiltX * 46 * depth, cy + galaxyTiltY * 26 * depth);
-                    ctx.transform(1, galaxyTiltY * 0.07 * depth, galaxyTiltX * 0.07 * depth, 1, 0, 0);
+                    ctx.translate(cx, cy);
                     ctx.rotate(rotDir * time * rotSpeed);
                     ctx.drawImage(galaxySprite, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
                     if (withSparkles) {
@@ -1195,16 +1202,16 @@
                     ctx.restore();
                 }
 
-                drawGalaxyLayer(0.32, galaxyDraw * 1.2, 0.22, 0.000018, -1, false);  // far layer — dim, slow counter-drift
-                drawGalaxyLayer(0.62, galaxyDraw * 1.0, 0.45, 0.000025, 1, false);   // mid layer
-                drawGalaxyLayer(1.0, galaxyDraw * 0.88, 0.78, 0.00004, 1, true);      // near layer — brightest, carries sparkles
+                drawGalaxyLayer(galaxyDraw * 1.2, 0.32, 0.000018, -1, false);  // far layer — dim, slow counter-drift
+                drawGalaxyLayer(galaxyDraw * 1.0, 0.6, 0.000025, 1, false);    // mid layer
+                drawGalaxyLayer(galaxyDraw * 0.88, 0.95, 0.00004, 1, true);    // near layer — brightest, carries sparkles
 
-                // No canvas-side darkening behind the text anymore — the
-                // headline now uses mix-blend-mode: difference (see CSS),
-                // which needs the galaxy's actual color underneath to
-                // invert against. An artificial dark patch here would just
-                // fight that: differencing white against near-black
-                // produces a dim, muddy result instead of a clean invert.
+                // No canvas-side darkening behind the text — legibility is
+                // handled structurally now by the .playground-glass
+                // backdrop-filter panel in the DOM (see CSS), which blurs
+                // whatever the canvas paints behind it. The galaxy itself
+                // stays at full, uncompromised brightness everywhere,
+                // including directly behind the text.
 
                 // Dust caught in the corona's light — twinkling points fixed
                 // to the rim (angle + radius jitter set once at init), so
