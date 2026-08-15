@@ -579,6 +579,25 @@
             });
         }
 
+        // Orbit stardust — replaces the flat ellipse stroke entirely. A
+        // ring built from ~280 barely-visible ultramarine/blue micro-
+        // points scattered in a band around the same ellipse, all
+        // orbiting together at one shared angular speed (computed as
+        // `time * orbitSpeed`, so it's a pure function of time — no
+        // per-frame position integration to accumulate drift). Angle
+        // offsets and radius jitter are fixed once at init; every frame
+        // just re-evaluates position from the current angle, one flat
+        // fill each, no gradient, no shadowBlur.
+        const ringStardust = [];
+        for (let i = 0; i < 280; i++) {
+            ringStardust.push({
+                angleOffset: (i / 280) * Math.PI * 2 + (Math.random() - 0.5) * 0.05,
+                radiusJitter: (Math.random() - 0.5) * 64,
+                size: 0.5 + Math.random() * 1.2,
+                alpha: 0.1 + Math.random() * 0.3
+            });
+        }
+
         // Cosmic core, take 2 — the flare+blobs version was both too weak to
         // see and, once strengthened, sat close enough to the sticky text to
         // compete with it. More importantly: repeatedly building 5 new
@@ -638,76 +657,47 @@
             const sctx = galaxySprite.getContext('2d');
             const scx = GALAXY_SPRITE_SIZE / 2, scy = GALAXY_SPRITE_SIZE / 2;
 
-            // No wide ambient haze wash anymore — a gradient spanning
-            // almost half the sprite, fading to nothing at its own edge,
-            // is exactly what reads as "тусклое серое затухание." A tight,
-            // saturated core bulge is a different thing — real spiral
-            // galaxies do have a brighter, denser core — so this one is
-            // small and vivid rather than wide and fading to grey.
+            // Crystal-clear pass: no gradients, no shadowBlur, anywhere in
+            // this function. Every star is one plain ctx.arc()+fill() of a
+            // solid neon color at partial alpha — the "softness" comes
+            // purely from semi-transparent circles overlapping under
+            // 'lighter', not from blurred edges. This is also what made
+            // doubling the count affordable: half the draw calls per star
+            // (one fill instead of two) and each call is cheaper (no
+            // gradient object, no shadow pass) than before.
             sctx.globalCompositeOperation = 'lighter';
-            const bulge = sctx.createRadialGradient(scx, scy, 0, scx, scy, GALAXY_SPRITE_SIZE * 0.1);
-            bulge.addColorStop(0, `rgba(${galaxyNeon[1].r}, ${galaxyNeon[1].g}, ${galaxyNeon[1].b}, 0.22)`);
-            bulge.addColorStop(0.6, `rgba(${galaxyNeon[2].r}, ${galaxyNeon[2].g}, ${galaxyNeon[2].b}, 0.12)`);
-            bulge.addColorStop(1, `rgba(${galaxyNeon[2].r}, ${galaxyNeon[2].g}, ${galaxyNeon[2].b}, 0)`);
-            sctx.beginPath();
-            sctx.arc(scx, scy, GALAXY_SPRITE_SIZE * 0.1, 0, Math.PI * 2);
-            sctx.fillStyle = bulge;
-            sctx.fill();
-
-            // Real glow via shadowBlur on each star's bright core — a
-            // one-time bake cost (this function runs once, at load, not
-            // per frame), so it's effectively free regardless of count;
-            // see the removed shadowBlur on the corona rim elsewhere in
-            // this file for why that ONE case was different (a viewport-
-            // spanning shape redrawn every frame).
-            function softStar(px, py, radius, r, g, b, peakAlpha, glow) {
-                if (glow) {
-                    sctx.shadowBlur = radius * 1.6;
-                    sctx.shadowColor = `rgba(${r}, ${g}, ${b}, ${Math.min(1, peakAlpha)})`;
-                }
-                const grad = sctx.createRadialGradient(px, py, 0, px, py, radius);
-                grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${peakAlpha})`);
-                grad.addColorStop(0.45, `rgba(${r}, ${g}, ${b}, ${peakAlpha * 0.45})`);
-                grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+            function crispStar(px, py, radius, r, g, b, alpha) {
                 sctx.beginPath();
                 sctx.arc(px, py, radius, 0, Math.PI * 2);
-                sctx.fillStyle = grad;
+                sctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
                 sctx.fill();
-                if (glow) sctx.shadowBlur = 0;
             }
 
-            // Core cluster — dense pack of small soft round stars, cycling
+            // Core cluster — dense pack of small crisp round stars, cycling
             // through all 3 neon hues. No radius-based alpha/size falloff —
-            // every star burns at the same uniform brightness regardless of
-            // position, per direct instruction ("no dips anywhere"). Count
-            // cut 190 -> 133 (-30%); size and glow bumped up so the same
-            // visual density holds with fewer draw calls.
-            for (let i = 0; i < 133; i++) {
+            // every star burns at the same brightness range regardless of
+            // position. Count doubled (133 -> 266) now that removing the
+            // gradient/shadowBlur passes freed up real budget.
+            for (let i = 0; i < 266; i++) {
                 const ang = Math.random() * Math.PI * 2;
                 const rad = Math.pow(Math.random(), 1.3) * GALAXY_SPRITE_SIZE * 0.12;
                 const px = scx + Math.cos(ang) * rad;
                 const py = scy + Math.sin(ang) * rad * 0.55;
-                const size = 2.6 + Math.random() * 3.0;
+                const size = 1.6 + Math.random() * 2.0;
                 const color = galaxyNeon[i % 3];
-                softStar(px, py, size * 2.6, color.r, color.g, color.b, 0.5 + Math.random() * 0.18, false);
-                softStar(px, py, Math.max(1.0, size * 0.55), 255, 255, 255, 0.52 + Math.random() * 0.15, true);
+                crispStar(px, py, size, color.r, color.g, color.b, 0.4 + Math.random() * 0.4);
             }
 
             // 3 arms along the log-spiral centerline, each star given a
-            // pseudo-3D depth value (pz) that drives size and glow
-            // strength — not alpha, alpha stays uniformly high per the
-            // "no dimming" rule. Each star is also scattered off the ideal
-            // curve, perpendicular AND along it, proportional to depth —
-            // this is what turns a mathematically perfect thin curve into
-            // a voluminous, puffy band with real thickness (the "3D
-            // volume" ask), and it's also the second half of the fix for
-            // "паутина": a thread of points scattered around a curve reads
-            // as a solid dimensional stream, a thread of points sitting
-            // exactly ON a curve reads as a wire.
-            // Count cut 240 -> 168/arm (-30%); size and glow bumped to
-            // hold the same visual density with fewer draw calls.
+            // pseudo-3D depth value (pz) that drives size — not alpha,
+            // alpha stays in the 0.4-0.8 range regardless of position, per
+            // the standing "no dimming anywhere" rule. Each star is also
+            // scattered off the ideal curve, perpendicular AND along it,
+            // proportional to depth — this is what turns a mathematically
+            // perfect thin curve into a voluminous, puffy band with real
+            // thickness rather than a wire. Count doubled (168 -> 336/arm).
             const arms = 3;
-            const POINTS_PER_ARM = 168;
+            const POINTS_PER_ARM = 336;
             for (let arm = 0; arm < arms; arm++) {
                 const armOffset = (arm / arms) * Math.PI * 2;
                 const color = galaxyNeon[arm % 3];
@@ -723,10 +713,9 @@
                     const perpAngle = theta + Math.PI / 2;
                     const px = scx + baseX + Math.cos(perpAngle) * perp;
                     const py = scy + (baseY + Math.sin(perpAngle) * perp) * 0.55; // flattened, like a galaxy seen at an angle
-                    const size = (1.8 + (1 - pz) * 2.6);
-                    const dotAlpha = 0.55 + Math.random() * 0.2;
-                    softStar(px, py, size * 2.3, color.r, color.g, color.b, dotAlpha * 0.62, false);
-                    softStar(px, py, Math.max(0.8, size * 0.5), 255, 255, 255, Math.min(0.7, dotAlpha * (0.75 + (1 - pz) * 0.3)), true);
+                    const size = 0.9 + (1 - pz) * 1.5;
+                    const alpha = 0.4 + Math.random() * 0.4;
+                    crispStar(px, py, size, color.r, color.g, color.b, alpha);
                 }
             }
         })();
@@ -1125,52 +1114,38 @@
                 // 1.5x is provably invisible (checked: 0% of the curve stays
                 // within a 1280x720 frame; even 1.1x only keeps ~46% of the
                 // circumference on-screen, since every point moves further
-                // from center in every direction at once). Went with 1.08x —
-                // a real, visible increase, still comfortably a full sweeping
-                // oval rather than a few disconnected corner arcs.
-                const rimRx = width * 0.54 * breathe;
-                const rimRy = height * 0.54 * breathe;
+                // from center in every direction at once). 0.54 (1.08x) was
+                // the prior value; pushed to 0.58 (1.16x) here — still
+                // comfortably a full sweeping oval, reaching further toward
+                // the corners without tipping past what stays visible.
+                const rimRx = width * 0.58 * breathe;
+                const rimRy = height * 0.58 * breathe;
                 const cx = width / 2, cy = height / 2;
                 const a = horizonAlpha * pulse;
 
-                // slowly rotating aurora gradient across the rim — 5 stops
-                // now (adds the cyan + a white flare point) instead of 3, a
-                // richer traveling color wash along the same single stroke
+                // rot still drives the streamers/sparks below, just no
+                // longer a gradient rotation for a stroke that no longer
+                // exists.
                 const rot = (time * 0.00003) % (Math.PI * 2);
-                const gx1 = cx + Math.cos(rot) * rimRx, gy1 = cy + Math.sin(rot) * rimRy;
-                const gx2 = cx - Math.cos(rot) * rimRx, gy2 = cy - Math.sin(rot) * rimRy;
-                const rimGrad = ctx.createLinearGradient(gx1, gy1, gx2, gy2);
-                rimGrad.addColorStop(0, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, ${a})`);
-                rimGrad.addColorStop(0.25, `rgba(${horizonColors[4].r}, ${horizonColors[4].g}, ${horizonColors[4].b}, ${a})`);
-                rimGrad.addColorStop(0.5, `rgba(${horizonColors[3].r}, ${horizonColors[3].g}, ${horizonColors[3].b}, ${a})`);
-                rimGrad.addColorStop(0.75, `rgba(${horizonColors[1].r}, ${horizonColors[1].g}, ${horizonColors[1].b}, ${a})`);
-                rimGrad.addColorStop(1, `rgba(${horizonColors[2].r}, ${horizonColors[2].g}, ${horizonColors[2].b}, ${a})`);
 
-                const rimPath = (rx, ry) => { ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); };
-
-                // shadowBlur cost scales with BOTH blur radius and the
-                // shape's own size — on an ellipse spanning nearly the whole
-                // viewport, 8 blurred passes was real, measurable cost this
-                // draw-call count alone didn't capture, and it's what made
-                // the rim read as a thick, heavy band rather than a thin
-                // line ("выглядит кучно"). Replaced with pure alpha-layered
-                // strokes — no blur at all on anything viewport-sized. The
-                // soft edge now comes from stacking a few low-alpha strokes
-                // of increasing width, which is just plain compositing, not
-                // a per-pixel blur pass.
+                // Orbit stardust — this whole ring is now a volume of
+                // ~280 tiny ultramarine/blue points drifting together
+                // around the ellipse (shared angle = time * orbitSpeed,
+                // a pure function of time, so nothing accumulates or
+                // drifts out of sync), not a flat stroked line. Every
+                // point is one plain fill — no gradient, no shadowBlur.
+                const orbitAngle = time * 0.00002;
                 ctx.save();
-                ctx.strokeStyle = `rgba(180, 160, 255, ${a * 0.22})`;
-                ctx.lineWidth = 10;
-                rimPath(rimRx, rimRy);
-                ctx.stroke();
-                ctx.strokeStyle = `rgba(180, 160, 255, ${a * 0.3})`;
-                ctx.lineWidth = 5;
-                rimPath(rimRx, rimRy);
-                ctx.stroke();
-                ctx.strokeStyle = rimGrad;
-                ctx.lineWidth = 1.6;
-                rimPath(rimRx, rimRy);
-                ctx.stroke();
+                ringStardust.forEach(d => {
+                    const ang = d.angleOffset + orbitAngle;
+                    const rx = rimRx + d.radiusJitter, ry = rimRy + d.radiusJitter;
+                    const px = cx + Math.cos(ang) * rx;
+                    const py = cy + Math.sin(ang) * ry;
+                    ctx.beginPath();
+                    ctx.arc(px, py, d.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(60, 120, 255, ${d.alpha * a})`;
+                    ctx.fill();
+                });
                 ctx.restore();
 
                 // Streamers — thin rays radiating out from points around the
