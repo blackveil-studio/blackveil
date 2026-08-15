@@ -36,21 +36,6 @@
             z-index: 1;
             pointer-events: none;
         }
-        /* The WebGL galaxy/ring canvas — same fixed full-viewport layer as
-           #space-canvas (z-index:1), sits after it in the DOM so it paints
-           on top of the 2D background/Hero content but still stays under
-           .page-wrapper's cards and text (z-index:2). Its own opacity is
-           driven every frame from horizonAlpha in the main render loop. */
-        #galaxy-webgl {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            z-index: 1;
-            pointer-events: none;
-            opacity: 0;
-        }
         .page-wrapper {
             position: relative;
             z-index: 2;
@@ -361,7 +346,6 @@
 <body>
 
     <canvas id="space-canvas"></canvas>
-    <canvas id="galaxy-webgl"></canvas>
 
     <div class="page-wrapper" id="content">
         <section class="hero-section">
@@ -431,13 +415,7 @@
         </section>
     </div>
 
-    <!-- Classic (non-module) UMD build, pinned to r128 specifically — Three.js
-         moved to ES-modules-only for its CDN distribution in later versions,
-         and this file has no build step / bundler to consume a module import
-         cleanly alongside the existing synchronous inline script below, which
-         reads `THREE` as a plain global the moment it starts running. r128 is
-         a long-stable release still widely mirrored on jsdelivr. -->
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+
     <script>
         const canvas = document.getElementById('space-canvas');
         const ctx = canvas.getContext('2d');
@@ -582,189 +560,204 @@
         const horizonRipples = []; // mouse-echo rings — own array, own draw pass
         let lastRippleX = -999, lastRippleY = -999, rippleCooldown = 0;
 
-        // ============================================================
-        // WebGL galaxy + ring (Three.js / THREE.Points, BufferGeometry)
-        // ============================================================
-        // Replaces the earlier 2D-canvas galaxy sprite entirely — real 3D
-        // positions instead of a flat sprite blit, so the "volume" comes
-        // from an actual PerspectiveCamera and z-depth, not a screen-space
-        // jitter trick. Everything here is built ONCE at init into
-        // BufferGeometry arrays; render() below only ever touches
-        // .rotation.z (pure rotation, no per-frame vertex/attribute
-        // rewrites, no per-frame texture/geometry construction).
-        // Two separate palettes now, not one shared one — sharing a palette
-        // was exactly why the galaxy and ring read as a single undifferentiated
-        // purple smear. Galaxy burns hot pink/magenta; the ring stays a
-        // distinct, deep ultramarine/blue so it visibly separates as its own
-        // structure behind the galaxy rather than blending into it.
-        const galaxyNeon = [
-            new THREE.Color(0xff2fb0), // hot neon magenta
-            new THREE.Color(0xff5fc9), // neon pink
-            new THREE.Color(0xd91e8c)  // deep magenta
-        ];
-        const ringNeon = [
-            new THREE.Color(0x2f6bff), // bright ultramarine blue
-            new THREE.Color(0x1e3fd9), // deep royal blue
-            new THREE.Color(0x4d8bff)  // lighter azure accent
-        ];
-
-        const glCanvas = document.getElementById('galaxy-webgl');
-        const glRenderer = new THREE.WebGLRenderer({ canvas: glCanvas, alpha: true, antialias: false });
-        glRenderer.setPixelRatio(dpr);
-        glRenderer.setSize(width, height, false);
-        glRenderer.setClearColor(0x000000, 0);
-        const glScene = new THREE.Scene();
-        const glCamera = new THREE.PerspectiveCamera(45, width / height, 1, 5000);
-        glCamera.position.z = 900;
-
-        // One small offscreen 2D canvas, baked once into a soft circular
-        // sprite texture — this is what keeps every particle a round,
-        // soft-edged glow instead of a hard GL square point.
-        function makeCircleTexture() {
-            const c = document.createElement('canvas');
-            c.width = c.height = 64;
-            const cctx = c.getContext('2d');
-            const g = cctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-            g.addColorStop(0, 'rgba(255,255,255,1)');
-            g.addColorStop(0.4, 'rgba(255,255,255,0.7)');
-            g.addColorStop(1, 'rgba(255,255,255,0)');
-            cctx.fillStyle = g;
-            cctx.fillRect(0, 0, 64, 64);
-            return new THREE.CanvasTexture(c);
+        // Dust caught in the corona's light — NOT a general starfield (that
+        // was the "flat background" complaint's actual cause two rounds
+        // ago). These live in a narrow band hugging the rim itself, angle
+        // and radius fixed at init, only their twinkle animates — genuine
+        // cosmic detail concentrated exactly where the light is, not spread
+        // flatly across the whole frame.
+        const rimDust = [];
+        for (let i = 0; i < 45; i++) {
+            const color = horizonColors[Math.floor(Math.random() * 3)];
+            rimDust.push({
+                angle: Math.random() * Math.PI * 2,
+                radiusJitter: (Math.random() - 0.5) * 90,
+                size: Math.random() * 1.3 + 0.4,
+                twinkleSpeed: Math.random() * 0.002 + 0.0006,
+                seed: Math.random() * 100,
+                r: color.r, g: color.g, b: color.b
+            });
         }
-        const circleTexture = makeCircleTexture();
 
-        // Real logarithmic spiral (r = a*e^(b*theta)) — same math proven
-        // out on the 2D version (an Archimedean/constant-step spiral reads
-        // as straight radial spokes at any real density; a log spiral's
-        // curvature genuinely tightens near the core), now producing true
-        // 3D positions instead of a flat sprite.
-        const SPIRAL_A = 6, SPIRAL_THETA_MAX = Math.PI * 2.35, SPIRAL_MAX_R = 230;
+        // Cosmic core, take 2 — the flare+blobs version was both too weak to
+        // see and, once strengthened, sat close enough to the sticky text to
+        // compete with it. More importantly: repeatedly building 5 new
+        // gradient objects from scratch every single frame, for as long as
+        // the visitor sits in the portfolio zone, is real sustained
+        // allocation/GC pressure that a per-frame draw-call count doesn't
+        // capture — and matches "we're only on the second block and it
+        // already lags." A small spiral galaxy, rendered ONCE to an
+        // offscreen sprite at load, then just blitted with ctx.drawImage()
+        // (one of the cheapest operations a canvas has — a GPU blit, no
+        // per-frame gradient construction, no per-frame star loop) each
+        // frame with only rotation/alpha changing. Also just a more
+        // distinctive, recognizable cosmic image than a diffuse glow.
+        const galaxySprite = document.createElement('canvas');
+        // Bumped again (320 -> 640 -> 900) since the draw size is going up
+        // another 3x — still a one-time paint cost at init regardless of
+        // resolution, never a per-frame one, so there's no real reason not
+        // to keep it crisp at whatever size it's actually shown at.
+        const GALAXY_SPRITE_SIZE = 900;
+        galaxySprite.width = GALAXY_SPRITE_SIZE;
+        galaxySprite.height = GALAXY_SPRITE_SIZE;
+        // Dedicated neon palette for the galaxy specifically (deep
+        // ultramarine / violet / magenta) — the shared horizonColors array
+        // is tuned for the corona rim's look and stays untouched; this is
+        // just for star color now that the galaxy no longer has to dodge
+        // sitting behind white text.
+        const galaxyNeon = [
+            { r: 58,  g: 52,  b: 214 }, // deep ultramarine
+            { r: 168, g: 58,  b: 232 }, // violet
+            { r: 230, g: 32,  b: 168 }  // magenta
+        ];
+
+        // Real logarithmic spiral (r = a * e^(b*theta)) — an Archimedean
+        // spiral (constant radius step per angle step, what the previous
+        // version used) has almost-constant curvature and, at the density
+        // this needed, individual arms started reading as straight radial
+        // spokes rather than curves — the "паутина" (spiderweb) complaint.
+        // A log spiral's curvature actually tightens near the core and
+        // relaxes outward, which is both the mathematically correct shape
+        // for a real spiral galaxy and the one that reads as a proper
+        // curve at any zoom level, not a polygon approximation of one.
+        const SPIRAL_A = 15;
+        const SPIRAL_THETA_MAX = Math.PI * 2.35;
+        const SPIRAL_MAX_R = GALAXY_SPRITE_SIZE * 0.46;
         const SPIRAL_B = Math.log(SPIRAL_MAX_R / SPIRAL_A) / SPIRAL_THETA_MAX;
+        function spiralPoint(tNorm, armOffset) {
+            // tNorm in [0,1]. Power < 1 biases more samples toward the
+            // outer end, compensating for the log spiral's natural
+            // exponential radial spacing so the arm doesn't thin out
+            // visually near the tip — same point BUDGET, better spent.
+            const theta = SPIRAL_THETA_MAX * Math.pow(tNorm, 0.72);
+            const r = SPIRAL_A * Math.exp(SPIRAL_B * theta);
+            return { theta: theta + armOffset, r };
+        }
 
-        function buildGalaxyPoints() {
-            // Count roughly 3x the previous pass (260->800, 300->900/arm) —
-            // "dense, thick, monolithic streams of plasma," not thin single
-            // threads. Draw-call count stays at 1 regardless of point count
-            // (GPU point rendering scales to tens of thousands fine), so
-            // this is essentially free at render time; the only real cost
-            // is the one-time BufferGeometry build at init.
-            const CORE_COUNT = 800, ARMS = 3, POINTS_PER_ARM = 900;
-            const maxTotal = CORE_COUNT + ARMS * POINTS_PER_ARM;
-            const positions = new Float32Array(maxTotal * 3);
-            const colors = new Float32Array(maxTotal * 3);
-            let n = 0;
+        (function paintGalaxySprite() {
+            const sctx = galaxySprite.getContext('2d');
+            const scx = GALAXY_SPRITE_SIZE / 2, scy = GALAXY_SPRITE_SIZE / 2;
 
-            // Core cluster — same uniform-brightness rule as before (no
-            // radius-based falloff, color cycles through all 3 hues).
-            for (let i = 0; i < CORE_COUNT; i++) {
-                const ang = Math.random() * Math.PI * 2;
-                const rad = Math.pow(Math.random(), 1.3) * 28;
-                positions[n * 3] = Math.cos(ang) * rad;
-                positions[n * 3 + 1] = Math.sin(ang) * rad;
-                positions[n * 3 + 2] = (Math.random() - 0.5) * 14; // real z spread, not a screen-space fake
-                const c = galaxyNeon[i % 3];
-                colors[n * 3] = c.r; colors[n * 3 + 1] = c.g; colors[n * 3 + 2] = c.b;
-                n++;
+            // No wide ambient haze wash anymore — a gradient spanning
+            // almost half the sprite, fading to nothing at its own edge,
+            // is exactly what reads as "тусклое серое затухание." A tight,
+            // saturated core bulge is a different thing — real spiral
+            // galaxies do have a brighter, denser core — so this one is
+            // small and vivid rather than wide and fading to grey.
+            sctx.globalCompositeOperation = 'lighter';
+            const bulge = sctx.createRadialGradient(scx, scy, 0, scx, scy, GALAXY_SPRITE_SIZE * 0.1);
+            bulge.addColorStop(0, `rgba(${galaxyNeon[1].r}, ${galaxyNeon[1].g}, ${galaxyNeon[1].b}, 0.22)`);
+            bulge.addColorStop(0.6, `rgba(${galaxyNeon[2].r}, ${galaxyNeon[2].g}, ${galaxyNeon[2].b}, 0.12)`);
+            bulge.addColorStop(1, `rgba(${galaxyNeon[2].r}, ${galaxyNeon[2].g}, ${galaxyNeon[2].b}, 0)`);
+            sctx.beginPath();
+            sctx.arc(scx, scy, GALAXY_SPRITE_SIZE * 0.1, 0, Math.PI * 2);
+            sctx.fillStyle = bulge;
+            sctx.fill();
+
+            // Real glow via shadowBlur on each star's bright core — a
+            // one-time bake cost (this function runs once, at load, not
+            // per frame), so it's effectively free regardless of count;
+            // see the removed shadowBlur on the corona rim elsewhere in
+            // this file for why that ONE case was different (a viewport-
+            // spanning shape redrawn every frame).
+            function softStar(px, py, radius, r, g, b, peakAlpha, glow) {
+                if (glow) {
+                    sctx.shadowBlur = radius * 1.6;
+                    sctx.shadowColor = `rgba(${r}, ${g}, ${b}, ${Math.min(1, peakAlpha)})`;
+                }
+                const grad = sctx.createRadialGradient(px, py, 0, px, py, radius);
+                grad.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${peakAlpha})`);
+                grad.addColorStop(0.45, `rgba(${r}, ${g}, ${b}, ${peakAlpha * 0.45})`);
+                grad.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+                sctx.beginPath();
+                sctx.arc(px, py, radius, 0, Math.PI * 2);
+                sctx.fillStyle = grad;
+                sctx.fill();
+                if (glow) sctx.shadowBlur = 0;
             }
 
-            // 3 arms along the spiral centerline, with real perpendicular +
-            // along-curve + Z scatter (genuine volume from an actual third
-            // axis, not a perpendicular-jitter approximation).
-            for (let arm = 0; arm < ARMS; arm++) {
-                const armOffset = (arm / ARMS) * Math.PI * 2;
-                const c = galaxyNeon[arm % 3];
+            // Core cluster — dense pack of small soft round stars, cycling
+            // through all 3 neon hues. No radius-based alpha/size falloff —
+            // every star burns at the same uniform brightness regardless of
+            // position, per direct instruction ("no dips anywhere"). Count
+            // cut 190 -> 133 (-30%); size and glow bumped up so the same
+            // visual density holds with fewer draw calls.
+            for (let i = 0; i < 133; i++) {
+                const ang = Math.random() * Math.PI * 2;
+                const rad = Math.pow(Math.random(), 1.3) * GALAXY_SPRITE_SIZE * 0.12;
+                const px = scx + Math.cos(ang) * rad;
+                const py = scy + Math.sin(ang) * rad * 0.55;
+                const size = 2.6 + Math.random() * 3.0;
+                const color = galaxyNeon[i % 3];
+                softStar(px, py, size * 2.6, color.r, color.g, color.b, 0.5 + Math.random() * 0.18, false);
+                softStar(px, py, Math.max(1.0, size * 0.55), 255, 255, 255, 0.52 + Math.random() * 0.15, true);
+            }
+
+            // 3 arms along the log-spiral centerline, each star given a
+            // pseudo-3D depth value (pz) that drives size and glow
+            // strength — not alpha, alpha stays uniformly high per the
+            // "no dimming" rule. Each star is also scattered off the ideal
+            // curve, perpendicular AND along it, proportional to depth —
+            // this is what turns a mathematically perfect thin curve into
+            // a voluminous, puffy band with real thickness (the "3D
+            // volume" ask), and it's also the second half of the fix for
+            // "паутина": a thread of points scattered around a curve reads
+            // as a solid dimensional stream, a thread of points sitting
+            // exactly ON a curve reads as a wire.
+            // Count cut 240 -> 168/arm (-30%); size and glow bumped to
+            // hold the same visual density with fewer draw calls.
+            const arms = 3;
+            const POINTS_PER_ARM = 168;
+            for (let arm = 0; arm < arms; arm++) {
+                const armOffset = (arm / arms) * Math.PI * 2;
+                const color = galaxyNeon[arm % 3];
                 for (let t = 0; t < POINTS_PER_ARM; t++) {
                     const tNorm = t / POINTS_PER_ARM;
-                    const theta = SPIRAL_THETA_MAX * Math.pow(tNorm, 0.72) + armOffset;
-                    const r = SPIRAL_A * Math.exp(SPIRAL_B * (theta - armOffset));
-                    if (r > SPIRAL_MAX_R) continue;
-                    const puff = 3 + tNorm * 16;
-                    const perp = (Math.random() - 0.5) * 2 * puff;
-                    const along = (Math.random() - 0.5) * 2 * (2 + tNorm * 8);
+                    const { theta, r } = spiralPoint(tNorm, armOffset);
+                    const pz = Math.random(); // 0 = near/big, 1 = far/small
+                    const puff = 6 + tNorm * 22; // arms get visibly thicker toward the tip, like a real dust lane flaring out
+                    const perp = (Math.random() - 0.5) * 2 * puff * (0.4 + pz * 0.6);
+                    const along = (Math.random() - 0.5) * 2 * (4 + tNorm * 10);
                     const rr = r + along;
+                    const baseX = Math.cos(theta) * rr, baseY = Math.sin(theta) * rr;
                     const perpAngle = theta + Math.PI / 2;
-                    positions[n * 3] = Math.cos(theta) * rr + Math.cos(perpAngle) * perp;
-                    positions[n * 3 + 1] = Math.sin(theta) * rr + Math.sin(perpAngle) * perp;
-                    positions[n * 3 + 2] = (Math.random() - 0.5) * (5 + tNorm * 16);
-                    colors[n * 3] = c.r; colors[n * 3 + 1] = c.g; colors[n * 3 + 2] = c.b;
-                    n++;
+                    const px = scx + baseX + Math.cos(perpAngle) * perp;
+                    const py = scy + (baseY + Math.sin(perpAngle) * perp) * 0.55; // flattened, like a galaxy seen at an angle
+                    const size = (1.8 + (1 - pz) * 2.6);
+                    const dotAlpha = 0.55 + Math.random() * 0.2;
+                    softStar(px, py, size * 2.3, color.r, color.g, color.b, dotAlpha * 0.62, false);
+                    softStar(px, py, Math.max(0.8, size * 0.5), 255, 255, 255, Math.min(0.7, dotAlpha * (0.75 + (1 - pz) * 0.3)), true);
                 }
             }
+        })();
 
-            const geo = new THREE.BufferGeometry();
-            geo.setAttribute('position', new THREE.BufferAttribute(positions.subarray(0, n * 3), 3));
-            geo.setAttribute('color', new THREE.BufferAttribute(colors.subarray(0, n * 3), 3));
-            // Size ~2.8x the previous pass (11 -> 31) and opacity pinned to
-            // full — "soft, large, glowing spheres," particles overlapping
-            // under AdditiveBlending should genuinely burn bright, not stay
-            // as microscopic points.
-            const mat = new THREE.PointsMaterial({
-                size: 31, map: circleTexture, vertexColors: true, transparent: true,
-                opacity: 1.0, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
-            });
-            return new THREE.Points(geo, mat);
-        }
-
-        // The wide "Saturn ring" — thousands of particles distributed
-        // through a torus volume (major radius wider than the galaxy's own
-        // extent, so it visibly extends past it and behind the cards),
-        // independently rotating for a parallax read against the galaxy.
-        // Deep ultramarine/blue now (was sharing the galaxy's own palette,
-        // which is exactly why the two systems read as one purple smear
-        // instead of two separated structures).
-        function buildRingPoints() {
-            const COUNT = 2600;
-            const majorR = 320, tubeR = 34;
-            const positions = new Float32Array(COUNT * 3);
-            const colors = new Float32Array(COUNT * 3);
-            for (let i = 0; i < COUNT; i++) {
-                const theta = Math.random() * Math.PI * 2;
-                const phi = Math.random() * Math.PI * 2;
-                const tube = tubeR * Math.pow(Math.random(), 0.6);
-                const ringX = Math.cos(theta) * majorR, ringY = Math.sin(theta) * majorR;
-                const tubeOffset = Math.cos(phi) * tube;
-                positions[i * 3] = ringX + Math.cos(theta) * tubeOffset;
-                positions[i * 3 + 1] = ringY + Math.sin(theta) * tubeOffset;
-                positions[i * 3 + 2] = Math.sin(phi) * tube;
-                const c = ringNeon[i % 3];
-                colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+        // The live twinkling sparkle layer (18 points, alpha modulated via
+        // Math.sin every frame, plus a per-frame createRadialGradient each)
+        // was removed outright — it was both a real per-frame cost and, by
+        // definition, a flicker source. "No dimming/pulsing, no gradients
+        // outside init" rules out the whole mechanism, not just parts of
+        // it; the main star field is already dense enough to not need a
+        // separate accent layer on top.
+        //
+        // Side streamers: sparse dust flanking the LEFT/RIGHT edges of the
+        // screen, filling the empty gap outside the card oval. Positions
+        // are fixed at init (angle/radius parameters only — actual x/y is
+        // computed from the current width/height each frame, same pattern
+        // as rimDust below), and every point draws as one flat, static-
+        // alpha fill — no gradient, no shadowBlur, no twinkle, so this
+        // whole layer costs 36 plain ctx.arc()+fill() calls per frame.
+        const sideStreamers = [];
+        for (let side = -1; side <= 1; side += 2) {
+            for (let i = 0; i < 18; i++) {
+                const t = i / 17;
+                sideStreamers.push({
+                    side, t,
+                    rJitter: (Math.random() - 0.5) * 0.14,
+                    size: 1.3 + Math.random() * 2.1,
+                    color: galaxyNeon[i % 3]
+                });
             }
-            const geo = new THREE.BufferGeometry();
-            geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-            geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-            // Size bumped 4.2 -> 12 and opacity raised so the ring reads as
-            // its own clear, panoramic structure behind the cards instead
-            // of a faint, barely-there haze.
-            const mat = new THREE.PointsMaterial({
-                size: 12, map: circleTexture, vertexColors: true, transparent: true,
-                opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, sizeAttenuation: true
-            });
-            return new THREE.Points(geo, mat);
         }
-
-        const glGalaxy = buildGalaxyPoints();
-        glGalaxy.rotation.x = 0.8; // steeper tilt — the 3D read needs to be obvious at a glance
-        glGalaxy.scale.setScalar(1.6);
-        glScene.add(glGalaxy);
-
-        const glRing = buildRingPoints();
-        glRing.rotation.x = 0.8; // same plane as the galaxy, just wider
-        glRing.position.z = -70; // slightly behind, for depth separation
-        // Scaled up so the ring genuinely reaches past the card columns
-        // (measured against their actual on-screen position, not guessed) —
-        // "заходить за карточки" was the explicit ask, and the ring at its
-        // built-in radius fell well short of that on a real viewport.
-        glRing.scale.setScalar(1.6);
-        glScene.add(glRing);
-
-        // No mouse term anywhere in this system, no per-frame color/opacity
-        // modulation — material opacity/color are set once above and never
-        // touched again; render() only ever advances .rotation.z as a pure
-        // function of `time`, so there is zero flicker and zero cursor
-        // coupling by construction, not by discipline.
-        const GALAXY_ROT_SPEED = 0.00004;
-        const RING_ROT_SPEED = -0.000022;
 
         // Zone 3 — the asteroid belt. 4 labeled "skill" shards plus a handful of
         // small unlabeled decorative shards, all sharing the same inertia physics
@@ -967,9 +960,6 @@
             height = window.innerHeight;
             resizeCanvasForDPR();
             cacheSectionGeometry();
-            glRenderer.setSize(width, height, false);
-            glCamera.aspect = width / height;
-            glCamera.updateProjectionMatrix();
         });
 
         // Edge-triggered — the position reshuffle below must fire exactly once
@@ -1116,15 +1106,197 @@
             }
             ctx.restore();
 
-            // The corona rim, galaxy sprite, and side streamers that used
-            // to live in this block are gone — replaced by the WebGL
-            // galaxy+ring above (rendered separately, see the glRenderer
-            // call right after this whole block). What's left here is just
-            // the mouse-echo ripple system, which never depended on any of
-            // that removed geometry (it only reads mouse.x/y and its own
-            // stored ripple positions).
+            // --- Event Horizon v3: full cosmic treatment. Same core technique
+            // as v2 (multi-pass shadowBlur stroke is what actually reads as
+            // neon glow — verified, a single pass doesn't) but with real
+            // eclipse-corona detail layered on: streamers radiating from the
+            // rim, a dimmer echo ring behind it for depth, chromatic fringing
+            // for a premium optical feel, and dust caught in the light along
+            // the rim itself (not spread across the frame — that was the
+            // original "flat background" problem). Still one ellipse shape,
+            // everything else is either procedural (rays, needs no stored
+            // state) or a small fixed array (70 dust points). ---
             if (horizonAlpha > 0.001) {
                 ctx.globalCompositeOperation = 'screen';
+                const pulse = 0.8 + 0.2 * Math.sin(time * 0.0009);
+                const breathe = 1 + 0.012 * Math.sin(time * 0.0004);
+                // The original ellipse was already exactly inscribed —
+                // tangent to all 4 viewport edges. Scaling that uniformly by
+                // 1.5x is provably invisible (checked: 0% of the curve stays
+                // within a 1280x720 frame; even 1.1x only keeps ~46% of the
+                // circumference on-screen, since every point moves further
+                // from center in every direction at once). Went with 1.08x —
+                // a real, visible increase, still comfortably a full sweeping
+                // oval rather than a few disconnected corner arcs.
+                const rimRx = width * 0.54 * breathe;
+                const rimRy = height * 0.54 * breathe;
+                const cx = width / 2, cy = height / 2;
+                const a = horizonAlpha * pulse;
+
+                // slowly rotating aurora gradient across the rim — 5 stops
+                // now (adds the cyan + a white flare point) instead of 3, a
+                // richer traveling color wash along the same single stroke
+                const rot = (time * 0.00003) % (Math.PI * 2);
+                const gx1 = cx + Math.cos(rot) * rimRx, gy1 = cy + Math.sin(rot) * rimRy;
+                const gx2 = cx - Math.cos(rot) * rimRx, gy2 = cy - Math.sin(rot) * rimRy;
+                const rimGrad = ctx.createLinearGradient(gx1, gy1, gx2, gy2);
+                rimGrad.addColorStop(0, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, ${a})`);
+                rimGrad.addColorStop(0.25, `rgba(${horizonColors[4].r}, ${horizonColors[4].g}, ${horizonColors[4].b}, ${a})`);
+                rimGrad.addColorStop(0.5, `rgba(${horizonColors[3].r}, ${horizonColors[3].g}, ${horizonColors[3].b}, ${a})`);
+                rimGrad.addColorStop(0.75, `rgba(${horizonColors[1].r}, ${horizonColors[1].g}, ${horizonColors[1].b}, ${a})`);
+                rimGrad.addColorStop(1, `rgba(${horizonColors[2].r}, ${horizonColors[2].g}, ${horizonColors[2].b}, ${a})`);
+
+                const rimPath = (rx, ry) => { ctx.beginPath(); ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2); };
+
+                // shadowBlur cost scales with BOTH blur radius and the
+                // shape's own size — on an ellipse spanning nearly the whole
+                // viewport, 8 blurred passes was real, measurable cost this
+                // draw-call count alone didn't capture, and it's what made
+                // the rim read as a thick, heavy band rather than a thin
+                // line ("выглядит кучно"). Replaced with pure alpha-layered
+                // strokes — no blur at all on anything viewport-sized. The
+                // soft edge now comes from stacking a few low-alpha strokes
+                // of increasing width, which is just plain compositing, not
+                // a per-pixel blur pass.
+                ctx.save();
+                ctx.strokeStyle = `rgba(180, 160, 255, ${a * 0.22})`;
+                ctx.lineWidth = 10;
+                rimPath(rimRx, rimRy);
+                ctx.stroke();
+                ctx.strokeStyle = `rgba(180, 160, 255, ${a * 0.3})`;
+                ctx.lineWidth = 5;
+                rimPath(rimRx, rimRy);
+                ctx.stroke();
+                ctx.strokeStyle = rimGrad;
+                ctx.lineWidth = 1.6;
+                rimPath(rimRx, rimRy);
+                ctx.stroke();
+                ctx.restore();
+
+                // Streamers — thin rays radiating out from points around the
+                // rim, varying length/brightness per ray (fixed per index, so
+                // the rhythm reads as organic rather than uniform), all
+                // collected into ONE path/stroke, no blur.
+                ctx.strokeStyle = `rgba(${horizonColors[3].r}, ${horizonColors[3].g}, ${horizonColors[3].b}, ${a * 0.3})`;
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                const RAY_COUNT = 16;
+                for (let ri = 0; ri < RAY_COUNT; ri++) {
+                    const rAngle = (ri / RAY_COUNT) * Math.PI * 2 + rot * 0.5;
+                    const lenPulse = 0.6 + 0.4 * Math.sin(ri * 2.7 + time * 0.0008);
+                    const rayLen = (20 + (ri % 5) * 12) * lenPulse;
+                    const bx = cx + Math.cos(rAngle) * rimRx, by = cy + Math.sin(rAngle) * rimRy;
+                    const ex = cx + Math.cos(rAngle) * (rimRx + rayLen), ey = cy + Math.sin(rAngle) * (rimRy + rayLen);
+                    ctx.moveTo(bx, by);
+                    ctx.lineTo(ex, ey);
+                }
+                ctx.stroke();
+
+                // ONE spiral galaxy sprite, one blit. The previous 3-layer
+                // system (far/mid/near copies at different scales/speeds,
+                // originally built for a mouse-parallax effect that's since
+                // been removed entirely) was the actual cause of "два
+                // наложения создают хаос" — 3 independently-rotating copies
+                // of the same 3-armed structure cross each other at
+                // constantly-changing angles, and those crossings are what
+                // read as web-like visual noise, on top of the spiral math
+                // itself needing a real curve. A single monumental copy,
+                // rotating on one clock, has no second copy to cross with.
+                const galaxyDraw = 2350;
+                const galaxyRotSpeed = 0.000028;
+
+                // Composite mode set explicitly at the blit rather than
+                // inherited — that ambiguity (inheriting 'screen' from the
+                // corona rim above with nothing to reset it) was the actual
+                // cause of an earlier white-out at center, not the blend
+                // mode itself. 'screen' is genuinely the right choice for a
+                // neon multi-color glow — it's what's used deliberately for
+                // the rim and the Hero's nebula clouds too — pairing it
+                // with a sprite whose own peak brightness per star is
+                // capped (see paintGalaxySprite) is what keeps it safe.
+                //
+                // Alpha is plain horizonAlpha now, NOT the shared `a`
+                // variable used above for the corona rim — `a` already has
+                // the rim's own slow sin-based "breathing" pulse baked into
+                // it (`const a = horizonAlpha * pulse`), which the galaxy
+                // was inheriting even after its own separate galaxyPulse
+                // term was removed. The rim keeps its breathe/pulse — that
+                // wasn't part of what "the galaxy" was asked to stop doing
+                // — but the galaxy itself now burns at one flat, stable
+                // brightness with zero Math.sin/cos anywhere in its alpha.
+                ctx.save();
+                ctx.globalCompositeOperation = 'screen';
+                ctx.imageSmoothingEnabled = true;
+                ctx.globalAlpha = horizonAlpha;
+                ctx.translate(cx, cy);
+                ctx.rotate(time * galaxyRotSpeed); // autonomous, own clock only — no mouse term anywhere in this block
+                ctx.drawImage(galaxySprite, -galaxyDraw / 2, -galaxyDraw / 2, galaxyDraw, galaxyDraw);
+                ctx.restore();
+
+                // Side streamers — sparse dust flanking the screen's left/
+                // right edges, outside the card oval, filling what was
+                // empty space. Flat, static-alpha fills only: no gradient,
+                // no shadowBlur, no twinkle, computed from the same
+                // rimRx/rimRy ellipse the corona itself uses so it reads as
+                // part of the same structure, not a bolted-on extra.
+                ctx.save();
+                ctx.globalCompositeOperation = 'screen';
+                ctx.globalAlpha = horizonAlpha * 0.55;
+                sideStreamers.forEach(sp => {
+                    // Symmetric sweep centered on due-left (PI) or due-right
+                    // (0) — spans both above and below the horizontal, not
+                    // just one side of it.
+                    const center = sp.side < 0 ? Math.PI : 0;
+                    const angle = center + (sp.t - 0.5) * Math.PI * 0.56;
+                    const rScale = 1.05 + Math.sin(sp.t * Math.PI) * 0.62 + sp.rJitter;
+                    const px = cx + Math.cos(angle) * rimRx * rScale;
+                    const py = cy + Math.sin(angle) * rimRy * rScale;
+                    ctx.beginPath();
+                    ctx.arc(px, py, sp.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${sp.color.r}, ${sp.color.g}, ${sp.color.b}, 0.7)`;
+                    ctx.fill();
+                });
+                ctx.restore();
+
+                // No text-contrast trick needed here at all anymore — the
+                // text sits at the very top of the sticky viewport (see
+                // CSS), so it no longer shares screen space with the
+                // galaxy. mix-blend-mode on the text itself is the backup.
+
+                // Dust caught in the corona's light — twinkling points fixed
+                // to the rim (angle + radius jitter set once at init), so
+                // they read as texture belonging to the light itself, not a
+                // generic starfield scattered across the frame.
+                ctx.save();
+                rimDust.forEach(d => {
+                    const dx = cx + Math.cos(d.angle) * (rimRx + d.radiusJitter);
+                    const dy = cy + Math.sin(d.angle) * (rimRy + d.radiusJitter);
+                    const twinkle = 0.3 + Math.sin(time * d.twinkleSpeed + d.seed) * 0.35 + 0.35;
+                    const da = a * twinkle * 0.8;
+                    ctx.beginPath();
+                    ctx.arc(dx, dy, d.size, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(${d.r}, ${d.g}, ${d.b}, ${da})`;
+                    ctx.fill();
+                });
+                ctx.restore();
+
+                // Sparks traveling along the rim, evenly spaced, each its
+                // own small glowing point — separate from the dust, these
+                // move continuously rather than just twinkling in place.
+                ctx.save();
+                ctx.shadowBlur = 20 * horizonAlpha;
+                for (let s = 0; s < 4; s++) {
+                    const sAngle = rot * 3 + (s / 4) * Math.PI * 2 + time * 0.0006;
+                    const sx = cx + Math.cos(sAngle) * rimRx;
+                    const sy = cy + Math.sin(sAngle) * rimRy;
+                    const sc = horizonColors[s % horizonColors.length];
+                    ctx.shadowColor = `rgba(${sc.r}, ${sc.g}, ${sc.b}, ${a})`;
+                    ctx.beginPath();
+                    ctx.arc(sx, sy, 2.2, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255, 255, 255, ${a})`;
+                    ctx.fill();
+                }
+                ctx.restore();
 
                 // Mouse echo — a soft glowing ring spawns where the cursor
                 // moves, expands and fades, cycling through the same 3
@@ -1156,18 +1328,6 @@
                     ctx.stroke();
                 }
                 ctx.restore();
-            }
-
-            // WebGL galaxy + ring — pure rotation as a function of `time`,
-            // no other per-frame state to update, so this is just: sync
-            // visibility to horizonAlpha, spin both objects, render. Skipped
-            // entirely below the visibility threshold so it costs nothing
-            // outside the portfolio zone (Hero/Skills scroll).
-            glCanvas.style.opacity = horizonAlpha;
-            if (horizonAlpha > 0.001) {
-                glGalaxy.rotation.z = time * GALAXY_ROT_SPEED;
-                glRing.rotation.z = time * RING_ROT_SPEED;
-                glRenderer.render(glScene, glCamera);
             }
 
             ctx.globalCompositeOperation = 'screen';
