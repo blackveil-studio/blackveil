@@ -110,11 +110,21 @@
             opacity: 1;
             transform: translate(-50%, -50%);
         }
+        /* Contrast comes from mix-blend-mode: difference, not from shadows
+           sitting on top of the galaxy. The letters invert against whatever
+           color is directly behind them at that pixel, so they stay
+           readable no matter how the canvas underneath changes — no
+           canvas-side darkening needed either, that would just blunt the
+           same effect. Opacity raised toward 1 on the smaller labels
+           specifically because this technique: alpha and blend strength
+           are the same knob here — a translucent element blends weakly
+           (mostly falls back to backdrop color = mostly invisible), so
+           hierarchy has to come from size/weight instead of transparency. */
         .playground-eyebrow {
             font-family: 'DM Sans', sans-serif;
             font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase;
-            color: rgba(255,255,255,.45); font-weight: 700; margin-bottom: 12px; display: block;
-            text-shadow: 0 1px 6px rgba(2, 2, 8, 0.6);
+            color: #fff; opacity: 0.75; font-weight: 700; margin-bottom: 12px; display: block;
+            mix-blend-mode: difference;
         }
         .playground-title {
             font-family: 'Bricolage Grotesque', sans-serif;
@@ -124,24 +134,20 @@
             color: #f5f5f7;
             margin: 0 0 18px;
             line-height: 1;
-            /* A tight, low grounding shadow — not a soft cloud. Blur radius
-               kept small (10px) and alpha moderate (0.6) so it reads as
-               contrast under the letters, not a dark smudge around them. */
-            text-shadow: 0 2px 10px rgba(2, 2, 8, 0.6);
+            mix-blend-mode: difference;
         }
         .playground-title span {
             font-style: italic;
             background: linear-gradient(90deg, #6b8cf5, #b06ee8, #e8548c);
             -webkit-background-clip: text; background-clip: text; color: transparent;
-            filter: drop-shadow(0 2px 8px rgba(2, 2, 8, 0.6));
         }
         .playground-subtext {
             font-family: 'DM Sans', sans-serif;
             font-size: 14px;
             line-height: 1.5;
-            color: rgba(255,255,255,.5);
+            color: #fff; opacity: 0.7;
             margin: 0;
-            text-shadow: 0 1px 6px rgba(2, 2, 8, 0.55);
+            mix-blend-mode: difference;
         }
 
         .portfolio-columns-container {
@@ -592,72 +598,61 @@
         (function paintGalaxySprite() {
             const sctx = galaxySprite.getContext('2d');
             const scx = GALAXY_SPRITE_SIZE / 2, scy = GALAXY_SPRITE_SIZE / 2;
-            sctx.globalCompositeOperation = 'lighter';
+            // Plain alpha compositing for the whole sprite, no exceptions.
+            // The previous soft midGlow/coreGrad blobs plus 'lighter'
+            // blending were the actual source of the solid white-out at
+            // center — three overlapping radial gradients, each already
+            // near-opaque at its own center, summed together (and summed
+            // AGAIN at render time against an already-lit canvas — see the
+            // 'screen' -> 'source-over' fix at the drawImage call sites)
+            // is what a flat glow blob looks like, not a galaxy. Removed
+            // midGlow and coreGrad entirely; kept only a single, dim, wide
+            // haze wash for ambient tone. All visual weight now comes from
+            // actual discrete points, not gradients.
+            sctx.globalCompositeOperation = 'source-over';
 
-            // Volumetric read comes from layering, not from any single
-            // clever trick: a wide, very dim outer haze first (the galaxy's
-            // faint halo), a tighter mid-glow on top of that, then the sharp
-            // core — three overlapping radial gradients at different radii/
-            // intensities read as actual depth rather than one flat disc.
-            // All still baked into the sprite once, not per-frame.
-            // Both layers pulled in and dimmed from the first pass — at the
-            // 2.3-2.9x draw scale, a 0.5-radius haze at alpha 0.22 was
-            // covering most of the frame in soft fog, which is the other
-            // half of "too blurry." These are now backdrop texture, not the
-            // dominant visual — the star points (below) carry the "wow" now.
             const haze = sctx.createRadialGradient(scx, scy, 0, scx, scy, GALAXY_SPRITE_SIZE * 0.42);
-            haze.addColorStop(0, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0.13)`);
-            haze.addColorStop(0.5, `rgba(${horizonColors[1].r}, ${horizonColors[1].g}, ${horizonColors[1].b}, 0.05)`);
+            haze.addColorStop(0, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0.1)`);
+            haze.addColorStop(0.5, `rgba(${horizonColors[1].r}, ${horizonColors[1].g}, ${horizonColors[1].b}, 0.04)`);
             haze.addColorStop(1, `rgba(${horizonColors[1].r}, ${horizonColors[1].g}, ${horizonColors[1].b}, 0)`);
             sctx.beginPath();
             sctx.arc(scx, scy, GALAXY_SPRITE_SIZE * 0.42, 0, Math.PI * 2);
             sctx.fillStyle = haze;
             sctx.fill();
 
-            const midGlow = sctx.createRadialGradient(scx, scy, 0, scx, scy, GALAXY_SPRITE_SIZE * 0.28);
-            midGlow.addColorStop(0, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0.26)`);
-            midGlow.addColorStop(1, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0)`);
-            sctx.beginPath();
-            sctx.arc(scx, scy, GALAXY_SPRITE_SIZE * 0.28, 0, Math.PI * 2);
-            sctx.fillStyle = midGlow;
-            sctx.fill();
+            // Hard-edged square pixels, not circles — at 1-3px a fillRect
+            // has a true crisp edge, where ctx.arc() at the same size still
+            // shows anti-aliased softness on the curve. This is what gives
+            // the "jewel-like, cut from crystal" read instead of soft dots.
+            function pixelStar(px, py, size, r, g, b, alpha) {
+                sctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+                sctx.fillRect(px - size / 2, py - size / 2, size, size);
+            }
 
-            // soft core glow — saturated color, not white, on purpose: this
-            // sits directly behind the white "Visual playground." headline,
-            // and a white-hot core there would wash out the text's own
-            // contrast rather than just glow behind it.
-            const coreGrad = sctx.createRadialGradient(scx, scy, 0, scx, scy, GALAXY_SPRITE_SIZE * 0.24);
-            coreGrad.addColorStop(0, `rgba(${horizonColors[4].r}, ${horizonColors[4].g}, ${horizonColors[4].b}, 0.85)`);
-            coreGrad.addColorStop(0.35, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0.5)`);
-            coreGrad.addColorStop(1, `rgba(${horizonColors[0].r}, ${horizonColors[0].g}, ${horizonColors[0].b}, 0)`);
-            sctx.beginPath();
-            sctx.arc(scx, scy, GALAXY_SPRITE_SIZE * 0.24, 0, Math.PI * 2);
-            sctx.fillStyle = coreGrad;
-            sctx.fill();
+            // Core cluster — replaces the old soft coreGrad blob. Same
+            // visual role (the center should carry weight) but built from
+            // ~60 small bright square points packed tightly around center
+            // instead of one blurred disc. Reads as a dense star cluster,
+            // not a glow.
+            for (let i = 0; i < 60; i++) {
+                const ang = Math.random() * Math.PI * 2;
+                const rad = Math.pow(Math.random(), 1.6) * GALAXY_SPRITE_SIZE * 0.1;
+                const px = scx + Math.cos(ang) * rad;
+                const py = scy + Math.sin(ang) * rad * 0.55;
+                const fade = 1 - rad / (GALAXY_SPRITE_SIZE * 0.1);
+                const size = 1 + fade * 2.2;
+                const color = horizonColors[4];
+                pixelStar(px, py, size, color.r, color.g, color.b, 0.5 + Math.random() * 0.3);
+                pixelStar(px, py, Math.max(1, size * 0.5), 255, 255, 255, Math.min(1, 0.6 + fade * 0.5));
+            }
 
-            // 3 spiral arms, each a trail of small dots along a spiral curve.
-            // Dot SIZE now also scales with radius (bigger near the core,
-            // smaller toward the edge) on top of the existing alpha fade —
-            // two depth cues stacking (near = big & bright, far = small &
-            // dim) reads as genuine dimensionality, not just a flat fade.
-            // Density cut roughly in half (70 -> 42 per arm, wider radius
-            // step to cover the same spiral extent) — this is the other half
-            // of "sharper": a dense field of overlapping soft-edged dots
-            // reads as noise no matter how crisp each individual one is.
-            // Fewer, more separated, more emphatic points read as sharp;
-            // packed-together ones read as texture. This also directly
-            // helps the text-contrast problem — less raw brightness clutter
-            // sitting right behind it.
-            // Switched off 'lighter' for the star points specifically. The
-            // ambient haze/midGlow/core above are SUPPOSED to bloom into
-            // each other — that's what makes them read as glow. But with
-            // ~126 overlapping dot-halos also blending additively on top of
-            // that, everything within the inner radius summed into one
-            // bright fog and only the sparse outer dots read as separate
-            // points — which is exactly the "blurred blue spot" complaint.
-            // Plain alpha compositing keeps each star a discrete shape
-            // regardless of how many neighbors it overlaps.
-            sctx.globalCompositeOperation = 'source-over';
+            // 3 spiral arms, each a trail of small hard-pixel stars along a
+            // spiral curve. Dot SIZE scales with radius (bigger near the
+            // core, smaller toward the edge) on top of the alpha fade — two
+            // depth cues stacking reads as genuine dimensionality. Density
+            // (42/arm) and spacing kept from the last pass — that part was
+            // already right, the blur was never about density, it was the
+            // gradients + blend mode.
             const arms = 3;
             for (let arm = 0; arm < arms; arm++) {
                 const armOffset = (arm / arms) * Math.PI * 2;
@@ -669,18 +664,10 @@
                     const px = scx + Math.cos(theta) * r;
                     const py = scy + Math.sin(theta) * r * 0.55; // flattened, like a galaxy seen at an angle
                     const fade = 1 - r / (GALAXY_SPRITE_SIZE * 0.48);
-                    const dotAlpha = fade * (0.45 + Math.random() * 0.4);
-                    // Core pushed further still — this is now the dominant
-                    // visual weight of each dot, not the halo around it.
-                    const haloSize = (1.0 + fade * 2.0) * (0.75 + Math.random() * 0.6);
-                    sctx.beginPath();
-                    sctx.arc(px, py, haloSize, 0, Math.PI * 2);
-                    sctx.fillStyle = `rgba(${color.r}, ${color.g}, ${color.b}, ${dotAlpha * 0.4})`;
-                    sctx.fill();
-                    sctx.beginPath();
-                    sctx.arc(px, py, Math.max(1.1, haloSize * 0.58), 0, Math.PI * 2);
-                    sctx.fillStyle = `rgba(255, 255, 255, ${Math.min(1, dotAlpha * 1.4)})`;
-                    sctx.fill();
+                    const dotAlpha = fade * (0.55 + Math.random() * 0.4);
+                    const size = (1.4 + fade * 2.4) * (0.75 + Math.random() * 0.6);
+                    pixelStar(px, py, size, color.r, color.g, color.b, dotAlpha * 0.55);
+                    pixelStar(px, py, Math.max(1, size * 0.5), 255, 255, 255, Math.min(1, dotAlpha * 1.4));
                 }
             }
         })();
@@ -1173,7 +1160,22 @@
                 // could fix that, since the blur was coming from here, not
                 // from the sprite. Alpha cut hard (0.35 -> 0.08) so it stays
                 // a faint depth cue instead of competing with the sharp copy.
+                //
+                // Composite mode is the actual root cause of the white-out
+                // at center, bigger than anything inside the sprite itself:
+                // this whole Event Horizon block runs under 'screen' (set
+                // above, for the corona rim's glow), and it was never reset
+                // before these drawImage calls. Screen-blending a large
+                // filled sprite on top of an already-lit canvas (nebula +
+                // rim + streamers, all also screen-blended this frame)
+                // pushes every overlap toward white — exactly where the
+                // sprite's own center sits, which is exactly where the text
+                // is. The rim/streamers stay on 'screen' (thin strokes,
+                // that's a deliberate glow look and not what's overexposing);
+                // the sprite blits switch to plain alpha so they layer onto
+                // the scene without adding to what's already there.
                 ctx.save();
+                ctx.globalCompositeOperation = 'source-over';
                 ctx.imageSmoothingEnabled = false;
                 ctx.globalAlpha = a * 0.08 * galaxyPulse;
                 ctx.translate(cx, cy);
@@ -1183,6 +1185,7 @@
                 ctx.restore();
 
                 ctx.save();
+                ctx.globalCompositeOperation = 'source-over';
                 ctx.imageSmoothingEnabled = false;
                 ctx.globalAlpha = a * 0.8 * galaxyPulse;
                 ctx.translate(cx, cy);
@@ -1190,33 +1193,18 @@
                 ctx.drawImage(galaxySprite, -galaxyDraw / 2, -galaxyDraw / 2, galaxyDraw, galaxyDraw);
                 galaxySparkles.forEach(sp => {
                     const twinkle = 0.25 + Math.sin(time * sp.twinkleSpeed + sp.seed) * 0.4 + 0.4;
-                    ctx.beginPath();
-                    ctx.arc(sp.x * galaxyScale, sp.y * galaxyScale, sp.size * galaxyScale, 0, Math.PI * 2);
+                    const sx = sp.x * galaxyScale, sy = sp.y * galaxyScale, ssize = Math.max(1, sp.size * galaxyScale);
                     ctx.fillStyle = `rgba(${sp.r}, ${sp.g}, ${sp.b}, ${Math.min(1, twinkle)})`;
-                    ctx.fill();
+                    ctx.fillRect(sx - ssize / 2, sy - ssize / 2, ssize, ssize);
                 });
                 ctx.restore();
 
-                // Text-contrast well: the sticky text sits at exactly the
-                // galaxy's own center — the densest, brightest part of it —
-                // which is what made "Visual playground." hard to read once
-                // the star field got dense enough to look sharp. A soft dark
-                // pool right there (default composite, NOT 'screen', so it
-                // actually darkens rather than adding light) recovers
-                // contrast without touching the galaxy everywhere else. The
-                // CSS text-shadow on the headline itself is the primary,
-                // always-correct fix; this is the canvas doing its part too.
-                ctx.save();
-                ctx.globalCompositeOperation = 'source-over';
-                const wellGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 260);
-                wellGrad.addColorStop(0, `rgba(2, 2, 8, ${a * 0.35})`);
-                wellGrad.addColorStop(0.7, `rgba(2, 2, 8, ${a * 0.18})`);
-                wellGrad.addColorStop(1, 'rgba(2, 2, 8, 0)');
-                ctx.beginPath();
-                ctx.arc(cx, cy, 260, 0, Math.PI * 2);
-                ctx.fillStyle = wellGrad;
-                ctx.fill();
-                ctx.restore();
+                // No canvas-side darkening behind the text anymore — the
+                // headline now uses mix-blend-mode: difference (see CSS),
+                // which needs the galaxy's actual color underneath to
+                // invert against. An artificial dark patch here would just
+                // fight that: differencing white against near-black
+                // produces a dim, muddy result instead of a clean invert.
 
                 // Dust caught in the corona's light — twinkling points fixed
                 // to the rim (angle + radius jitter set once at init), so
