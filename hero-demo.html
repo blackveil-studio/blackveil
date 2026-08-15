@@ -537,18 +537,18 @@
             overflow: hidden;
             display: flex;
             align-items: flex-start;
-            /* Bottom padding trimmed from 10vh — that plus the settle
-               window's own trailing space was reading as excess empty
-               distance below the last heading; this keeps the final
-               "High-End Product Solutions" line from sitting too far
-               from the section's actual bottom edge. Top padding gained
-               a fixed +100px on top of the original 6vh — this sticky
-               zone pins at the viewport's own top:0 the moment it takes
-               over from #portfolio, and 6vh alone (as little as ~40px)
-               sat right under the 92px fixed header, hiding "Design &
-               Art Direction" behind it on arrival — same fix as
-               Portfolio's own title/cards above. */
-            padding: calc(6vh + 100px) 0 5vh;
+            /* Flat px padding, not vh-based — the top value needs to hold
+               a PRECISE gap below the fixed 92px header (92 + 28 = 120,
+               inside the requested 20-30px band) regardless of viewport
+               height, which a vh component would have thrown off at
+               different screen sizes. Bottom trimmed to a small fixed
+               clearance for the same reason: predictable regardless of
+               vh, and this file's own math (settleWindowPx,
+               expertiseTopCached) doesn't depend on this padding at all
+               — only the content's own fit within the fixed 100vh box
+               does (see .expertise-stack/.expertise-row/.expertise-
+               heading below for the actual overflow fix). */
+            padding: 120px 0 24px;
         }
         .expertise-stack {
             position: relative;
@@ -556,16 +556,22 @@
             width: 100%;
             display: flex;
             flex-direction: column;
-            /* Generous air between the cascading lines — this was the
-               "наляписто и сбито" complaint: 2vh read as cramped once the
-               headings were this large. */
-            gap: 5vh;
+            /* Cut from 5vh — at line-height 1.9 (see .expertise-heading)
+               the 4-row stack plus this gap plus the header-clearance
+               padding above genuinely didn't fit in 100vh on realistic
+               screens (measured: overflowed by ~70px on a wide-but-short
+               1920x600-class viewport, and was already only ~4px short
+               of overflowing even on a plain 800px-tall one) — this is
+               the actual fix for "High-End Product Solutions обрезается
+               экраном", not a cosmetic tweak. gap alone (no per-row
+               margin-bottom below, which just duplicated it) is now the
+               only spacing between rows. */
+            gap: 1.5vh;
             pointer-events: none;
         }
         .expertise-row {
             display: flex;
             pointer-events: auto;
-            margin-bottom: 1.5vh;
         }
         /* True cascade — each row indented further right than the last,
            strictly increasing, not an alternating left/right pattern. */
@@ -581,9 +587,14 @@
             /* Journal-style air, not the tight display-type spacing the
                first pass used: a taller line-height and slightly open
                letter-spacing on a single line of text just reads as
-               generous vertical rhythm around it. */
+               generous vertical rhythm around it. Trimmed from 1.9 to
+               1.5 — still noticeably airier than a tight headline stack,
+               but 1.9 was the single biggest contributor to the 4-row
+               stack overflowing 100vh on shorter/wider real screens (see
+               .expertise-stack's own comment for the actual measurements
+               that drove this). */
             letter-spacing: 0.05em;
-            line-height: 1.9;
+            line-height: 1.5;
             color: #fff;
             margin: 0;
             cursor: default;
