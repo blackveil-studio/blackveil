@@ -267,66 +267,11 @@
         }
         .playground-card:hover .card-label { opacity: 1; transform: translateY(0); }
 
-        #skills {
-            position: relative;
-            width: 100%;
-            height: 200vh;
-            background: transparent;
-        }
-        .skills-sticky-zone {
-            position: sticky;
-            top: 0;
-            height: 100vh;
-            width: 100vw;
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .skills-center-content {
-            position: relative;
-            z-index: 10;
-            text-align: center;
-            max-width: 520px;
-            pointer-events: none;
-            user-select: none;
-            opacity: 0;
-            transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .skills-sticky-zone.skills-visible .skills-center-content { opacity: 1; }
-        .skills-eyebrow {
-            font-family: 'DM Sans', sans-serif;
-            font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase;
-            color: rgba(255,255,255,.45); font-weight: 700; margin-bottom: 12px; display: block;
-        }
-        .skills-title {
-            font-family: 'Bricolage Grotesque', sans-serif;
-            font-size: clamp(36px, 4.6vw, 76px);
-            font-weight: 700;
-            letter-spacing: -0.02em;
-            color: #f5f5f7;
-            margin: 0 0 18px;
-            line-height: 1;
-        }
-        .skills-title span {
-            font-style: italic;
-            background: linear-gradient(90deg, #d4af37, #b06ee8);
-            -webkit-background-clip: text; background-clip: text; color: transparent;
-        }
-        .skills-subtext {
-            font-family: 'DM Sans', sans-serif;
-            font-size: 14px;
-            line-height: 1.5;
-            color: rgba(255,255,255,.5);
-            margin: 0;
-        }
-
         @media (max-width: 900px) {
             #portfolio { height: 260vh; }
             .portfolio-col-left, .portfolio-col-right { width: 34vw; }
             .playground-card { margin-bottom: 60px; }
             .playground-title { font-size: 6.5vw; }
-            .skills-title { font-size: 6.5vw; }
         }
         /* below 900px the two card lanes are narrow enough that the center text
            needs its own visual ground to sit on, not just raw z-index — a soft
@@ -335,8 +280,7 @@
         @media (max-width: 700px) {
             .portfolio-col-left { left: 4vw; width: 32vw; }
             .portfolio-col-right { right: 4vw; width: 32vw; }
-            .playground-center-content,
-            .skills-center-content {
+            .playground-center-content {
                 max-width: 220px;
                 padding: 20px 18px;
                 border-radius: 20px;
@@ -345,8 +289,8 @@
                 -webkit-backdrop-filter: blur(14px);
                 border: 1px solid rgba(255, 255, 255, 0.08);
             }
-            .playground-title, .skills-title { font-size: 32px; }
-            .playground-subtext, .skills-subtext { font-size: 13px; }
+            .playground-title { font-size: 32px; }
+            .playground-subtext { font-size: 13px; }
         }
     </style>
 </head>
@@ -410,16 +354,6 @@
                 </div>
             </div>
         </section>
-
-        <section id="skills">
-            <div class="skills-sticky-zone">
-                <div class="skills-center-content">
-                    <span class="skills-eyebrow">Technology</span>
-                    <h2 class="skills-title">Belt of <span>expertise.</span></h2>
-                    <p class="skills-subtext">Инструменты и подходы, из которых собран каждый проект студии.</p>
-                </div>
-            </div>
-        </section>
     </div>
 
 
@@ -428,8 +362,6 @@
         const ctx = canvas.getContext('2d');
         const portfolioSection = document.getElementById('portfolio');
         const portfolioStickyZone = document.querySelector('.portfolio-sticky-zone');
-        const skillsSection = document.getElementById('skills');
-        const skillsStickyZone = document.querySelector('.skills-sticky-zone');
 
         // width/height stay in CSS-pixel space — every particle's x/y and all
         // the layout math throughout this file assumes that. The canvas's
@@ -748,58 +680,6 @@
             }
         }
 
-        // Zone 3 — the asteroid belt. 4 labeled "skill" shards plus a handful of
-        // small unlabeled decorative shards, all sharing the same inertia physics
-        // (distinct from the Hero's direct-nudge mechanic — this is a new system,
-        // not a re-implementation of the locked old-site formula).
-        const skillLabels = ['React', 'WebGL', 'UI/UX', 'Motion'];
-        const asteroidNodes = [];
-        const asteroidPalette = [
-            { r: 200, g: 205, b: 220 }, // platinum
-            { r: 212, g: 175, b: 55 }   // gold
-        ];
-
-        function makeAsteroidShape(radius) {
-            const points = [];
-            const vertexCount = 5 + Math.floor(Math.random() * 3);
-            for (let v = 0; v < vertexCount; v++) {
-                const a = (v / vertexCount) * Math.PI * 2;
-                const r = radius * (0.7 + Math.random() * 0.5);
-                points.push({ x: Math.cos(a) * r, y: Math.sin(a) * r });
-            }
-            return points;
-        }
-
-        skillLabels.forEach((label, i) => {
-            const color = asteroidPalette[i % asteroidPalette.length];
-            asteroidNodes.push({
-                x: width * (0.2 + (i % 2) * 0.6) + (Math.random() - 0.5) * 100,
-                y: height * (0.3 + Math.floor(i / 2) * 0.4) + (Math.random() - 0.5) * 100,
-                vx: 0, vy: 0,
-                radius: 34,
-                shape: makeAsteroidShape(34),
-                rotation: Math.random() * Math.PI * 2,
-                rotationSpeed: (Math.random() - 0.5) * 0.0015,
-                r: color.r, g: color.g, b: color.b,
-                label
-            });
-        });
-        for (let i = 0; i < 12; i++) {
-            const color = asteroidPalette[i % asteroidPalette.length];
-            const r = 8 + Math.random() * 14;
-            asteroidNodes.push({
-                x: Math.random() * width,
-                y: Math.random() * height,
-                vx: 0, vy: 0,
-                radius: r,
-                shape: makeAsteroidShape(r),
-                rotation: Math.random() * Math.PI * 2,
-                rotationSpeed: (Math.random() - 0.5) * 0.002,
-                r: color.r, g: color.g, b: color.b,
-                label: null
-            });
-        }
-
         // raw cursor position, no smoothing/lerp on the mouse itself — the
         // "smoothness" now comes entirely from the particles' own friction
         document.addEventListener('mousemove', function(e){ mouse.x = e.clientX; mouse.y = e.clientY; });
@@ -873,8 +753,6 @@
         // resize, so the hot scroll/render path never touches layout at all.
         let portfolioTopCached = 0;
         let portfolioHeightCached = 0;
-        let skillsTopCached = 0;
-        let skillsHeightCached = 0;
         // Each column's own content height, so its scroll-through distance is
         // driven by what's actually in it rather than a fixed guess — with
         // asymmetric constants (-1300 vs -650) tuned for the old 6-card
@@ -909,8 +787,6 @@
         function cacheSectionGeometry() {
             portfolioTopCached = portfolioSection.offsetTop;
             portfolioHeightCached = portfolioSection.offsetHeight;
-            skillsTopCached = skillsSection.offsetTop;
-            skillsHeightCached = skillsSection.offsetHeight;
             colLeftHeightCached = colLeft.scrollHeight;
             colRightHeightCached = colRight.scrollHeight;
 
@@ -979,7 +855,6 @@
                                       // sliding in while the title is still
                                       // animating into its lock, not waiting
                                       // for it to finish settling.
-        const SKILLS_REVEAL_LEAD = 250;
 
         // Explosion energy — a real accumulator with its own momentum, NOT a
         // function of static scrollY. This is what fixes the "streaks freeze
@@ -1012,11 +887,6 @@
                 portfolioSection.classList.add('cards-revealed');
             } else {
                 portfolioSection.classList.remove('cards-revealed');
-            }
-            if (newScrollY >= skillsTopCached - SKILLS_REVEAL_LEAD) {
-                skillsStickyZone.classList.add('skills-visible');
-            } else {
-                skillsStickyZone.classList.remove('skills-visible');
             }
         });
 
@@ -1076,14 +946,6 @@
             // instead of just reusing the Hero's warm violet/magenta.
             const nebulaColorMix = Math.max(0, Math.min(1, (scrollPercent - 0.4) / 0.6));
 
-            // The nebula clouds are the only backdrop now — no separate galaxy-
-            // core system to crossfade with, so there's just one "approaching
-            // the next zone" fade for the whole cosmic backdrop (nebula + prism
-            // rings), 400px out from the asteroid belt.
-            const skillsApproachStart = skillsTopCached - 400;
-            const skillsApproach = Math.max(0, Math.min(1, (scrollY - skillsApproachStart) / 400));
-            const asteroidVisibility = skillsApproach;
-
             // The burst's own dense field: fully present through the burst,
             // dissolves over 500-750px, giving the "coast to the edges and
             // fade" its own room even if you stop scrolling right at 500.
@@ -1105,9 +967,10 @@
 
             // Event Horizon: the glowing contour around the portfolio
             // viewport. Fades in over the burst's second half, full presence
-            // through the corridor, fades out approaching the asteroid belt —
-            // same envelope shape every other portfolio-only element used.
-            const horizonAlpha = Math.max(0, Math.min(1, (scrollPercent - 0.5) / 0.5)) * (1 - skillsApproach);
+            // for the rest of the corridor — its exit is handled entirely
+            // by the fly-off release (positional, moving off-screen), not
+            // an alpha fade tied to a next section that no longer exists.
+            const horizonAlpha = Math.max(0, Math.min(1, (scrollPercent - 0.5) / 0.5));
 
             // --- background: forced dark theme, always ---
             ctx.clearRect(0, 0, width, height);
@@ -1534,78 +1397,6 @@
                 ctx.beginPath();
                 ctx.arc(s.x, s.y, 1.8, 0, Math.PI * 2);
                 ctx.fill();
-            }
-
-            // --- Zone 3: asteroid belt of skills — its own inertia system (velocity
-            // + damping), distinct from the Hero's locked direct-nudge mechanic ---
-            if (asteroidVisibility > 0.001) {
-                ctx.globalCompositeOperation = 'screen';
-                const REPEL_RADIUS = 130;
-
-                asteroidNodes.forEach(n => {
-                    const dx = n.x - mouse.x;
-                    const dy = n.y - mouse.y;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < REPEL_RADIUS && dist > 0) {
-                        const force = (REPEL_RADIUS - dist) / REPEL_RADIUS;
-                        n.vx += (dx / dist) * force * 1.4;
-                        n.vy += (dy / dist) * force * 1.4;
-                    }
-                    n.vx *= 0.9;
-                    n.vy *= 0.9;
-                    n.x += n.vx;
-                    n.y += n.vy;
-
-                    const pad = n.radius + 20;
-                    if (n.x < pad) { n.x = pad; n.vx *= -0.6; }
-                    if (n.x > width - pad) { n.x = width - pad; n.vx *= -0.6; }
-                    if (n.y < pad) { n.y = pad; n.vy *= -0.6; }
-                    if (n.y > height - pad) { n.y = height - pad; n.vy *= -0.6; }
-
-                    n.rotation += n.rotationSpeed;
-                });
-
-                // hairline neon connections between nearby shards
-                const CONNECT_DIST = 220;
-                for (let i = 0; i < asteroidNodes.length; i++) {
-                    for (let j = i + 1; j < asteroidNodes.length; j++) {
-                        const a = asteroidNodes[i], b = asteroidNodes[j];
-                        const dx = a.x - b.x, dy = a.y - b.y;
-                        const dist = Math.sqrt(dx * dx + dy * dy);
-                        if (dist < CONNECT_DIST) {
-                            const alpha = (1 - dist / CONNECT_DIST) * 0.35 * asteroidVisibility;
-                            ctx.beginPath();
-                            ctx.moveTo(a.x, a.y);
-                            ctx.lineTo(b.x, b.y);
-                            ctx.strokeStyle = `rgba(200, 205, 220, ${alpha})`;
-                            ctx.lineWidth = 0.5;
-                            ctx.stroke();
-                        }
-                    }
-                }
-
-                asteroidNodes.forEach(n => {
-                    ctx.save();
-                    ctx.translate(n.x, n.y);
-                    ctx.rotate(n.rotation);
-                    ctx.beginPath();
-                    n.shape.forEach((pt, i) => {
-                        if (i === 0) ctx.moveTo(pt.x, pt.y);
-                        else ctx.lineTo(pt.x, pt.y);
-                    });
-                    ctx.closePath();
-                    ctx.strokeStyle = `rgba(${n.r}, ${n.g}, ${n.b}, ${0.8 * asteroidVisibility})`;
-                    ctx.lineWidth = 0.5;
-                    ctx.stroke();
-                    ctx.restore();
-
-                    if (n.label) {
-                        ctx.font = "500 13px 'DM Sans', sans-serif";
-                        ctx.textAlign = 'center';
-                        ctx.fillStyle = `rgba(${n.r}, ${n.g}, ${n.b}, ${asteroidVisibility})`;
-                        ctx.fillText(n.label, n.x, n.y + n.radius + 20);
-                    }
-                });
             }
 
             requestAnimationFrame(render);
