@@ -26,6 +26,18 @@
                container — this is exactly what silently breaks position:sticky
                descendants. overflow-x: clip has no such side effect. */
             overflow-x: clip;
+            /* General-purpose fallback for any anchor navigation on the
+               page — the real fixes for Work/Capabilities are the
+               structural padding changes on their own sticky content
+               below (scroll-padding-top can't help a position:sticky
+               section: browsers apply it by subtracting from the
+               target's raw offsetTop, which for a sticky section just
+               stops the scroll BEFORE it reaches its pinned resting
+               position, bleeding in whatever precedes it instead of
+               giving the pinned content breathing room). Kept anyway
+               since it's harmless and covers any plain, non-sticky
+               anchor target. */
+            scroll-padding-top: 100px;
         }
         #space-canvas {
             position: fixed;
@@ -50,7 +62,14 @@
             justify-content: center;
             align-items: center;
             box-sizing: border-box;
-            padding: 0 40px;
+            /* padding-top offsets the flex-centered group by roughly half
+               the fixed header's height (92px) — without it, centering
+               within the full 100vh box reads as "pressed to the top"
+               once the header's own 92px eats into the visually available
+               space above. The group (title + CTA + markers) ends up
+               centered in the space actually below the header instead of
+               the whole viewport. */
+            padding: 150px 40px 0;
         }
         .hero-title {
             font-family: 'Bricolage Grotesque', 'DM Sans', sans-serif;
@@ -260,11 +279,15 @@
         }
         .playground-center-content {
             position: absolute;
-            /* Pushed to the top of the sticky viewport — clear of every
-               star in the galaxy, sitting on clean dark background, with
-               mix-blend-mode below as a second, independent safety net
-               rather than the only mechanism. */
-            top: 3vh;
+            /* 3vh alone (24px on an 800px viewport) sat well under the
+               92px fixed header, overlapping it on arrival — this is the
+               real fix for "Visual playground должен вставать ровно
+               ниже хедера": the sticky content's OWN top offset has to
+               clear the header, since scrolling can't (see the
+               scroll-padding-top comment above — a sticky section's
+               pinned position isn't something you can offset by
+               scrolling less far into it). */
+            top: calc(3vh + 100px);
             left: 50%;
             /* starts slightly lower, slides up 16px into its resting spot
                once .scrolled lands — same settle motion as before, just a
@@ -364,7 +387,14 @@
         .portfolio-col-left,
         .portfolio-col-right {
             position: absolute;
-            top: 0;
+            /* Was flush at the sticky viewport's own top (0) — sitting
+               exactly under the 92px fixed header at progress=0 (the
+               anchor-jump landing state), which is the "cards peeking out
+               from behind the header" cut-off seen on arrival. Same fix
+               as the title above: give the column's own resting position
+               clearance, since the scroll-driven translateY only ever
+               moves it further, never closer to the top. */
+            top: 90px;
             width: 22vw;
             display: flex;
             flex-direction: column;
@@ -491,6 +521,19 @@
             top: 0;
             height: 100vh;
             width: 100vw;
+            /* box-sizing: border-box is load-bearing here, not cosmetic —
+               without it, this element's rendered height becomes
+               100vh + its own padding (content-box default), which
+               silently breaks the "zero gap" scroll-math elsewhere in
+               this file that assumes this box is EXACTLY 100vh tall (it
+               computes settleWindowPx and the sticky desticking boundary
+               from that assumption). Found by testing: adding padding
+               here made the zone 988px tall instead of 800px on an
+               800px-tall viewport, which pushed the sticky-pin boundary
+               past the page's actual max scroll — the Capabilities link
+               was landing exactly at the page's bottom, one frame past
+               where the zone was still pinned. */
+            box-sizing: border-box;
             overflow: hidden;
             display: flex;
             align-items: flex-start;
@@ -498,8 +541,14 @@
                window's own trailing space was reading as excess empty
                distance below the last heading; this keeps the final
                "High-End Product Solutions" line from sitting too far
-               from the section's actual bottom edge. */
-            padding: 6vh 0 5vh;
+               from the section's actual bottom edge. Top padding gained
+               a fixed +100px on top of the original 6vh — this sticky
+               zone pins at the viewport's own top:0 the moment it takes
+               over from #portfolio, and 6vh alone (as little as ~40px)
+               sat right under the 92px fixed header, hiding "Design &
+               Art Direction" behind it on arrival — same fix as
+               Portfolio's own title/cards above. */
+            padding: calc(6vh + 100px) 0 5vh;
         }
         .expertise-stack {
             position: relative;
@@ -1646,7 +1695,13 @@
                 // while everything else leaves — canvas content has no
                 // transform of its own to piggyback on, so the offset has
                 // to be baked into the center coordinate directly.
-                const cx = width / 2, cy = height / 2 - flyOffsetPx;
+                // GALAXY_Y_NUDGE re-centers the core against the card
+                // columns' own new top offset (90px, see .portfolio-col-
+                // left/right) — a small constant shift, not tied to any
+                // scroll math, so it doesn't affect the fly-off or morph
+                // timing at all.
+                const GALAXY_Y_NUDGE = 40;
+                const cx = width / 2, cy = height / 2 - flyOffsetPx + GALAXY_Y_NUDGE;
                 const a = horizonAlpha * pulse;
                 // Single unified transition: as releaseAmount runs 0->1
                 // (the exact same trigger the card fly-off uses —
@@ -2229,6 +2284,30 @@
                 window.scrollTo({ top: expertiseTopCached + settleWindowPx, behavior: 'smooth' });
             });
         }
+
+        // Header/Hero -> Work anchor fix (covers both the nav link and
+        // the "Explore Showcase" button, same target). #portfolio's own
+        // reveal — the "scrolled"/"cards-revealed" classes that gate the
+        // title fade-in and the card container's opacity — is driven by
+        // a passive `scroll` event listener, not read from scrollY
+        // directly. Verified while testing this round: reaching the
+        // target scrollY is not a strict guarantee that listener has
+        // already run (a navigation that changes scrollY without a
+        // 'scroll' event landing in between would otherwise leave the
+        // cards permanently at opacity: 0, invisible, with nothing to
+        // ever trigger the reveal). Setting the classes directly here
+        // removes that dependency instead of trusting an async event to
+        // arrive before anyone looks. Target offset mirrors
+        // scroll-padding-top's effective behavior (-100px), since
+        // preventDefault()-ing the native jump means that CSS property
+        // no longer applies to this navigation.
+        document.querySelectorAll('a[href="#portfolio"]').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                portfolioSection.classList.add('scrolled', 'cards-revealed');
+                window.scrollTo({ top: portfolioTopCached - 100, behavior: 'smooth' });
+            });
+        });
 
         // Staggered opacity-only reveal — no translateY, no growth-front
         // tracking, just each heading fading in in its own slice of the
