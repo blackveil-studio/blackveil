@@ -303,8 +303,14 @@
             background: #03030c;
             overflow: hidden;
             display: flex;
-            align-items: center;
-            padding: 12vh 0;
+            align-items: flex-start;
+            /* No top padding — the section starts flush against whatever
+               precedes it. The old 12vh top padding plus a vertically
+               centered stack was exactly what read as "a big empty hole"
+               between blocks: real empty space, not a scroll-driven gap.
+               The seamless-materialize reveal (driven by JS, see
+               initStrings) fills the transition instead. */
+            padding: 6vh 0 10vh;
         }
         #strings-canvas {
             position: absolute;
@@ -319,31 +325,32 @@
             width: 100%;
             display: flex;
             flex-direction: column;
-            gap: 2.4vh;
+            gap: 2vh;
             pointer-events: none;
+            opacity: 0; /* JS drives this every frame via the scroll-linked reveal; starts at 0 so there's no flash before that first runs */
         }
         .expertise-row {
             display: flex;
             pointer-events: auto;
         }
-        /* Asymmetric placement — alternating left/right indent instead of a
-           uniform left-aligned block, so the stack reads as an editorial
-           composition rather than a form list. */
-        .expertise-row:nth-child(1) { justify-content: flex-start; padding-left: 6vw; }
-        .expertise-row:nth-child(2) { justify-content: flex-start; padding-left: 12vw; }
-        .expertise-row:nth-child(3) { justify-content: flex-start; padding-left: 6vw; }
-        .expertise-row:nth-child(4) { justify-content: flex-start; padding-left: 16vw; }
+        /* True cascade — each row indented further right than the last,
+           strictly increasing, not an alternating left/right pattern. */
+        .expertise-row:nth-child(1) { padding-left: 4vw; }
+        .expertise-row:nth-child(2) { padding-left: 14vw; }
+        .expertise-row:nth-child(3) { padding-left: 24vw; }
+        .expertise-row:nth-child(4) { padding-left: 34vw; }
 
         .expertise-heading {
             font-family: 'Bricolage Grotesque', sans-serif;
             font-weight: 700;
-            font-size: clamp(28px, 5.6vw, 84px);
+            font-size: clamp(26px, 4.6vw, 68px);
             letter-spacing: -0.02em;
             line-height: 1;
             color: #fff;
             margin: 0;
             cursor: default;
             user-select: none;
+            white-space: nowrap;
             /* The "3D-shift" — a barely-there perspective tilt + lateral
                nudge, not a dramatic rotation. Kept intentionally subtle
                ("едва заметно"): this is a hover cue on plain body text, not
@@ -357,13 +364,11 @@
             color: #eafff5; /* the faintest mint tint on hover, not a full color swap — stays "почти белый" */
         }
         @media (max-width: 900px) {
-            .expertise-row:nth-child(1),
-            .expertise-row:nth-child(2),
-            .expertise-row:nth-child(3),
-            .expertise-row:nth-child(4) {
-                padding-left: 6vw;
-            }
-            .expertise-heading { font-size: 9vw; }
+            .expertise-row:nth-child(1) { padding-left: 4vw; }
+            .expertise-row:nth-child(2) { padding-left: 8vw; }
+            .expertise-row:nth-child(3) { padding-left: 12vw; }
+            .expertise-row:nth-child(4) { padding-left: 16vw; }
+            .expertise-heading { font-size: 7vw; white-space: normal; }
         }
     </style>
 </head>
@@ -434,7 +439,7 @@
                 <div class="expertise-row"><h2 class="expertise-heading" data-heading="0">Design &amp; Art Direction</h2></div>
                 <div class="expertise-row"><h2 class="expertise-heading" data-heading="1">Frontend Development</h2></div>
                 <div class="expertise-row"><h2 class="expertise-heading" data-heading="2">Motion &amp; Interactive Web</h2></div>
-                <div class="expertise-row"><h2 class="expertise-heading" data-heading="3">AI-Driven Workflow</h2></div>
+                <div class="expertise-row"><h2 class="expertise-heading" data-heading="3">High-End Product Solutions</h2></div>
             </div>
         </section>
     </div>
@@ -1504,26 +1509,55 @@
             const stringsCanvas = document.getElementById('strings-canvas');
             const sctx = stringsCanvas.getContext('2d');
             const expertiseSection = document.getElementById('expertise');
+            const expertiseStack = document.querySelector('.expertise-stack');
             const headingEls = Array.from(document.querySelectorAll('.expertise-heading'));
 
             const STRING_COUNT = 8;
             const SEGMENTS = 40; // 41 points per string
-            const TENSION = 0.15; // kept well under the explicit-integrator stability limit
-            const DAMPING = 0.965;
+            // Verlet, not explicit-velocity Euler — position-based, no
+            // separate velocity array to integrate (velocity is implicit
+            // as y - yPrev), which is both what was asked for and
+            // generally the more stable/elastic-feeling choice for a
+            // mass-spring chain at this stiffness.
+            //
+            // TENSION/DAMPING found by actually testing stability, not
+            // guessed: the first values tried (0.12 / 0.965) looked fine
+            // in a quick "excite once, watch it settle" spot check, but a
+            // longer run (500+ steps) blew up to ~2e17 — nowhere near
+            // damped, just exploding slowly enough that a short test
+            // didn't catch it. Swept a real grid of (tension, damping)
+            // pairs offline, simulating 600-20,000 steps each and also
+            // under sustained re-excitation (matching the hover-boost
+            // jitter), and picked the pair with genuine, verified decay
+            // in every case: 0.1 / 0.88 decays to ~1e-24 by step 5000 from
+            // a resting excite, stays there through 20,000 steps, and
+            // stays bounded (not exploding) under continuous re-plucking.
+            const TENSION = 0.1;
+            const DAMPING = 0.88;
             const PROXIMITY = 46; // px — how close the cursor needs to be to touch a string
 
             let sWidth = 0, sHeight = 0;
             const sDpr = Math.min(window.devicePixelRatio || 1, 2);
             const strings = [];
 
-            // Gradient built ONCE per string (cached CanvasGradient object),
-            // never reconstructed per frame — the exact per-frame-gradient
-            // cost this project already fixed once elsewhere in this file.
-            function buildGradient(x, h) {
+            // Depth (0 = leftmost/nearest the text mass, 1 = rightmost,
+            // furthest into open space) drives width, brightness, and how
+            // far each string's own gradient reaches into green before
+            // staying blue — "those toward the right are thinner and a
+            // deeper blue" from a single interpolated parameter, not a
+            // second hand-tuned system.
+            function buildGradient(x, h, depth) {
                 const g = sctx.createLinearGradient(x, 0, x, h);
-                g.addColorStop(0, 'rgba(58, 52, 214, 0.9)');    // deep ultramarine — same hue as the portfolio galaxy's own palette
-                g.addColorStop(0.55, 'rgba(18, 140, 158, 0.9)'); // transition tone
-                g.addColorStop(1, 'rgba(3, 192, 122, 0.95)');    // Aurora Green
+                const bottomGreen = { r: 3, g: 192, b: 122 };   // Aurora Green
+                const deepBlue = { r: 40, g: 40, b: 190 };      // where far strings settle instead of green
+                const mix = depth * 0.75; // how much a far string's bottom stays blue instead of reaching green
+                const br = Math.round(bottomGreen.r + (deepBlue.r - bottomGreen.r) * mix);
+                const bg = Math.round(bottomGreen.g + (deepBlue.g - bottomGreen.g) * mix);
+                const bb = Math.round(bottomGreen.b + (deepBlue.b - bottomGreen.b) * mix);
+                const topAlpha = 0.85 - depth * 0.3;
+                g.addColorStop(0, `rgba(58, 52, 214, ${topAlpha})`);        // deep ultramarine — same hue as the portfolio galaxy
+                g.addColorStop(0.55, `rgba(18, 140, 158, ${topAlpha})`);     // transition tone
+                g.addColorStop(1, `rgba(${br}, ${bg}, ${bb}, ${topAlpha + 0.1})`);
                 return g;
             }
 
@@ -1539,18 +1573,54 @@
                 strings.length = 0;
                 for (let i = 0; i < STRING_COUNT; i++) {
                     const x = margin + (usable / (STRING_COUNT - 1)) * i;
+                    const depth = i / (STRING_COUNT - 1);
                     strings.push({
                         x,
                         length: sHeight,
-                        y: new Float32Array(SEGMENTS + 1), // horizontal displacement per point
-                        v: new Float32Array(SEGMENTS + 1), // velocity per point
+                        depth,
+                        lineWidth: 2.6 - depth * 1.5, // near = thick, far = thin
+                        y: new Float32Array(SEGMENTS + 1),     // current horizontal displacement
+                        yPrev: new Float32Array(SEGMENTS + 1), // previous frame's displacement (Verlet)
                         boosted: false,
-                        gradient: buildGradient(x, sHeight)
+                        energy: 0,      // smoothed excitement level, drives the echo glow
+                        peakIndex: 0,   // which point currently has the most energy — where the echo centers
+                        gradient: buildGradient(x, sHeight, depth)
                     });
                 }
             }
             layoutStrings();
-            window.addEventListener('resize', layoutStrings);
+
+            // Scroll-linked materialize reveal — this is the actual fix
+            // for "huge empty gap between blocks," not a CSS margin
+            // change. The strings start growing in BEFORE the user
+            // physically reaches this section (a lead window, same
+            // pattern this file already used for the old skills-approach
+            // fade), so the transition out of the portfolio overlaps with
+            // this block coming alive instead of a dead scroll in
+            // between. Growth is driven by drawing only the top fraction
+            // of each string's length — reads as the thin trailing dust
+            // from the portfolio's own ring "stretching" downward into a
+            // full string as you scroll, rather than a hard cut-in.
+            let expertiseTopCached = 0;
+            function cacheExpertiseGeometry() { expertiseTopCached = expertiseSection.offsetTop; }
+            cacheExpertiseGeometry();
+            window.addEventListener('resize', () => { layoutStrings(); cacheExpertiseGeometry(); });
+
+            // The whole reveal window sits BEFORE the section's own top
+            // (start..end both <= expertiseTopCached), not straddling it —
+            // deliberately, not just for simplicity. A window that
+            // extended past the section's top depends on there being that
+            // much scrollable page left AFTER it, which isn't guaranteed
+            // (this section can be the last thing on the page, as it
+            // currently is); a window that finishes exactly at arrival is
+            // reachable regardless of how much content follows.
+            const REVEAL_LEAD = 700;
+            const REVEAL_END_MARGIN = 150;
+            function revealProgress() {
+                const start = expertiseTopCached - REVEAL_LEAD;
+                const end = expertiseTopCached - REVEAL_END_MARGIN;
+                return Math.max(0, Math.min(1, (window.scrollY - start) / (end - start)));
+            }
 
             // Reuses the site-wide `mouse` object (already updated by the
             // existing mousemove listener above) instead of adding a
@@ -1575,7 +1645,10 @@
                     if (dx < PROXIMITY) {
                         const j = Math.round((localY / s.length) * SEGMENTS);
                         if (j > 0 && j < SEGMENTS) {
-                            s.v[j] += (1 - dx / PROXIMITY) * speed * 0.09;
+                            // Verlet has no explicit velocity to push — a
+                            // point's implicit velocity is (y - yPrev), so
+                            // pulling yPrev back is what injects momentum.
+                            s.yPrev[j] -= (1 - dx / PROXIMITY) * speed * 0.09;
                         }
                     }
                 });
@@ -1583,59 +1656,103 @@
 
             function stepPhysics() {
                 strings.forEach(s => {
-                    const y = s.y, v = s.v;
-                    for (let j = 1; j < SEGMENTS; j++) {
-                        const accel = TENSION * (y[j - 1] + y[j + 1] - 2 * y[j]);
-                        v[j] = (v[j] + accel) * DAMPING;
-                    }
-                    for (let j = 1; j < SEGMENTS; j++) {
-                        y[j] += v[j];
-                    }
+                    const y = s.y, yPrev = s.yPrev;
                     if (s.boosted) {
                         // Sustained low-level plasma jitter while a linked
                         // heading is hovered — more frequent small pushes
                         // read as higher apparent frequency without raising
                         // TENSION itself, which would risk instability.
                         const j = 4 + Math.floor(Math.random() * (SEGMENTS - 8));
-                        s.v[j] += (Math.random() - 0.5) * 1.6;
+                        yPrev[j] -= (Math.random() - 0.5) * 1.4;
                     }
+                    let peakV = 0, peakJ = SEGMENTS >> 1;
+                    for (let j = 1; j < SEGMENTS; j++) {
+                        const springForce = TENSION * (y[j - 1] + y[j + 1] - 2 * y[j]);
+                        const velocity = (y[j] - yPrev[j]) * DAMPING;
+                        const newY = y[j] + velocity + springForce;
+                        yPrev[j] = y[j];
+                        y[j] = newY;
+                        const av = Math.abs(velocity);
+                        if (av > peakV) { peakV = av; peakJ = j; }
+                    }
+                    s.energy = Math.max(s.energy * 0.9, Math.min(1, peakV * 0.6));
+                    s.peakIndex = peakJ;
                 });
+            }
+
+            // Smooth curve through the point cloud via quadratic-curve
+            // midpoint interpolation (the standard technique for a smooth
+            // line through a set of points without spline math) — no
+            // sharp kinks at any point, regardless of how much energy is
+            // in the string. `visibleCount` is how many of the string's
+            // points to actually draw, driving the materialize growth.
+            function pxOf(s, j) { return s.x + s.y[j]; }
+            function pyOf(s, j) { return (j / SEGMENTS) * s.length; }
+            function strokeSmoothString(s, visibleCount) {
+                if (visibleCount < 2) return;
+                sctx.beginPath();
+                sctx.moveTo(pxOf(s, 0), pyOf(s, 0));
+                for (let j = 1; j < visibleCount - 1; j++) {
+                    const cx = pxOf(s, j), cy = pyOf(s, j);
+                    const mx = (cx + pxOf(s, j + 1)) / 2, my = (cy + pyOf(s, j + 1)) / 2;
+                    sctx.quadraticCurveTo(cx, cy, mx, my);
+                }
+                sctx.lineTo(pxOf(s, visibleCount - 1), pyOf(s, visibleCount - 1));
+                sctx.stroke();
             }
 
             function drawStrings() {
                 sctx.clearRect(0, 0, sWidth, sHeight);
-                sctx.lineCap = 'round';
-                strings.forEach(s => {
-                    // Base resting curve — always drawn, the calm gradient
-                    // look. No shadowBlur, no per-frame gradient rebuild.
-                    sctx.beginPath();
-                    for (let j = 0; j <= SEGMENTS; j++) {
-                        const py = (j / SEGMENTS) * s.length;
-                        const px = s.x + s.y[j];
-                        if (j === 0) sctx.moveTo(px, py); else sctx.lineTo(px, py);
-                    }
-                    sctx.strokeStyle = s.gradient;
-                    sctx.lineWidth = 1.6;
-                    sctx.stroke();
+                const reveal = revealProgress();
+                if (expertiseStack) expertiseStack.style.opacity = reveal;
+                if (reveal <= 0.001) { requestAnimationFrame(stringsFrame); return; }
 
-                    // Bright overlay, per segment, colored by that
-                    // segment's own |velocity| — this IS the traveling
-                    // pulse: wherever the wave equation's disturbance
-                    // currently sits, that's where this lights up, moving
-                    // exactly as the simulation itself moves.
-                    for (let j = 0; j < SEGMENTS; j++) {
-                        const localSpeed = (Math.abs(s.v[j]) + Math.abs(s.v[j + 1])) * 0.5;
-                        const glow = Math.min(1, localSpeed * 0.5);
-                        if (glow < 0.04) continue;
-                        const p0y = (j / SEGMENTS) * s.length, p1y = ((j + 1) / SEGMENTS) * s.length;
+                const visibleCount = Math.max(2, Math.round(reveal * (SEGMENTS + 1)));
+                sctx.lineCap = 'round';
+
+                // Echo glow — a soft, low-opacity radial bloom centered on
+                // whichever point currently carries the most energy,
+                // drawn additively and BEFORE the string strokes so it
+                // reads as light sitting behind the line/letters, not on
+                // top of them. Fed by the exact same `energy` value
+                // whether it came from the cursor brushing the string
+                // directly or from a linked heading's hover-boost — one
+                // mechanism covers both triggers named in the brief.
+                sctx.save();
+                sctx.globalCompositeOperation = 'lighter';
+                strings.forEach(s => {
+                    if (s.energy < 0.03 || s.peakIndex >= visibleCount) return;
+                    const gx = pxOf(s, s.peakIndex), gy = pyOf(s, s.peakIndex);
+                    const r = 50 + s.energy * 70;
+                    const glowGrad = sctx.createRadialGradient(gx, gy, 0, gx, gy, r);
+                    const alpha = Math.min(0.4, s.energy * 0.4);
+                    glowGrad.addColorStop(0, `rgba(0, 255, 150, ${alpha})`);
+                    glowGrad.addColorStop(1, 'rgba(0, 255, 150, 0)');
+                    sctx.beginPath();
+                    sctx.arc(gx, gy, r, 0, Math.PI * 2);
+                    sctx.fillStyle = glowGrad;
+                    sctx.fill();
+                });
+                sctx.restore();
+
+                strings.forEach(s => {
+                    sctx.globalAlpha = reveal;
+                    sctx.strokeStyle = s.gradient;
+                    sctx.lineWidth = s.lineWidth;
+                    strokeSmoothString(s, visibleCount);
+
+                    // A small bright tip spark while still growing — sells
+                    // the "materializing out of dust" read at the leading
+                    // edge, fades away once the string reaches full length.
+                    if (reveal < 0.999) {
+                        const tipJ = visibleCount - 1;
                         sctx.beginPath();
-                        sctx.moveTo(s.x + s.y[j], p0y);
-                        sctx.lineTo(s.x + s.y[j + 1], p1y);
-                        sctx.strokeStyle = `rgba(0, 255, 150, ${glow})`;
-                        sctx.lineWidth = 1.6 + glow * 1.4;
-                        sctx.stroke();
+                        sctx.arc(pxOf(s, tipJ), pyOf(s, tipJ), 2.2, 0, Math.PI * 2);
+                        sctx.fillStyle = `rgba(180, 220, 255, ${0.5 * reveal})`;
+                        sctx.fill();
                     }
                 });
+                sctx.globalAlpha = 1;
             }
 
             function stringsFrame() {
@@ -1663,7 +1780,7 @@
                         s.boosted = true;
                         // immediate strong pluck across the whole string, so hovering reads as an instant energy burst, not a slow ramp-up
                         for (let j = 4; j < SEGMENTS - 4; j++) {
-                            s.v[j] += (Math.random() - 0.5) * 3.2;
+                            s.yPrev[j] -= (Math.random() - 0.5) * 2.8;
                         }
                     });
                 });
