@@ -580,21 +580,25 @@
         }
 
         // Orbit stardust — replaces the flat ellipse stroke entirely. A
-        // ring built from ~280 barely-visible ultramarine/blue micro-
+        // ring built from ~460 clearly-visible ultramarine/blue micro-
         // points scattered in a band around the same ellipse, all
         // orbiting together at one shared angular speed (computed as
         // `time * orbitSpeed`, so it's a pure function of time — no
         // per-frame position integration to accumulate drift). Angle
         // offsets and radius jitter are fixed once at init; every frame
         // just re-evaluates position from the current angle, one flat
-        // fill each, no gradient, no shadowBlur.
+        // fill each, no gradient, no shadowBlur. Size/alpha/count bumped
+        // up hard from the first pass — that pass was tuned for "barely
+        // noticeable," which combined with the (since-corrected) oversized
+        // ellipse to make the whole ring read as absent.
         const ringStardust = [];
-        for (let i = 0; i < 280; i++) {
+        const RING_STARDUST_COUNT = 460;
+        for (let i = 0; i < RING_STARDUST_COUNT; i++) {
             ringStardust.push({
-                angleOffset: (i / 280) * Math.PI * 2 + (Math.random() - 0.5) * 0.05,
-                radiusJitter: (Math.random() - 0.5) * 64,
-                size: 0.5 + Math.random() * 1.2,
-                alpha: 0.1 + Math.random() * 0.3
+                angleOffset: (i / RING_STARDUST_COUNT) * Math.PI * 2 + (Math.random() - 0.5) * 0.05,
+                radiusJitter: (Math.random() - 0.5) * 70,
+                size: 1.4 + Math.random() * 2.2,
+                alpha: 0.45 + Math.random() * 0.4
             });
         }
 
@@ -676,9 +680,11 @@
             // Core cluster — dense pack of small crisp round stars, cycling
             // through all 3 neon hues. No radius-based alpha/size falloff —
             // every star burns at the same brightness range regardless of
-            // position. Count doubled (133 -> 266) now that removing the
-            // gradient/shadowBlur passes freed up real budget.
-            for (let i = 0; i < 266; i++) {
+            // position. Doubled again this round (266 -> 532) — the "still
+            // blurry" report was actually the imageSmoothingEnabled bug at
+            // the blit site (see render(), fixed there), not this count,
+            // but the density increase was asked for again directly.
+            for (let i = 0; i < 532; i++) {
                 const ang = Math.random() * Math.PI * 2;
                 const rad = Math.pow(Math.random(), 1.3) * GALAXY_SPRITE_SIZE * 0.12;
                 const px = scx + Math.cos(ang) * rad;
@@ -695,9 +701,9 @@
             // scattered off the ideal curve, perpendicular AND along it,
             // proportional to depth — this is what turns a mathematically
             // perfect thin curve into a voluminous, puffy band with real
-            // thickness rather than a wire. Count doubled (168 -> 336/arm).
+            // thickness rather than a wire. Doubled again (336 -> 672/arm).
             const arms = 3;
-            const POINTS_PER_ARM = 336;
+            const POINTS_PER_ARM = 672;
             for (let arm = 0; arm < arms; arm++) {
                 const armOffset = (arm / arms) * Math.PI * 2;
                 const color = galaxyNeon[arm % 3];
@@ -1110,16 +1116,23 @@
                 const pulse = 0.8 + 0.2 * Math.sin(time * 0.0009);
                 const breathe = 1 + 0.012 * Math.sin(time * 0.0004);
                 // The original ellipse was already exactly inscribed —
-                // tangent to all 4 viewport edges. Scaling that uniformly by
-                // 1.5x is provably invisible (checked: 0% of the curve stays
-                // within a 1280x720 frame; even 1.1x only keeps ~46% of the
-                // circumference on-screen, since every point moves further
-                // from center in every direction at once). 0.54 (1.08x) was
-                // the prior value; pushed to 0.58 (1.16x) here — still
-                // comfortably a full sweeping oval, reaching further toward
-                // the corners without tipping past what stays visible.
-                const rimRx = width * 0.58 * breathe;
-                const rimRy = height * 0.58 * breathe;
+                // tangent to all 4 viewport edges at k=0.5. This is a
+                // UNIFORM scale, so "bigger" doesn't mean "reaches the
+                // corners more" — it means the whole curve moves away from
+                // center in every direction at once, which shrinks how
+                // much of the circumference survives inside the frame.
+                // Checked properly this round (360-point angular sweep
+                // against a real 1280x800 frame, not eyeballed): k=0.54
+                // keeps 50% of the curve on-screen; k=0.58 (what the last
+                // round pushed it to, trying to look "bigger") keeps only
+                // 32% — the increase was actively making LESS of the oval
+                // visible, concentrated away from the corners, not toward
+                // them. Reverted to 0.54, the actual best-visibility value
+                // this shape supports; real "bigger and bolder" now comes
+                // from the stardust ring's own size/brightness below, not
+                // from stretching the ellipse further.
+                const rimRx = width * 0.54 * breathe;
+                const rimRy = height * 0.54 * breathe;
                 const cx = width / 2, cy = height / 2;
                 const a = horizonAlpha * pulse;
 
@@ -1199,9 +1212,19 @@
                 // wasn't part of what "the galaxy" was asked to stop doing
                 // — but the galaxy itself now burns at one flat, stable
                 // brightness with zero Math.sin/cos anywhere in its alpha.
+                // imageSmoothingEnabled = false here is what actually
+                // delivers "crystal clear" — the sprite itself is built
+                // from plain flat circles with zero blur, but this blit
+                // upscales it ~2.6x (900px sprite -> 2350px on screen), and
+                // bilinear smoothing (the true/default state) softens every
+                // one of those sharp edges right back on the way out. This
+                // was left at `true` through the last round despite the
+                // sprite-side cleanup, which is the real reason the galaxy
+                // still read as blurred after removing every gradient and
+                // shadowBlur from the source.
                 ctx.save();
                 ctx.globalCompositeOperation = 'screen';
-                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingEnabled = false;
                 ctx.globalAlpha = horizonAlpha;
                 ctx.translate(cx, cy);
                 ctx.rotate(time * galaxyRotSpeed); // autonomous, own clock only — no mouse term anywhere in this block
