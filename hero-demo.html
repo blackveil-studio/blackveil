@@ -1586,28 +1586,24 @@
         }
         cacheSectionGeometry();
 
-        // Block: Problems — "Quantum Rift", Trigger & Lock. GSAP
-        // ScrollTrigger pins the section as it's entered, centering
-        // it exactly regardless of where the user's scroll gesture
-        // stopped (snap). Rift-open, the word-cycle start, and
-        // rift-close are independent, time-based GSAP timelines —
-        // never scrubbed to scroll position — fired once each by the
-        // pin's own onEnter/onLeave. This deliberately reverses this
-        // section's earlier "fully static, scroll-through, no pin"
-        // design from prior rounds: that scroll-scrubbed rift bent
-        // mid-transition and revealed text before the split finished,
-        // which is exactly what this round asked to fix.
+        // Block: Problems — "Quantum Rift", smooth scrub (no pin). The
+        // previous round's pin:true + snap caused real lag, screen
+        // jumping and stale-text-over-next-block bugs — ScrollTrigger's
+        // pin mechanism forces a layout-affecting spacer swap every
+        // time it engages/disengages, and a hung/interrupted pin could
+        // leave the section's position:fixed state stuck, which is
+        // almost certainly what caused the text to hang over
+        // Expertise. This round removes pin/snap entirely — the page
+        // scrolls exactly like normal, native document flow, nothing
+        // ever gets set to position:fixed. The rift's open/close is
+        // back to being scroll-driven, but now via ScrollTrigger's own
+        // scrub (real inertia smoothing, not a raw instant scrollY
+        // read) instead of the section's own hand-rolled easing.
         const problemsSection = document.getElementById('problems');
         let problemsTopCached = 0;
         let problemsMorphWindowPx = 0;
-        // Sized well past the pin's own reserved scroll distance (see
-        // PIN_END below) plus a little runway into Expertise, so the
-        // separate, pre-existing horizon->strings morph never starts
-        // pulling strings together while the rift is still pinned on
-        // screen — it only ramps up once the user has actually
-        // scrolled past Problems into Expertise.
         function cacheProblemsGeometry() {
-            problemsMorphWindowPx = height * 2.6;
+            problemsMorphWindowPx = height;
             problemsTopCached = problemsSection.offsetTop;
         }
         cacheProblemsGeometry();
@@ -1619,10 +1615,11 @@
         // Word cycle — a single <span> mutated in place every 2.2s.
         // No hyphens anywhere: two-word variants use a literal \n
         // (the row's white-space:pre-line renders it as a real line
-        // break) instead. Timing is no longer tied to visibility at
-        // all — the interval only starts once igniteWordCycle() runs
-        // (after the rift has fully opened) and stops the instant
-        // hideWordInstantly() runs (rift starting to close).
+        // break) instead. The interval only runs between
+        // igniteWordCycle() (fired by the word-cycle ScrollTrigger's
+        // onEnter/onEnterBack, once the rift's plateau is reached) and
+        // hideWordInstantly() (onLeave/onLeaveBack) — see the
+        // ScrollTrigger.create() calls below.
         const DYNAMIC_WORDS = [
             { text: 'invisible', outline: true },
             { text: 'outdated', outline: false },
@@ -1634,11 +1631,13 @@
 
         // Rift geometry, read every frame inside render(). X is
         // scroll-invariant (no horizontal scroll) so a plain cached
-        // value is fine. Y no longer needs the scroll-reconstruction
-        // trick prior rounds used — the section is genuinely PINNED
-        // while the rift is active, so its own on-screen position is
-        // stable for as long as that matters, and a plain measured
-        // value is enough.
+        // value is fine. Y is a plain measured value too — with no pin
+        // involved, the row genuinely does move continuously with
+        // scroll like any other content, but its position only
+        // matters to render() while the rift is actually visible
+        // (roughly the plateau window), so re-measuring on every
+        // ScrollTrigger callback that touches it is enough; no need
+        // for a per-frame scroll-reconstruction trick.
         let dynamicWordCenterX = width / 2;
         let dynamicWordHalfWidth = 160;
         let dynamicWordCenterY = height / 2;
@@ -1688,71 +1687,100 @@
 
         // riftState.t (0 = closed solid line, 1 = fully split open) is
         // the ONLY thing render() reads for the rift — see the
-        // render() comment by "const riftT = riftState.t". Tweened by
-        // the two timelines below, both pure time-based animations,
-        // each fired exactly once per pin enter/leave — never
-        // continuously re-read from scroll position.
+        // render() comment by "const riftT = riftState.t". Driven
+        // purely by the two SCRUBBED ScrollTriggers below now, not by
+        // a timeline with a fixed duration — scrub means its value
+        // smoothly (with ~1.3s of inertia) chases whatever the real
+        // scroll position implies, instead of jumping instantly with
+        // the pixel or playing out on a clock independent of scroll.
         const riftState = { t: 0 };
-        const RIFT_OPEN_MS = IS_MOBILE ? 400 : 800;
-        const RIFT_CLOSE_MS = IS_MOBILE ? 350 : 700;
-        const hasGsapAndScrollTrigger = typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined';
+        const RIFT_SCRUB = 1.3;
 
         function igniteWordCycle() {
             if (dynamicWordTimer || !dynamicWordEl) return;
-            applyWordAt(dynamicWordIndex); // re-measure now that the section is genuinely pinned/stable
+            measureDynamicWord();
+            applyWordAt(dynamicWordIndex);
+            gsap.killTweensOf(dynamicWordEl); // clear any leftover tween from a just-interrupted hide/cycle before starting fresh
             gsap.fromTo(dynamicWordEl,
                 { y: 30, opacity: 0, scaleY: 0.6 },
                 { y: 0, opacity: 1, scaleY: 1, duration: 0.5, ease: 'back.out(1.6)', force3D: true });
             dynamicWordTimer = setInterval(cycleDynamicWord, DYNAMIC_WORD_CYCLE_MS);
         }
 
+        // Hard reset — no tween, no delay. This is the safety net that
+        // guarantees the word can never visually linger: however fast
+        // or slow the user scrolls, however many triggers fire in
+        // whatever order, opacity goes to exactly 0 and the interval
+        // is definitely cleared the instant this runs.
         function hideWordInstantly() {
             if (dynamicWordTimer) {
                 clearInterval(dynamicWordTimer);
                 dynamicWordTimer = null;
             }
-            if (dynamicWordEl) gsap.set(dynamicWordEl, { opacity: 0 });
+            if (dynamicWordEl) {
+                // killTweensOf first — without it, a still-running
+                // reveal/cycle tween (e.g. igniteWordCycle's own
+                // entrance, or a cycleDynamicWord() mid-flight) keeps
+                // writing its own interpolated opacity on later ticks
+                // and silently undoes this "hard" reset a frame or two
+                // later. This is the actual fix for text staying
+                // visible over the next block.
+                gsap.killTweensOf(dynamicWordEl);
+                gsap.set(dynamicWordEl, { opacity: 0, y: 0, scaleY: 1 });
+            }
         }
 
-        if (hasGsapAndScrollTrigger) {
-            gsap.set(dynamicWordEl, { opacity: 0 }); // hidden until the rift finishes opening — only when the pin system is actually active, so a failed CDN load doesn't leave the word permanently invisible
+        if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
+            gsap.set(dynamicWordEl, { opacity: 0 }); // hidden until the rift's plateau is reached — only when the system is actually active, so a failed CDN load doesn't leave the word permanently invisible
             gsap.registerPlugin(ScrollTrigger);
 
-            const riftOpenTl = gsap.timeline({ paused: true })
-                .to(riftState, { t: 1, duration: RIFT_OPEN_MS / 1000, ease: 'power3.inOut' })
-                .call(igniteWordCycle);
-
-            const riftCloseTl = gsap.timeline({ paused: true })
-                .call(hideWordInstantly)
-                .to(riftState, { t: 0, duration: RIFT_CLOSE_MS / 1000, ease: 'power2.inOut' });
-
-            // Trigger & Lock: pin engages the instant the section's
-            // top reaches the viewport top, reserving an extra 120%
-            // of a viewport of scroll distance — genuine room for a
-            // deliberate "keep scrolling" gesture to register before
-            // onLeave fires the exit sequence, rather than the split
-            // and reconnect racing raw scroll pixels. snapTo:[0,1]
-            // means any scroll gesture that lands mid-transition gets
-            // pulled the rest of the way to whichever edge (freshly
-            // entered vs. fully past) is nearer — the section is
-            // never left visually half-pinned.
+            // Rift OPENS as the section's top travels from 80% down
+            // the viewport to dead center (50%) — scrubbed with real
+            // inertia (RIFT_SCRUB), so it lags the scrollbar slightly
+            // instead of snapping to every pixel.
             ScrollTrigger.create({
                 trigger: problemsSection,
-                start: 'top top',
-                end: '+=120%',
-                pin: true,
-                anticipatePin: 1,
-                snap: { snapTo: [0, 1], duration: 0.5, ease: 'power2.inOut' },
-                onEnter: () => { measureDynamicWord(); riftOpenTl.restart(true); },
-                onEnterBack: () => { measureDynamicWord(); riftOpenTl.restart(true); },
-                onLeave: () => { riftCloseTl.restart(true); },
-                onLeaveBack: () => { riftCloseTl.restart(true); },
+                start: 'top 80%',
+                end: 'top 50%',
+                scrub: RIFT_SCRUB,
+                onUpdate: (self) => { riftState.t = self.progress; }
+            });
+
+            // Rift CLOSES as the top continues on, from just past
+            // center to well above the viewport — well before the
+            // word's own row would have scrolled out of view, so the
+            // reconnect is never wasted motion happening off-screen.
+            ScrollTrigger.create({
+                trigger: problemsSection,
+                start: 'top -20%',
+                end: 'top -50%',
+                scrub: RIFT_SCRUB,
+                onUpdate: (self) => { riftState.t = 1 - self.progress; }
+            });
+
+            // Word-cycle lifecycle — plain discrete callbacks, no
+            // scrub: active only during the plateau between the two
+            // rift triggers above (rift fully open, not yet closing).
+            // onEnter/onEnterBack cover scrolling in from either
+            // direction; onLeave/onLeaveBack are the hard reset,
+            // firing whichever way the section leaves the plateau —
+            // up past Expertise or back down past Portfolio — so
+            // stale text can never be left showing over either
+            // neighbor.
+            ScrollTrigger.create({
+                trigger: problemsSection,
+                start: 'top 50%',
+                end: 'top -20%',
+                onEnter: igniteWordCycle,
+                onEnterBack: igniteWordCycle,
+                onLeave: hideWordInstantly,
+                onLeaveBack: hideWordInstantly,
             });
         } else {
-            // Fallback if GSAP/ScrollTrigger fails to load: no pin,
-            // no rift animation, but the word still cycles so the
-            // section isn't dead — degrades to plain content instead
-            // of a broken interactive piece.
+            // Fallback if GSAP/ScrollTrigger fails to load: no rift
+            // animation, but the word still cycles so the section
+            // isn't dead — degrades to plain content instead of a
+            // broken interactive piece.
             dynamicWordTimer = setInterval(cycleDynamicWord, DYNAMIC_WORD_CYCLE_MS);
         }
 
