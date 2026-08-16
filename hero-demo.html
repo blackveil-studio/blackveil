@@ -864,12 +864,13 @@
         </section>
     </div>
 
-    <!-- GSAP: used by the Problems block's kinetic word-cycle
-         (gsap.timeline on the dynamic word). Everything else in this
-         file is still vanilla JS/CSS — this is the one deliberate
-         exception, since real cinematic timeline sequencing is what
-         was asked for here. -->
+    <!-- GSAP + ScrollTrigger: used by the Problems block's pin/trigger
+         mechanics (ScrollTrigger.pin) and its kinetic word-cycle
+         (gsap.timeline). Everything else in this file is still
+         vanilla JS/CSS — this is the one deliberate exception, since
+         real pin/snap scroll control is what was asked for here. -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
     <script>
         const canvas = document.getElementById('space-canvas');
         const ctx = canvas.getContext('2d');
@@ -1585,17 +1586,28 @@
         }
         cacheSectionGeometry();
 
-        // Block: Problems — "Quantum Rift". Fully static (plain CSS
-        // height: 100vh, no sticky pin, no JS-set height — see the CSS
-        // comment). problemsTopCached/problemsMorphWindowPx exist
-        // purely to time the shared canvas's rift-open/rift-close and
-        // horizon->strings narrative underneath (unchanged plumbing)
-        // — nothing about this section's own layout depends on them.
+        // Block: Problems — "Quantum Rift", Trigger & Lock. GSAP
+        // ScrollTrigger pins the section as it's entered, centering
+        // it exactly regardless of where the user's scroll gesture
+        // stopped (snap). Rift-open, the word-cycle start, and
+        // rift-close are independent, time-based GSAP timelines —
+        // never scrubbed to scroll position — fired once each by the
+        // pin's own onEnter/onLeave. This deliberately reverses this
+        // section's earlier "fully static, scroll-through, no pin"
+        // design from prior rounds: that scroll-scrubbed rift bent
+        // mid-transition and revealed text before the split finished,
+        // which is exactly what this round asked to fix.
         const problemsSection = document.getElementById('problems');
         let problemsTopCached = 0;
         let problemsMorphWindowPx = 0;
+        // Sized well past the pin's own reserved scroll distance (see
+        // PIN_END below) plus a little runway into Expertise, so the
+        // separate, pre-existing horizon->strings morph never starts
+        // pulling strings together while the rift is still pinned on
+        // screen — it only ramps up once the user has actually
+        // scrolled past Problems into Expertise.
         function cacheProblemsGeometry() {
-            problemsMorphWindowPx = height;
+            problemsMorphWindowPx = height * 2.6;
             problemsTopCached = problemsSection.offsetTop;
         }
         cacheProblemsGeometry();
@@ -1604,17 +1616,13 @@
             return Math.max(0, Math.min(1, (window.scrollY - problemsTopCached) / problemsMorphWindowPx));
         }
 
-        // Word cycle — a single <span> mutated in place every 2.2s,
-        // entirely decoupled from scroll. The text-content swap
-        // happens at the trough of the exit tween (opacity already 0),
-        // so the new word's own resizing never happens while visible
-        // — and because the word lives in its own fixed-height row
-        // (see CSS, min-height:2.3em), that resize can never touch the
-        // static lines above/below regardless of word length or line
-        // count. No hyphens anywhere: two-word variants use a literal
-        // \n (the row's white-space:pre-line renders it as a real line
-        // break) instead. Paused via IntersectionObserver while
-        // #problems isn't the section on screen.
+        // Word cycle — a single <span> mutated in place every 2.2s.
+        // No hyphens anywhere: two-word variants use a literal \n
+        // (the row's white-space:pre-line renders it as a real line
+        // break) instead. Timing is no longer tied to visibility at
+        // all — the interval only starts once igniteWordCycle() runs
+        // (after the rift has fully opened) and stops the instant
+        // hideWordInstantly() runs (rift starting to close).
         const DYNAMIC_WORDS = [
             { text: 'invisible', outline: true },
             { text: 'outdated', outline: false },
@@ -1624,18 +1632,16 @@
         const dynamicWordEl = document.getElementById('dynamic-word');
         let dynamicWordIndex = 0;
 
-        // Rift geometry, read every frame inside render(): where the
-        // particle line's gap should be centered/sized. X is scroll-
-        // invariant (no horizontal scroll) so a plain cached value is
-        // fine; Y is stored as an offset from #problems's own top (not
-        // a raw viewport Y) since this section isn't pinned — the
-        // word's viewport-relative Y changes every frame as the user
-        // scrolls past it, so render() reconstructs the live Y from
-        // this fixed offset + scrollY each frame instead of re-reading
-        // layout every frame.
+        // Rift geometry, read every frame inside render(). X is
+        // scroll-invariant (no horizontal scroll) so a plain cached
+        // value is fine. Y no longer needs the scroll-reconstruction
+        // trick prior rounds used — the section is genuinely PINNED
+        // while the rift is active, so its own on-screen position is
+        // stable for as long as that matters, and a plain measured
+        // value is enough.
         let dynamicWordCenterX = width / 2;
         let dynamicWordHalfWidth = 160;
-        let dynamicWordRowOffsetY = 150;
+        let dynamicWordCenterY = height / 2;
 
         function measureDynamicWord() {
             if (!dynamicWordEl) return;
@@ -1643,25 +1649,23 @@
             const r = wordRow.getBoundingClientRect();
             dynamicWordCenterX = r.left + r.width / 2;
             dynamicWordHalfWidth = r.width / 2 + 60;
-            // Both rects read in the same snapshot, so their
-            // difference is scroll-invariant even though neither
-            // value alone is.
-            const sectionTop = problemsSection.getBoundingClientRect().top;
-            dynamicWordRowOffsetY = (r.top + r.height / 2) - sectionTop;
+            dynamicWordCenterY = r.top + r.height / 2;
         }
         measureDynamicWord();
+
+        function applyWordAt(index) {
+            const word = DYNAMIC_WORDS[index];
+            dynamicWordEl.textContent = word.text;
+            dynamicWordEl.classList.toggle('text-outline', word.outline);
+            dynamicWordEl.classList.toggle('text-neon', !word.outline);
+            dynamicWordIndex = index;
+            measureDynamicWord();
+        }
 
         function cycleDynamicWord() {
             if (!dynamicWordEl) return;
             const next = (dynamicWordIndex + 1) % DYNAMIC_WORDS.length;
-            const word = DYNAMIC_WORDS[next];
-            const applyNewWord = () => {
-                dynamicWordEl.textContent = word.text;
-                dynamicWordEl.classList.toggle('text-outline', word.outline);
-                dynamicWordEl.classList.toggle('text-neon', !word.outline);
-                dynamicWordIndex = next;
-                measureDynamicWord();
-            };
+            const applyNewWord = () => applyWordAt(next);
             if (typeof gsap === 'undefined') {
                 applyNewWord();
                 return;
@@ -1681,18 +1685,74 @@
 
         const DYNAMIC_WORD_CYCLE_MS = 2200;
         let dynamicWordTimer = null;
-        if (problemsSection && 'IntersectionObserver' in window) {
-            new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting && !dynamicWordTimer) {
-                        dynamicWordTimer = setInterval(cycleDynamicWord, DYNAMIC_WORD_CYCLE_MS);
-                    } else if (!entry.isIntersecting && dynamicWordTimer) {
-                        clearInterval(dynamicWordTimer);
-                        dynamicWordTimer = null;
-                    }
-                });
-            }, { threshold: 0.2 }).observe(problemsSection);
-        } else if (problemsSection) {
+
+        // riftState.t (0 = closed solid line, 1 = fully split open) is
+        // the ONLY thing render() reads for the rift — see the
+        // render() comment by "const riftT = riftState.t". Tweened by
+        // the two timelines below, both pure time-based animations,
+        // each fired exactly once per pin enter/leave — never
+        // continuously re-read from scroll position.
+        const riftState = { t: 0 };
+        const RIFT_OPEN_MS = IS_MOBILE ? 400 : 800;
+        const RIFT_CLOSE_MS = IS_MOBILE ? 350 : 700;
+        const hasGsapAndScrollTrigger = typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined';
+
+        function igniteWordCycle() {
+            if (dynamicWordTimer || !dynamicWordEl) return;
+            applyWordAt(dynamicWordIndex); // re-measure now that the section is genuinely pinned/stable
+            gsap.fromTo(dynamicWordEl,
+                { y: 30, opacity: 0, scaleY: 0.6 },
+                { y: 0, opacity: 1, scaleY: 1, duration: 0.5, ease: 'back.out(1.6)', force3D: true });
+            dynamicWordTimer = setInterval(cycleDynamicWord, DYNAMIC_WORD_CYCLE_MS);
+        }
+
+        function hideWordInstantly() {
+            if (dynamicWordTimer) {
+                clearInterval(dynamicWordTimer);
+                dynamicWordTimer = null;
+            }
+            if (dynamicWordEl) gsap.set(dynamicWordEl, { opacity: 0 });
+        }
+
+        if (hasGsapAndScrollTrigger) {
+            gsap.set(dynamicWordEl, { opacity: 0 }); // hidden until the rift finishes opening — only when the pin system is actually active, so a failed CDN load doesn't leave the word permanently invisible
+            gsap.registerPlugin(ScrollTrigger);
+
+            const riftOpenTl = gsap.timeline({ paused: true })
+                .to(riftState, { t: 1, duration: RIFT_OPEN_MS / 1000, ease: 'power3.inOut' })
+                .call(igniteWordCycle);
+
+            const riftCloseTl = gsap.timeline({ paused: true })
+                .call(hideWordInstantly)
+                .to(riftState, { t: 0, duration: RIFT_CLOSE_MS / 1000, ease: 'power2.inOut' });
+
+            // Trigger & Lock: pin engages the instant the section's
+            // top reaches the viewport top, reserving an extra 120%
+            // of a viewport of scroll distance — genuine room for a
+            // deliberate "keep scrolling" gesture to register before
+            // onLeave fires the exit sequence, rather than the split
+            // and reconnect racing raw scroll pixels. snapTo:[0,1]
+            // means any scroll gesture that lands mid-transition gets
+            // pulled the rest of the way to whichever edge (freshly
+            // entered vs. fully past) is nearer — the section is
+            // never left visually half-pinned.
+            ScrollTrigger.create({
+                trigger: problemsSection,
+                start: 'top top',
+                end: '+=120%',
+                pin: true,
+                anticipatePin: 1,
+                snap: { snapTo: [0, 1], duration: 0.5, ease: 'power2.inOut' },
+                onEnter: () => { measureDynamicWord(); riftOpenTl.restart(true); },
+                onEnterBack: () => { measureDynamicWord(); riftOpenTl.restart(true); },
+                onLeave: () => { riftCloseTl.restart(true); },
+                onLeaveBack: () => { riftCloseTl.restart(true); },
+            });
+        } else {
+            // Fallback if GSAP/ScrollTrigger fails to load: no pin,
+            // no rift animation, but the word still cycles so the
+            // section isn't dead — degrades to plain content instead
+            // of a broken interactive piece.
             dynamicWordTimer = setInterval(cycleDynamicWord, DYNAMIC_WORD_CYCLE_MS);
         }
 
@@ -2058,27 +2118,16 @@
                 const dockFlash = surge2.flash; // only stage 2's flash drives the string line-stroke's own width pulse below
 
                 // Quantum Rift — riftT (0 = solid closed line, 1 = fully
-                // split open) is a pure function of morphT2: opens fast
-                // right as #problems is entered, holds a long plateau
-                // through the section's main dwell, then closes again
-                // as morphT2 approaches the strings-formation threshold
-                // (0.6) so the reconnect finishes exactly as the
-                // existing horizon->strings morph takes over below —
-                // one continuous handoff, never two effects fighting
-                // for the same particles at once.
-                function riftProgress(t2) {
-                    const openT = Math.min(1, t2 / 0.1);
-                    const closeT = Math.max(0, Math.min(1, (t2 - 0.42) / 0.16));
-                    return Math.max(0, openT - closeT);
-                }
-                const riftT = riftProgress(morphT2);
-                // Reconstructed from scrollY each frame, not a cached
-                // viewport Y — see dynamicWordRowOffsetY's own comment
-                // for why a raw snapshot would be wrong here (this
-                // section isn't pinned, so the row's viewport Y sweeps
-                // top-to-bottom of the screen as the user scrolls past).
-                const riftCenterYTarget = (problemsTopCached - scrollY) + dynamicWordRowOffsetY;
-                const riftCenterY = height / 2 + (riftCenterYTarget - height / 2) * riftT;
+                // split open) is NOT derived from scroll position at
+                // all anymore (Trigger & Lock round): it's tweened by
+                // riftOpenTl/riftCloseTl, two independent time-based
+                // GSAP timelines fired once each by ScrollTrigger's
+                // pin onEnter/onLeave. render() just reads whatever
+                // riftState.t currently is — the SAME single value
+                // drives both the X gap and the Y position blend below,
+                // so everything about the rift moves in lockstep.
+                const riftT = riftState.t;
+                const riftCenterY = height / 2 + (dynamicWordCenterY - height / 2) * riftT;
                 const riftCenterX = width / 2 + (dynamicWordCenterX - width / 2) * riftT;
                 // Half-width of the actual empty gap once fully open —
                 // generous enough to comfortably clear a two-line word,
