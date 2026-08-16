@@ -1586,19 +1586,26 @@
         }
         cacheSectionGeometry();
 
-        // Block: Problems — "Quantum Rift", smooth scrub (no pin). The
-        // previous round's pin:true + snap caused real lag, screen
-        // jumping and stale-text-over-next-block bugs — ScrollTrigger's
-        // pin mechanism forces a layout-affecting spacer swap every
-        // time it engages/disengages, and a hung/interrupted pin could
-        // leave the section's position:fixed state stuck, which is
-        // almost certainly what caused the text to hang over
-        // Expertise. This round removes pin/snap entirely — the page
-        // scrolls exactly like normal, native document flow, nothing
-        // ever gets set to position:fixed. The rift's open/close is
-        // back to being scroll-driven, but now via ScrollTrigger's own
-        // scrub (real inertia smoothing, not a raw instant scrollY
-        // read) instead of the section's own hand-rolled easing.
+        // Block: Problems — "Quantum Rift", Fixed Axis. The previous
+        // round's 3-trigger setup had a real bug: the rift's Y target
+        // (dynamicWordCenterY) was a DOM measurement taken once at
+        // page load / word-cycle events, cached, and then blended
+        // toward as riftT scrubbed — but this section isn't pinned,
+        // so the word row's actual viewport Y sweeps the whole screen
+        // as the user scrolls. The cached value was stale almost
+        // immediately, so the line was blending toward a Y that had
+        // nothing to do with where anything currently was on screen —
+        // that's what read as the line "flying up into arcs".
+        //
+        // The fix (and what this round asked for) removes the whole
+        // class of bug by construction: the rift's Y is now a hard
+        // constant, height/2 — a fixed horizontal axis through the
+        // viewport center that scroll can never move. Only riftT
+        // (the gap's width) responds to scroll; the line itself never
+        // bends, curves, or drifts vertically. The layout (word row
+        // centered in a 100vh flex column) is what puts the text near
+        // that same axis at the point the rift matters — see render()
+        // for the single riftCenterY = height/2 line.
         const problemsSection = document.getElementById('problems');
         let problemsTopCached = 0;
         let problemsMorphWindowPx = 0;
@@ -1615,11 +1622,9 @@
         // Word cycle — a single <span> mutated in place every 2.2s.
         // No hyphens anywhere: two-word variants use a literal \n
         // (the row's white-space:pre-line renders it as a real line
-        // break) instead. The interval only runs between
-        // igniteWordCycle() (fired by the word-cycle ScrollTrigger's
-        // onEnter/onEnterBack, once the rift's plateau is reached) and
-        // hideWordInstantly() (onLeave/onLeaveBack) — see the
-        // ScrollTrigger.create() calls below.
+        // break) instead. The interval only runs while riftT is at
+        // its max (see the single ScrollTrigger below) — started by
+        // igniteWordCycle, stopped by the hard-reset hideWordInstantly.
         const DYNAMIC_WORDS = [
             { text: 'invisible', outline: true },
             { text: 'outdated', outline: false },
@@ -1629,18 +1634,12 @@
         const dynamicWordEl = document.getElementById('dynamic-word');
         let dynamicWordIndex = 0;
 
-        // Rift geometry, read every frame inside render(). X is
-        // scroll-invariant (no horizontal scroll) so a plain cached
-        // value is fine. Y is a plain measured value too — with no pin
-        // involved, the row genuinely does move continuously with
-        // scroll like any other content, but its position only
-        // matters to render() while the rift is actually visible
-        // (roughly the plateau window), so re-measuring on every
-        // ScrollTrigger callback that touches it is enough; no need
-        // for a per-frame scroll-reconstruction trick.
+        // X is scroll-invariant (no horizontal scroll), so a plain
+        // cached value is safe here — it's Y specifically that was
+        // the bug (see the block comment above), which is why Y is no
+        // longer tracked from the DOM at all.
         let dynamicWordCenterX = width / 2;
         let dynamicWordHalfWidth = 160;
-        let dynamicWordCenterY = height / 2;
 
         function measureDynamicWord() {
             if (!dynamicWordEl) return;
@@ -1648,7 +1647,6 @@
             const r = wordRow.getBoundingClientRect();
             dynamicWordCenterX = r.left + r.width / 2;
             dynamicWordHalfWidth = r.width / 2 + 60;
-            dynamicWordCenterY = r.top + r.height / 2;
         }
         measureDynamicWord();
 
@@ -1686,15 +1684,21 @@
         let dynamicWordTimer = null;
 
         // riftState.t (0 = closed solid line, 1 = fully split open) is
-        // the ONLY thing render() reads for the rift — see the
-        // render() comment by "const riftT = riftState.t". Driven
-        // purely by the two SCRUBBED ScrollTriggers below now, not by
-        // a timeline with a fixed duration — scrub means its value
-        // smoothly (with ~1.3s of inertia) chases whatever the real
-        // scroll position implies, instead of jumping instantly with
-        // the pixel or playing out on a clock independent of scroll.
+        // the ONLY thing render() reads for the rift's width — see
+        // "const riftT = riftState.t" in render(). Driven by ONE
+        // scrubbed ScrollTrigger below via riftShape(progress), a
+        // simple three-part curve over that trigger's own 0-1 range:
+        // ramp up over the first quarter, hold at 1 through the
+        // middle half, ramp back down over the last quarter — which
+        // is exactly what "top 80%->top 40% open, bottom 60%->
+        // bottom 20% close" works out to within a single
+        // start:'top 80%' / end:'bottom 20%' trigger span.
         const riftState = { t: 0 };
-        const RIFT_SCRUB = 1.3;
+        function riftShape(p) {
+            if (p < 0.25) return p / 0.25;
+            if (p < 0.75) return 1;
+            return Math.max(0, 1 - (p - 0.75) / 0.25);
+        }
 
         function igniteWordCycle() {
             if (dynamicWordTimer || !dynamicWordEl) return;
@@ -1711,68 +1715,52 @@
         // guarantees the word can never visually linger: however fast
         // or slow the user scrolls, however many triggers fire in
         // whatever order, opacity goes to exactly 0 and the interval
-        // is definitely cleared the instant this runs.
+        // is definitely cleared the instant this runs. killTweensOf
+        // first is load-bearing, not decoration — without it, a still-
+        // running reveal/cycle tween keeps writing its own
+        // interpolated opacity on later ticks and silently undoes
+        // this "hard" reset a frame or two later, which is what let
+        // Problems' text linger visible over Expertise before.
         function hideWordInstantly() {
             if (dynamicWordTimer) {
                 clearInterval(dynamicWordTimer);
                 dynamicWordTimer = null;
             }
             if (dynamicWordEl) {
-                // killTweensOf first — without it, a still-running
-                // reveal/cycle tween (e.g. igniteWordCycle's own
-                // entrance, or a cycleDynamicWord() mid-flight) keeps
-                // writing its own interpolated opacity on later ticks
-                // and silently undoes this "hard" reset a frame or two
-                // later. This is the actual fix for text staying
-                // visible over the next block.
                 gsap.killTweensOf(dynamicWordEl);
                 gsap.set(dynamicWordEl, { opacity: 0, y: 0, scaleY: 1 });
             }
         }
 
         if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
-            gsap.set(dynamicWordEl, { opacity: 0 }); // hidden until the rift's plateau is reached — only when the system is actually active, so a failed CDN load doesn't leave the word permanently invisible
+            gsap.set(dynamicWordEl, { opacity: 0 }); // hidden until the rift reaches its plateau — only when the system is actually active, so a failed CDN load doesn't leave the word permanently invisible
             gsap.registerPlugin(ScrollTrigger);
 
-            // Rift OPENS as the section's top travels from 80% down
-            // the viewport to dead center (50%) — scrubbed with real
-            // inertia (RIFT_SCRUB), so it lags the scrollbar slightly
-            // instead of snapping to every pixel.
+            // The one and only ScrollTrigger for this section. scrub
+            // gives riftState.t real inertia (lags ~1s behind the raw
+            // scroll position) instead of snapping to every pixel.
+            // onUpdate both drives the rift's width AND gates the word
+            // cycle — igniting the instant the plateau is reached,
+            // hard-resetting the instant it's no longer at the
+            // plateau (closing has started) — so the word is never
+            // visible while the line is mid-transition in either
+            // direction. onLeave/onLeaveBack are an explicit second
+            // safety net at the trigger's true start/end boundaries,
+            // catching anything a fast scroll-jump might skip past
+            // onUpdate for.
             ScrollTrigger.create({
                 trigger: problemsSection,
                 start: 'top 80%',
-                end: 'top 50%',
-                scrub: RIFT_SCRUB,
-                onUpdate: (self) => { riftState.t = self.progress; }
-            });
-
-            // Rift CLOSES as the top continues on, from just past
-            // center to well above the viewport — well before the
-            // word's own row would have scrolled out of view, so the
-            // reconnect is never wasted motion happening off-screen.
-            ScrollTrigger.create({
-                trigger: problemsSection,
-                start: 'top -20%',
-                end: 'top -50%',
-                scrub: RIFT_SCRUB,
-                onUpdate: (self) => { riftState.t = 1 - self.progress; }
-            });
-
-            // Word-cycle lifecycle — plain discrete callbacks, no
-            // scrub: active only during the plateau between the two
-            // rift triggers above (rift fully open, not yet closing).
-            // onEnter/onEnterBack cover scrolling in from either
-            // direction; onLeave/onLeaveBack are the hard reset,
-            // firing whichever way the section leaves the plateau —
-            // up past Expertise or back down past Portfolio — so
-            // stale text can never be left showing over either
-            // neighbor.
-            ScrollTrigger.create({
-                trigger: problemsSection,
-                start: 'top 50%',
-                end: 'top -20%',
-                onEnter: igniteWordCycle,
-                onEnterBack: igniteWordCycle,
+                end: 'bottom 20%',
+                scrub: 1,
+                onUpdate: (self) => {
+                    riftState.t = riftShape(self.progress);
+                    if (riftState.t > 0.999) {
+                        igniteWordCycle();
+                    } else if (dynamicWordTimer) {
+                        hideWordInstantly();
+                    }
+                },
                 onLeave: hideWordInstantly,
                 onLeaveBack: hideWordInstantly,
             });
@@ -2146,22 +2134,25 @@
                 const dockFlash = surge2.flash; // only stage 2's flash drives the string line-stroke's own width pulse below
 
                 // Quantum Rift — riftT (0 = solid closed line, 1 = fully
-                // split open) is NOT derived from scroll position at
-                // all anymore (Trigger & Lock round): it's tweened by
-                // riftOpenTl/riftCloseTl, two independent time-based
-                // GSAP timelines fired once each by ScrollTrigger's
-                // pin onEnter/onLeave. render() just reads whatever
-                // riftState.t currently is — the SAME single value
-                // drives both the X gap and the Y position blend below,
-                // so everything about the rift moves in lockstep.
+                // split open) is read straight from riftState.t, set
+                // by the single scrubbed ScrollTrigger in the JS block
+                // above. riftCenterY is a HARD CONSTANT, not blended
+                // toward any measured value — this is the fix for the
+                // "line flies up into arcs" bug: a fixed axis through
+                // viewport-center can never drift, no matter how stale
+                // any cached DOM measurement gets. Only the gap's
+                // WIDTH responds to scroll; the line's vertical
+                // position never does.
                 const riftT = riftState.t;
-                const riftCenterY = height / 2 + (dynamicWordCenterY - height / 2) * riftT;
+                const riftCenterY = height / 2;
                 const riftCenterX = width / 2 + (dynamicWordCenterX - width / 2) * riftT;
                 // Half-width of the actual empty gap once fully open —
                 // generous enough to comfortably clear a two-line word,
                 // with a sensible floor so it still reads clearly even
-                // if the word row measures unexpectedly narrow.
-                const riftGapHalfPx = Math.max(dynamicWordHalfWidth * 1.15, width * 0.11);
+                // if the word row measures unexpectedly narrow. Halved
+                // on mobile per the brief, so the narrower screen
+                // still has line visible on both sides of the text.
+                const riftGapHalfPx = Math.max(dynamicWordHalfWidth * 1.15, width * 0.11) * (IS_MOBILE ? 0.5 : 1);
 
                 // Per-string hover physics — cursor proximity to a
                 // string's own X is the ONLY trigger; no heading/text
