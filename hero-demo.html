@@ -1685,19 +1685,29 @@
 
         // riftState.t (0 = closed solid line, 1 = fully split open) is
         // the ONLY thing render() reads for the rift's width — see
-        // "const riftT = riftState.t" in render(). Driven by ONE
-        // scrubbed ScrollTrigger below via riftShape(progress), a
-        // simple three-part curve over that trigger's own 0-1 range:
-        // ramp up over the first quarter, hold at 1 through the
-        // middle half, ramp back down over the last quarter — which
-        // is exactly what "top 80%->top 40% open, bottom 60%->
-        // bottom 20% close" works out to within a single
-        // start:'top 80%' / end:'bottom 20%' trigger span.
+        // "const riftT = riftState.t" in render(). NOT driven by
+        // scroll position at all anymore: scrub meant riftT could
+        // freeze at any fractional value wherever the user happened
+        // to stop scrolling, which read as ugly half-torn "antenna"
+        // stumps instead of a clean line — confirmed on video. Now
+        // ScrollTrigger is purely a threshold sensor (onEnter/onLeave
+        // at fixed viewport-percent crossings); each crossing kicks
+        // off ONE independent gsap.to() tween of riftState.t that
+        // always runs to full completion (0.4s) regardless of
+        // further scrolling, so the line only ever passes through
+        // 0 and 1 — it can never rest anywhere in between.
         const riftState = { t: 0 };
-        function riftShape(p) {
-            if (p < 0.25) return p / 0.25;
-            if (p < 0.75) return 1;
-            return Math.max(0, 1 - (p - 0.75) / 0.25);
+
+        function openRift() {
+            gsap.killTweensOf(riftState);
+            gsap.to(riftState, { t: 1, duration: 0.4, ease: 'power2.out' });
+            igniteWordCycle();
+        }
+
+        function closeRift() {
+            hideWordInstantly();
+            gsap.killTweensOf(riftState);
+            gsap.to(riftState, { t: 0, duration: 0.4, ease: 'power2.inOut' });
         }
 
         function igniteWordCycle() {
@@ -1733,36 +1743,23 @@
         }
 
         if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
-            gsap.set(dynamicWordEl, { opacity: 0 }); // hidden until the rift reaches its plateau — only when the system is actually active, so a failed CDN load doesn't leave the word permanently invisible
+            gsap.set(dynamicWordEl, { opacity: 0 }); // hidden until openRift's reveal runs — only when the system is actually active, so a failed CDN load doesn't leave the word permanently invisible
             gsap.registerPlugin(ScrollTrigger);
 
-            // The one and only ScrollTrigger for this section. scrub
-            // gives riftState.t real inertia (lags ~1s behind the raw
-            // scroll position) instead of snapping to every pixel.
-            // onUpdate both drives the rift's width AND gates the word
-            // cycle — igniting the instant the plateau is reached,
-            // hard-resetting the instant it's no longer at the
-            // plateau (closing has started) — so the word is never
-            // visible while the line is mid-transition in either
-            // direction. onLeave/onLeaveBack are an explicit second
-            // safety net at the trigger's true start/end boundaries,
-            // catching anything a fast scroll-jump might skip past
-            // onUpdate for.
+            // The one and only ScrollTrigger for this section — a pure
+            // threshold sensor, no scrub, no onUpdate. Each crossing
+            // fires exactly once and kicks off its own independent,
+            // scroll-independent animation (see openRift/closeRift):
+            // the line always finishes what it started, even if the
+            // user immediately stops scrolling.
             ScrollTrigger.create({
                 trigger: problemsSection,
-                start: 'top 80%',
-                end: 'bottom 20%',
-                scrub: 1,
-                onUpdate: (self) => {
-                    riftState.t = riftShape(self.progress);
-                    if (riftState.t > 0.999) {
-                        igniteWordCycle();
-                    } else if (dynamicWordTimer) {
-                        hideWordInstantly();
-                    }
-                },
-                onLeave: hideWordInstantly,
-                onLeaveBack: hideWordInstantly,
+                start: 'top 60%',
+                end: 'bottom 40%',
+                onEnter: openRift,
+                onEnterBack: openRift,
+                onLeave: closeRift,
+                onLeaveBack: closeRift,
             });
         } else {
             // Fallback if GSAP/ScrollTrigger fails to load: no rift
@@ -2102,7 +2099,23 @@
                 // the line-stroke pass below, same as before).
                 const orbitAngle = time * 0.00002;
                 const morphT = releaseAmount;
-                const morphT2 = problemsReleaseAmount();
+                // Suppressed by (1 - riftT): the Quantum Rift and the
+                // horizon->strings morph are two different visual
+                // metaphors sharing the same particles, and they must
+                // never compete. Without this, scrollY alone still
+                // pulled dust toward the 8 fixed string columns (and
+                // drew short trail-streaks toward them) WHILE the
+                // rift was open — confirmed via direct testing: at
+                // riftT=1, well within the plateau, raw morphT2 was
+                // already 0.16-0.32, squarely inside the trail-stroke's
+                // active range. That's what showed up as spiky
+                // "antenna" fans in the reported video, and it isn't
+                // fixed by making the rift itself binary — the two
+                // systems were simply never gated against each other.
+                // Suppressing to 0 while riftT>0 and smoothly
+                // reintroducing the real value as the rift finishes
+                // closing gives a clean handoff instead.
+                const morphT2 = problemsReleaseAmount() * (1 - riftState.t);
                 const morphColorR = Math.round(60 + (0 - 60) * morphT);
                 const morphColorG = Math.round(120 + (229 - 120) * morphT);
                 const morphColorB = 255;
