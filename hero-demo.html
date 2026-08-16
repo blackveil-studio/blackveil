@@ -502,19 +502,14 @@
         }
 
         /* ============================================================
-           Block: Problems — "The Supernova Flash". A genuinely static
-           section now: height:100vh via plain CSS, no JS-set height, no
-           position:sticky, no scroll-through budget of its own — the
-           user just scrolls past it like any normal section. The
-           shared canvas's own galaxy->horizon->strings narrative still
-           plays out underneath, timed off problemsTopCached (see the
-           JS comment by cacheProblemsGeometry) — that timing is now
-           fully independent of this section's own layout/height.
-           overflow:hidden is a safety net (content is sized to
-           genuinely fit 100vh, verified across viewport sizes), not a
-           crutch: it just guarantees a rendering miscalculation could
-           never visually bleed into #expertise's own pinned content
-           right below it.
+           Block: Problems — Monumental Kinetic Typography. A single,
+           fully static (no pin, no scroll-jack) 100vh screen holding
+           one huge centered headline; no grid, no list, no columns.
+           The middle word cycles automatically via GSAP (see JS),
+           entirely decoupled from scroll. The shared canvas's own
+           horizon particle line still passes underneath (timed off
+           problemsTopCached, unchanged plumbing) — see the word-cycle
+           JS for how it reacts to whichever word is current.
            ============================================================ */
         #problems {
             position: relative;
@@ -524,194 +519,52 @@
             overflow: hidden;
             display: flex;
             align-items: center;
+            justify-content: center;
         }
-        .problems-grid {
+        .problems-kinetic {
             position: relative;
             z-index: 2;
             width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            gap: 4vw;
+            max-width: 1240px;
+            margin: 0 auto;
+            padding: 0 6vw;
             box-sizing: border-box;
-            /* Same fixed-px header clearance the rest of the file uses
-               — this section isn't pinned, so the collision window is
-               brief (just the scroll transit), but the content still
-               shouldn't visually start under the header on a short
-               viewport. */
-            padding: 110px 6vw 60px;
+            text-align: center;
         }
-        .problems-col-left {
-            flex: 0 0 40%;
-            max-width: 40%;
-            /* Occlusion mask, not particle physics: the shared canvas
-               sits at z-index:1 behind .page-wrapper's own z-index:2, so
-               a background painted directly on this column paints above
-               it. Particles sliding underneath this box read as fading
-               near the letters simply because they're passing behind an
-               opaque patch — no per-particle text-avoidance math needed,
-               and nothing about the delicate orbitParticles morph gets
-               touched. */
-            background: radial-gradient(ellipse 78% 72% at 38% 50%, rgba(3, 3, 12, 0.85) 0%, rgba(3, 3, 12, 0.5) 45%, rgba(3, 3, 12, 0) 76%);
-            will-change: transform;
-        }
-        .problems-col-right {
-            position: relative;
-            flex: 0 0 56%;
-            max-width: 56%;
-        }
-        .problems-manifest {
+        .problems-headline {
             font-family: 'Bricolage Grotesque', sans-serif;
-            font-weight: 700;
-            font-size: clamp(28px, 3.3vw, 50px);
-            line-height: 1.22;
+            font-weight: 800;
+            font-size: clamp(30px, 6.4vw, 104px);
+            line-height: 1.14;
             letter-spacing: -0.01em;
             color: #fff;
             margin: 0;
             user-select: none;
         }
+        /* The one dynamic word — a single span mutated in place by the
+           JS word-cycle, never swapped for a different element. Only
+           transform/opacity are ever animated on it (see JS), so
+           will-change is scoped to exactly those two. */
+        .dynamic-word {
+            display: inline-block;
+            will-change: transform, opacity;
+            transform-origin: center center;
+        }
         /* Outline/stroke text for "invisible" — color:transparent with
            only the stroke visible is what makes it read as a hollow,
            "not really there" word inside an otherwise solid-white
            sentence, a small typographic joke matching the copy. */
-        .problems-manifest .text-outline {
+        .dynamic-word.text-outline {
             color: transparent;
-            -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.92);
-        }
-
-        /* The Supernova glow — a single radial-gradient div, not a
-           canvas: this is a small, purely decorative, hover-reactive
-           local effect, and CSS transform/opacity transitions already
-           give exactly the GPU-accelerated smoothness asked for
-           without adding any per-frame JS work to the shared render()
-           loop. --glow-dx/dy/scale are set on discrete hover events
-           (see the JS below), not animated by JS itself — the actual
-           animation is entirely the browser's own compositor handling
-           the CSS transition on `transform`. */
-        .supernova-glow {
-            position: absolute;
-            inset: -25% -15%;
-            pointer-events: none;
-            z-index: 1;
-            will-change: transform;
-        }
-        .supernova-glow::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 55%;
-            width: min(44vw, 540px);
-            height: min(44vw, 540px);
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(0, 229, 255, 0.32) 0%, rgba(107, 140, 245, 0.16) 38%, rgba(3, 3, 12, 0) 72%);
-            filter: blur(36px);
-            transform: translate(-50%, -50%) translate(var(--glow-dx, 0px), var(--glow-dy, 0px)) scale(var(--glow-scale, 1));
-            transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-            will-change: transform;
-            /* Slow, barely-there breathing — opacity only, so it never
-               fights the hover-driven transform transition above. */
-            animation: supernovaBreathe 7s ease-in-out infinite;
-        }
-        @keyframes supernovaBreathe {
-            0%, 100% { opacity: 0.62; }
-            50% { opacity: 0.88; }
-        }
-
-        .problems-list {
-            position: relative;
-            z-index: 2;
-            list-style: none;
-            margin: 0;
-            padding: 24px 28px;
-            display: flex;
-            flex-direction: column;
-            gap: 3vh;
-            /* Same occlusion-mask principle as .problems-col-left, sized
-               to hug the list's own box instead of the whole column —
-               the padding above exists so the mask has room to breathe
-               around the first/last row rather than clipping flush to
-               the text. */
-            background: radial-gradient(ellipse 92% 88% at 34% 50%, rgba(3, 3, 12, 0.82) 0%, rgba(3, 3, 12, 0.48) 45%, rgba(3, 3, 12, 0) 78%);
-            will-change: transform;
-        }
-        .problem-item {
-            display: block;
-            opacity: 1;
-            transform: translateX(0);
-            transform-origin: left center;
-            transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
-            will-change: transform, opacity;
-        }
-        /* Hard focus: every item dims once ANY item is active, the
-           active one alone stays lit, shifts right and grows slightly. */
-        .problems-list.has-active .problem-item {
-            opacity: 0.15;
-        }
-        .problems-list.has-active .problem-item.is-active {
-            opacity: 1;
-            transform: translateX(15px) scale(1.03);
-        }
-        .problem-item-index {
-            font-family: 'DM Sans', sans-serif;
-            font-weight: 600;
-            font-size: clamp(20px, 2vw, 28px);
-            letter-spacing: 0.04em;
-            font-variant-numeric: tabular-nums;
-            color: #00E5FF;
-            opacity: 0.5;
-            display: inline-block;
-            width: 62px;
-            margin-right: 0;
-            transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .problems-list.has-active .problem-item.is-active .problem-item-index {
-            opacity: 1;
-        }
-        .problem-item-title {
-            font-family: 'Bricolage Grotesque', sans-serif;
-            font-weight: 700;
-            font-size: clamp(15px, 1.4vw, 19px);
-            letter-spacing: 0.02em;
-            color: #fff;
-        }
-        .problem-item-desc {
-            display: block;
-            margin: 8px 0 0 62px;
-            font-family: 'DM Sans', sans-serif;
-            font-size: clamp(14px, 1.05vw, 16px);
-            letter-spacing: 0.02em;
-            line-height: 1.5;
-            color: rgba(255, 255, 255, 0.55);
-            max-width: 440px;
-            transition: color 0.45s cubic-bezier(0.16, 1, 0.3, 1);
-        }
-        .problems-list.has-active .problem-item.is-active .problem-item-desc {
-            color: rgba(255, 255, 255, 0.92);
+            -webkit-text-stroke: 2px rgba(255, 255, 255, 0.92);
         }
         @media (max-width: 768px) {
-            .problems-grid {
-                flex-direction: column;
-                align-items: flex-start;
-                justify-content: center;
-                gap: 3.5vh;
-                padding: 96px 6vw 32px;
+            .problems-headline {
+                font-size: clamp(26px, 8.8vw, 44px);
+                line-height: 1.2;
             }
-            .problems-col-left, .problems-col-right {
-                flex: none;
-                max-width: 100%;
-            }
-            .problems-manifest { font-size: clamp(22px, 6vw, 30px); line-height: 1.2; }
-            /* The occlusion mask exists to protect text from particles
-               passing BEHIND it on the wide desktop layout; on a stacked
-               mobile column the text already sits on its own clear
-               space, so the mask is just switched off here rather than
-               fighting the tighter layout. */
-            .problems-col-left, .problems-list { background: none; padding: 0; }
-            .problems-list { gap: 1.8vh; }
-            .problem-item-index { font-size: 18px; margin-right: 8px; }
-            .problem-item-title { font-size: 14px; }
-            .problem-item-desc { font-size: 12px; letter-spacing: 0.01em; margin: 3px 0 0 0; max-width: 100%; }
-            .supernova-glow { inset: -15% -25%; }
+            .problems-kinetic { padding: 0 7vw; }
+            .dynamic-word.text-outline { -webkit-text-stroke-width: 1.3px; }
         }
 
         /* ============================================================
@@ -934,31 +787,8 @@
         </section>
 
         <section id="problems">
-            <div class="problems-grid">
-                <div class="problems-col-left">
-                    <h2 class="problems-manifest">In a digital space full of noise, <span class="text-outline">invisible</span> businesses fade away.</h2>
-                </div>
-                <div class="problems-col-right">
-                    <div class="supernova-glow" id="supernova-glow"></div>
-                    <ul class="problems-list" id="problems-list">
-                        <li class="problem-item" data-index="0">
-                            <span class="problem-item-index">01 /</span><span class="problem-item-title">NO WEBSITE AT ALL</span>
-                            <span class="problem-item-desc">Invisible online. Potential clients find nothing and leave.</span>
-                        </li>
-                        <li class="problem-item" data-index="1">
-                            <span class="problem-item-index">02 /</span><span class="problem-item-title">ONLY ON INSTAGRAM</span>
-                            <span class="problem-item-desc">Trapped by algorithms. You do not own your audience.</span>
-                        </li>
-                        <li class="problem-item" data-index="2">
-                            <span class="problem-item-index">03 /</span><span class="problem-item-title">OUTDATED WEBSITE</span>
-                            <span class="problem-item-desc">Built years ago. Quietly pushing your visitors away.</span>
-                        </li>
-                        <li class="problem-item" data-index="3">
-                            <span class="problem-item-index">04 /</span><span class="problem-item-title">BROKEN ON MOBILE</span>
-                            <span class="problem-item-desc">Over 70% browse on phones. Your layout is breaking.</span>
-                        </li>
-                    </ul>
-                </div>
+            <div class="problems-kinetic">
+                <h2 class="problems-headline">In a digital space full of noise, <span class="dynamic-word text-outline" id="dynamic-word">invisible</span> businesses fade away.</h2>
             </div>
         </section>
 
@@ -974,11 +804,11 @@
         </section>
     </div>
 
-    <!-- GSAP: only used for the Problems block's mouse-parallax depth
-         effect below (gsap.quickTo on three layers). Everything else in
-         this file is still vanilla JS/CSS — this is the one deliberate
-         exception, since a real spring-eased multi-layer parallax is
-         what was asked for here. -->
+    <!-- GSAP: used by the Problems block's kinetic word-cycle
+         (gsap.timeline on the dynamic word). Everything else in this
+         file is still vanilla JS/CSS — this is the one deliberate
+         exception, since real cinematic timeline sequencing is what
+         was asked for here. -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
     <script>
         const canvas = document.getElementById('space-canvas');
@@ -996,6 +826,13 @@
         // glow — reads exactly like a halo that isn't actually drawn.
         let width = window.innerWidth;
         let height = window.innerHeight;
+        // One coarse device-class gate, computed once — used to halve/
+        // third particle density and to skip the Problems block's
+        // canvas-side word-cycle effects on phones (text-only swap
+        // there per the brief). Not re-checked on resize/rotation:
+        // this is a "which device class am I" decision, not a live
+        // layout value.
+        const IS_MOBILE = width < 768;
         // Capped at 2x: rasterization cost scales with dpr^2 (every fill/
         // gradient/stroke now covers that many more physical pixels), so an
         // uncapped 3x phone/tablet display would pay 2.25x the paint cost of
@@ -1238,7 +1075,11 @@
         // then scaled by the ellipse's own rx/ry. Alpha is fixed per
         // particle at init, never touched per frame — no flicker.
         const orbitParticles = [];
-        const ORBIT_COUNT = 900;
+        // Mobile: a third of the desktop density, so this stays smooth
+        // on phone-class GPUs — applies everywhere this one shared
+        // array is drawn (galaxy ring, horizon line, strings), not
+        // just Problems, since it's genuinely one array for all three.
+        const ORBIT_COUNT = IS_MOBILE ? 300 : 900;
         const SQUIRCLE_EXP = 2 / 4; // exponent applied to |cos|/|sin|, i.e. 2/n for n=4
         // Single unified transition (see render()'s morph block below): the
         // SAME 900 particles that draw the galaxy's corner ring also draw
@@ -1684,17 +1525,12 @@
         }
         cacheSectionGeometry();
 
-        // Block: Problems — "The Supernova Flash". Fully static now
+        // Block: Problems — Monumental Kinetic Typography. Fully static
         // (plain CSS height: 100vh, no sticky pin, no JS-set height —
-        // see the CSS comment) — #problems's own box height is exactly
-        // whatever the CSS declares, so #expertise still hands off from
-        // it with zero gap automatically, no code needed to enforce
-        // that. problemsTopCached is read-only here now (not used to
-        // size anything), kept purely as the anchor point for the
-        // shared canvas's own horizon->strings morph timing, which
-        // doesn't care whether this section is pinned or not — it's
-        // driven by absolute scrollY crossing problemsTopCached over a
-        // fixed one-viewport window, exactly as before.
+        // see the CSS comment). problemsTopCached/problemsMorphWindowPx
+        // exist purely to time the shared canvas's horizon->strings
+        // morph underneath (unchanged plumbing) — nothing about this
+        // section's own layout depends on them anymore.
         const problemsSection = document.getElementById('problems');
         let problemsTopCached = 0;
         let problemsMorphWindowPx = 0;
@@ -1708,80 +1544,91 @@
             return Math.max(0, Math.min(1, (window.scrollY - problemsTopCached) / problemsMorphWindowPx));
         }
 
-        // "The Supernova Flash" hover microinteraction — pure CSS
-        // transitions (transform/opacity only, GPU-accelerated) driven
-        // by two small jobs on hover: toggling which item is "active"
-        // (CSS handles the dim/shift via .has-active/.is-active), and
-        // computing where the glow should shift to align with it. The
-        // getBoundingClientRect reads here only run on the hover EVENT
-        // itself, not per animation frame — there's no reason to poll
-        // this every frame when it only changes on a discrete user
-        // action, unlike the canvas work elsewhere in this file.
-        const problemsListEl = document.getElementById('problems-list');
-        const supernovaGlowEl = document.getElementById('supernova-glow');
-        if (problemsListEl && supernovaGlowEl) {
-            const problemItemEls = Array.from(problemsListEl.querySelectorAll('.problem-item'));
-            problemItemEls.forEach((item, i) => {
-                item.addEventListener('mouseenter', () => {
-                    problemItemEls.forEach((el, j) => el.classList.toggle('is-active', j === i));
-                    problemsListEl.classList.add('has-active');
-                    const itemRect = item.getBoundingClientRect();
-                    const glowRect = supernovaGlowEl.getBoundingClientRect();
-                    // Reaches only partway toward the item (0.15x the
-                    // raw horizontal distance) rather than centering
-                    // exactly on it — "смещаясь ЗА активный пункт", a
-                    // glow that trails behind/around the text rather
-                    // than sitting flush on top of it and washing it out.
-                    const dx = ((itemRect.left + itemRect.width / 2) - (glowRect.left + glowRect.width / 2)) * 0.15;
-                    const dy = (itemRect.top + itemRect.height / 2) - (glowRect.top + glowRect.height / 2);
-                    supernovaGlowEl.style.setProperty('--glow-dx', `${dx}px`);
-                    supernovaGlowEl.style.setProperty('--glow-dy', `${dy}px`);
-                    supernovaGlowEl.style.setProperty('--glow-scale', '1.15');
-                });
-                item.addEventListener('mouseleave', () => {
-                    problemsListEl.classList.remove('has-active');
-                    problemItemEls.forEach(el => el.classList.remove('is-active'));
-                    supernovaGlowEl.style.setProperty('--glow-dx', '0px');
-                    supernovaGlowEl.style.setProperty('--glow-dy', '0px');
-                    supernovaGlowEl.style.setProperty('--glow-scale', '1');
-                });
-            });
+        // Word cycle — a single <span> mutated in place every 3.5s,
+        // entirely decoupled from scroll. The text-content swap
+        // happens at the trough of the exit tween (scaleX/opacity
+        // already ~0), so the sentence's own reflow around the new
+        // word's length never happens while it's visible. Paused via
+        // IntersectionObserver while #problems isn't the section on
+        // screen — no reason to keep a 3.5s timer (or its particle
+        // side-effects) running for a block nobody's looking at.
+        const DYNAMIC_WORDS = [
+            { text: 'invisible', outline: true, effect: 'vacuum' },
+            { text: 'outdated', outline: false, effect: 'slow' },
+            { text: 'broken-mobile', outline: false, effect: 'glitch' },
+            { text: 'algorithm-trapped', outline: false, effect: null }
+        ];
+        const dynamicWordEl = document.getElementById('dynamic-word');
+        let dynamicWordIndex = 0;
+
+        // Particle-effect state, read every frame inside render()'s
+        // orbitParticles loop — three small ADDITIVE hooks layered on
+        // top of the existing horizon-line math (a vacuum alpha
+        // falloff, an amplitude-scaled ambient shimmer, and a brief
+        // positional jolt), none of which touch hx/hy/px/py's own
+        // target formulas. currentWordParticleEffect only ever gets
+        // set to a real effect name when !IS_MOBILE, so on phones this
+        // whole system stays permanently at its no-op defaults — text
+        // still swaps, canvas never reacts, per the brief.
+        let dynamicWordCenterX = width / 2;
+        let dynamicWordHalfWidth = 160;
+        let currentWordParticleEffect = null;
+        let glitchPulseUntil = 0;
+        let vacuumStrength = 0;
+        let horizonSpeedMultiplier = 1;
+
+        function measureDynamicWord() {
+            if (!dynamicWordEl) return;
+            const r = dynamicWordEl.getBoundingClientRect();
+            dynamicWordCenterX = r.left + r.width / 2;
+            dynamicWordHalfWidth = r.width / 2 + 60;
+        }
+        measureDynamicWord();
+
+        function cycleDynamicWord() {
+            if (!dynamicWordEl) return;
+            const next = (dynamicWordIndex + 1) % DYNAMIC_WORDS.length;
+            const word = DYNAMIC_WORDS[next];
+            const applyNewWord = () => {
+                dynamicWordEl.textContent = word.text;
+                dynamicWordEl.classList.toggle('text-outline', word.outline);
+                dynamicWordIndex = next;
+                measureDynamicWord();
+                if (!IS_MOBILE) {
+                    currentWordParticleEffect = word.effect;
+                    if (word.effect === 'glitch') glitchPulseUntil = performance.now() + 320;
+                }
+            };
+            if (typeof gsap === 'undefined') {
+                applyNewWord();
+                return;
+            }
+            // Cinematic collapse: a fast squash on X (with a touch of
+            // skew for a glitch-flavored snap) and a fade to 0, then
+            // the mirror image back in — transform/opacity only, never
+            // a property that triggers reflow.
+            gsap.timeline({ defaults: { force3D: true } })
+                .to(dynamicWordEl, { duration: 0.24, scaleX: 0.05, skewX: -10, opacity: 0, ease: 'power4.in' })
+                .call(applyNewWord)
+                .fromTo(dynamicWordEl,
+                    { scaleX: 0.05, skewX: 10, opacity: 0 },
+                    { duration: 0.4, scaleX: 1, skewX: 0, opacity: 1, ease: 'power3.out' });
         }
 
-        // Mouse parallax — three independent depth layers reacting to
-        // cursor position within #problems. The glow drifts WITH the
-        // cursor (small, positive speed); both text columns drift
-        // AGAINST it (larger, negative speed) — opposite directions is
-        // what actually reads as depth, not just everything sliding
-        // together. gsap.quickTo (not gsap.to per mousemove event) so
-        // each property reuses one tween instead of allocating a new
-        // one on every call — the standard pattern for high-frequency
-        // input. force3D is explicit, not left to GSAP's "auto"
-        // heuristic, so this is guaranteed to animate via
-        // transform: translate3d() and stay on the compositor.
-        const problemsColLeftEl = document.querySelector('.problems-col-left');
-        if (typeof gsap !== 'undefined' && problemsColLeftEl && problemsListEl && supernovaGlowEl) {
-            const PARALLAX_TWEEN = { duration: 1.1, ease: 'power3', force3D: true };
-            const glowX = gsap.quickTo(supernovaGlowEl, 'x', PARALLAX_TWEEN);
-            const glowY = gsap.quickTo(supernovaGlowEl, 'y', PARALLAX_TWEEN);
-            const leftX = gsap.quickTo(problemsColLeftEl, 'x', PARALLAX_TWEEN);
-            const leftY = gsap.quickTo(problemsColLeftEl, 'y', PARALLAX_TWEEN);
-            const listX = gsap.quickTo(problemsListEl, 'x', PARALLAX_TWEEN);
-            const listY = gsap.quickTo(problemsListEl, 'y', PARALLAX_TWEEN);
-
-            const GLOW_SPEED = 10;
-            const TEXT_SPEED = -15;
-            problemsSection.addEventListener('mousemove', (e) => {
-                const rect = problemsSection.getBoundingClientRect();
-                const nx = (e.clientX - rect.left - rect.width / 2) / (rect.width / 2);
-                const ny = (e.clientY - rect.top - rect.height / 2) / (rect.height / 2);
-                glowX(nx * GLOW_SPEED); glowY(ny * GLOW_SPEED);
-                leftX(nx * TEXT_SPEED); leftY(ny * TEXT_SPEED);
-                listX(nx * TEXT_SPEED); listY(ny * TEXT_SPEED);
-            });
-            problemsSection.addEventListener('mouseleave', () => {
-                glowX(0); glowY(0); leftX(0); leftY(0); listX(0); listY(0);
-            });
+        let dynamicWordTimer = null;
+        if (problemsSection && 'IntersectionObserver' in window) {
+            new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting && !dynamicWordTimer) {
+                        dynamicWordTimer = setInterval(cycleDynamicWord, 3500);
+                    } else if (!entry.isIntersecting && dynamicWordTimer) {
+                        clearInterval(dynamicWordTimer);
+                        dynamicWordTimer = null;
+                    }
+                });
+            }, { threshold: 0.2 }).observe(problemsSection);
+        } else if (problemsSection) {
+            dynamicWordTimer = setInterval(cycleDynamicWord, 3500);
         }
 
         // The whole hero -> portfolio handoff — burst, title exit, text-in,
@@ -1846,7 +1693,17 @@
             cacheExpertiseGeometry();
             cacheHeadingRanges();
             cacheGravityButtons();
+            measureDynamicWord();
         });
+
+        // The headline's own width (and so the dynamic word's on-screen
+        // center) shifts once the real webfont swaps in for the
+        // fallback font it briefly renders with — re-measure after
+        // that settles, or the vacuum/glitch effects would spend their
+        // first 3.5s aimed at a stale, pre-font-load position.
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(measureDynamicWord);
+        }
 
         // Edge-triggered — the position reshuffle below must fire exactly once
         // per arrival at the top, not every frame you happen to be sitting there.
@@ -2135,6 +1992,21 @@
                 const brightnessBoost = surge1.boost * surge2.boost;
                 const dockFlash = surge2.flash; // only stage 2's flash drives the string line-stroke's own width pulse below
 
+                // Word-cycle particle effects — eased toward their
+                // target every frame (same lightweight per-frame
+                // damping this file already uses for explosionEnergy),
+                // so switching in/out of an effect never snaps. Gated
+                // by wordEffectGate so they only ever apply while
+                // genuinely on the horizon line, fading out as
+                // morphT2 pushes past it into the strings — a stray
+                // word effect has no business reaching into Expertise.
+                const wordEffectGate = Math.max(0, 1 - morphT2 / 0.6);
+                const vacuumTarget = (currentWordParticleEffect === 'vacuum') ? wordEffectGate : 0;
+                vacuumStrength += (vacuumTarget - vacuumStrength) * 0.06;
+                const slowTarget = (currentWordParticleEffect === 'slow') ? (1 - 0.9 * wordEffectGate) : 1;
+                horizonSpeedMultiplier += (slowTarget - horizonSpeedMultiplier) * 0.05;
+                const glitchActive = wordEffectGate > 0.3 && performance.now() < glitchPulseUntil;
+
                 // Per-string hover physics — cursor proximity to a
                 // string's own X is the ONLY trigger; no heading/text
                 // involvement anywhere in this file drives the strings.
@@ -2204,6 +2076,33 @@
                         gravDissolveOrbit = g.dissolve;
                     }
 
+                    // Word-cycle effects — small additive perturbations
+                    // on top of the already-computed position, never
+                    // touching hx/px/py's own target formulas above.
+                    // "invisible": particles within the word's on-screen
+                    // radius fade toward 0 (a vacuum). "outdated":
+                    // scales a small ambient shimmer's own amplitude
+                    // down toward near-zero, reading as the line
+                    // grinding to a near-halt. "broken-mobile": a brief
+                    // hard zigzag jolt for particles in that same radius.
+                    let vacuumFade = 1;
+                    if (vacuumStrength > 0.01) {
+                        const dist = Math.abs(hx - dynamicWordCenterX);
+                        const t = Math.max(0, 1 - dist / dynamicWordHalfWidth);
+                        vacuumFade = 1 - t * t * vacuumStrength;
+                    }
+                    if (horizonSpeedMultiplier < 0.99 && wordEffectGate > 0.01) {
+                        const driftAmp = 2.2 * horizonSpeedMultiplier * wordEffectGate;
+                        py += Math.sin(time * 0.0007 + p.seed) * driftAmp;
+                        px += Math.cos(time * 0.00045 + p.seed * 1.7) * driftAmp * 0.6;
+                    }
+                    if (glitchActive && Math.abs(hx - dynamicWordCenterX) < dynamicWordHalfWidth) {
+                        const stepPhase = Math.floor(time / 45 + p.seed) % 2;
+                        const jolt = (stepPhase === 0 ? 1 : -1) * (6 + (p.seed % 8));
+                        py += jolt;
+                        px += jolt * 0.4;
+                    }
+
                     // Trail: a short streak back along whichever stage is
                     // ACTIVELY in flight right now — stateless (no per-
                     // particle history buffer needed) since both flight
@@ -2220,7 +2119,7 @@
                         const trailT = Math.max(0, morphT - 0.1);
                         const tailX = gx + (horizonTargetX - gx) * trailT;
                         const tailY = gy + (horizonTargetY - gy) * trailT;
-                        ctx.strokeStyle = `rgba(${morphColorR}, ${morphColorG}, ${morphColorB}, ${p.alpha * a * 0.4 * brightnessBoost})`;
+                        ctx.strokeStyle = `rgba(${morphColorR}, ${morphColorG}, ${morphColorB}, ${p.alpha * a * 0.4 * brightnessBoost * vacuumFade})`;
                         ctx.lineWidth = p.radius * 0.9;
                         ctx.lineCap = 'round';
                         ctx.beginPath();
@@ -2231,7 +2130,7 @@
                         const trailT2 = Math.max(0, morphT2 - 0.1);
                         const tailX = hx + (nearestX - hx) * trailT2;
                         const tailY = hy + (targetY - hy) * trailT2;
-                        ctx.strokeStyle = `rgba(${morphColorR}, ${morphColorG}, ${morphColorB}, ${p.alpha * a * 0.4 * brightnessBoost})`;
+                        ctx.strokeStyle = `rgba(${morphColorR}, ${morphColorG}, ${morphColorB}, ${p.alpha * a * 0.4 * brightnessBoost * vacuumFade})`;
                         ctx.lineWidth = p.radius * 0.9;
                         ctx.lineCap = 'round';
                         ctx.beginPath();
@@ -2245,7 +2144,7 @@
                     // a frozen static image.
                     const twinkle = morphT2 > 0.9 ? (0.85 + 0.15 * Math.sin(time * 0.002 + p.seed)) : 1;
                     const headingBoost = 1 + stringHeadingBoostByIndex[nearestIdx] * 0.8;
-                    const finalAlpha = Math.min(1, p.alpha * a * twinkle * brightnessBoost * headingBoost * gravDissolveOrbit);
+                    const finalAlpha = Math.min(1, p.alpha * a * twinkle * brightnessBoost * headingBoost * gravDissolveOrbit * vacuumFade);
                     const finalRadius = p.radius * (1 + (brightnessBoost - 1) * 0.35);
                     ctx.beginPath();
                     ctx.arc(px, py, finalRadius, 0, Math.PI * 2);
