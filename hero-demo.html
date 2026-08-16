@@ -864,13 +864,16 @@
         </section>
     </div>
 
-    <!-- GSAP + ScrollTrigger: used by the Problems block's pin/trigger
-         mechanics (ScrollTrigger.pin) and its kinetic word-cycle
-         (gsap.timeline). Everything else in this file is still
-         vanilla JS/CSS — this is the one deliberate exception, since
-         real pin/snap scroll control is what was asked for here. -->
+    <!-- GSAP + ScrollTrigger + ScrollToPlugin: used by the Problems
+         block's full-screen page-snap (a hand-built wheel/touch lock,
+         not ScrollTrigger's own pin — see the JS block comment for
+         why) and its kinetic word-cycle. Everything else in this
+         file is still vanilla JS/CSS — this is the one deliberate
+         exception, since real scroll control is what was asked for
+         here. -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollToPlugin.min.js"></script>
     <script>
         const canvas = document.getElementById('space-canvas');
         const ctx = canvas.getContext('2d');
@@ -1742,30 +1745,134 @@
             }
         }
 
+        // Full-screen page snap — a genuine architectural change, not
+        // another patch on the same scroll-linked idea. Two earlier
+        // approaches each failed differently: ScrollTrigger's own
+        // pin:true caused real lag/jank in production (it inserts a
+        // spacer and toggles position:fixed on every engage/
+        // disengage), and plain scrub let the rift's width freeze at
+        // any fractional value wherever the user happened to stop —
+        // confirmed on video as the line reconnecting and cutting
+        // through the text mid-scroll.
+        //
+        // This is a hand-built lock instead, not ScrollTrigger's pin:
+        // the DOM never moves and nothing ever becomes position:fixed
+        // — only the browser's native scroll input gets intercepted.
+        // Sequence: a plain threshold-sensor ScrollTrigger (no pin, no
+        // scrub) notices the section coming into range and calls
+        // settleIntoProblems(), which auto-scrolls (GSAP ScrollTo) to
+        // the exact position where #problems fills 100% of the
+        // viewport. Only once that settle finishes does the lock
+        // engage — wheel/touchmove get preventDefault()'d for as long
+        // as problemsLocked is true, so no amount of small scrolling
+        // can move the page at all, and the rift only opens once
+        // locked. A single strong wheel tick or touch swipe past
+        // EXIT_GESTURE_PX is the only thing that can end it: text
+        // hides instantly, the line reconnects, and only after that
+        // finishes does the page smoothly continue on its own.
+        //
+        // Known scope limit, disclosed rather than silently ignored:
+        // this intercepts wheel and touch, not keyboard scrolling
+        // (PageDown/Space/arrows). A keyboard scroll can still slip
+        // scrollY past the section without going through this lock —
+        // the plain ScrollTrigger's onLeave/onLeaveBack below stay
+        // wired to hideWordInstantly specifically as a safety net for
+        // that case, so a bypass can never leave stale text behind
+        // even though it would skip the intended lock/reconnect feel.
+        let problemsLocked = false;
+        let problemsSettling = false;
+        let problemsGestureAccum = 0;
+        let problemsLastWheelTime = 0;
+        let problemsTouchStartY = null;
+        const EXIT_GESTURE_PX = 90;
+
+        function settleIntoProblems() {
+            if (problemsLocked || problemsSettling) return;
+            problemsSettling = true;
+            gsap.to(window, {
+                duration: 0.6,
+                scrollTo: { y: problemsTopCached, autoKill: false },
+                ease: 'power2.inOut',
+                onComplete: () => {
+                    problemsSettling = false;
+                    problemsLocked = true;
+                    problemsGestureAccum = 0;
+                    openRift();
+                }
+            });
+        }
+
+        function exitProblems(direction) {
+            if (!problemsLocked) return;
+            problemsLocked = false;
+            closeRift();
+            gsap.delayedCall(0.4, () => {
+                const targetY = direction === 'forward'
+                    ? expertiseSection.offsetTop
+                    : Math.max(0, problemsTopCached - height);
+                gsap.to(window, { duration: 0.7, scrollTo: { y: targetY, autoKill: true }, ease: 'power2.inOut' });
+            });
+        }
+
         if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
             gsap.set(dynamicWordEl, { opacity: 0 }); // hidden until openRift's reveal runs — only when the system is actually active, so a failed CDN load doesn't leave the word permanently invisible
-            gsap.registerPlugin(ScrollTrigger);
+            gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
+
+            window.addEventListener('wheel', (e) => {
+                if (problemsLocked) {
+                    e.preventDefault();
+                    const now = performance.now();
+                    if (now - problemsLastWheelTime > 300) problemsGestureAccum = 0; // gap since the last tick — this is a fresh gesture, not a continuation
+                    problemsLastWheelTime = now;
+                    problemsGestureAccum += e.deltaY;
+                    if (Math.abs(problemsGestureAccum) > EXIT_GESTURE_PX) {
+                        exitProblems(problemsGestureAccum > 0 ? 'forward' : 'backward');
+                        problemsGestureAccum = 0;
+                    }
+                } else if (problemsSettling) {
+                    e.preventDefault(); // don't let the user fight the auto-snap mid-flight
+                }
+            }, { passive: false });
+
+            window.addEventListener('touchstart', (e) => {
+                if (problemsLocked || problemsSettling) problemsTouchStartY = e.touches[0].clientY;
+            }, { passive: true });
+            window.addEventListener('touchmove', (e) => {
+                if (problemsLocked) {
+                    e.preventDefault();
+                    if (problemsTouchStartY === null) return;
+                    const dy = problemsTouchStartY - e.touches[0].clientY;
+                    if (Math.abs(dy) > EXIT_GESTURE_PX) {
+                        exitProblems(dy > 0 ? 'forward' : 'backward');
+                        problemsTouchStartY = null;
+                    }
+                } else if (problemsSettling) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
+            window.addEventListener('touchend', () => { problemsTouchStartY = null; }, { passive: true });
 
             // The one and only ScrollTrigger for this section — a pure
-            // threshold sensor, no scrub, no onUpdate. Each crossing
-            // fires exactly once and kicks off its own independent,
-            // scroll-independent animation (see openRift/closeRift):
-            // the line always finishes what it started, even if the
-            // user immediately stops scrolling.
+            // threshold sensor, no pin, no scrub. onEnter/onEnterBack
+            // hand off to the settle+lock sequence above; onLeave/
+            // onLeaveBack are the keyboard-bypass safety net described
+            // above (exitProblems already calls hideWordInstantly for
+            // the normal wheel/touch path, so this is redundant there
+            // — cheap insurance, not the primary mechanism).
             ScrollTrigger.create({
                 trigger: problemsSection,
                 start: 'top 60%',
                 end: 'bottom 40%',
-                onEnter: openRift,
-                onEnterBack: openRift,
-                onLeave: closeRift,
-                onLeaveBack: closeRift,
+                onEnter: settleIntoProblems,
+                onEnterBack: settleIntoProblems,
+                onLeave: hideWordInstantly,
+                onLeaveBack: hideWordInstantly,
             });
         } else {
-            // Fallback if GSAP/ScrollTrigger fails to load: no rift
-            // animation, but the word still cycles so the section
-            // isn't dead — degrades to plain content instead of a
-            // broken interactive piece.
+            // Fallback if GSAP/ScrollTrigger fails to load: no lock,
+            // no rift animation, but the word still cycles so the
+            // section isn't dead — degrades to plain content instead
+            // of a broken interactive piece.
             dynamicWordTimer = setInterval(cycleDynamicWord, DYNAMIC_WORD_CYCLE_MS);
         }
 
