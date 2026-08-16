@@ -1703,6 +1703,12 @@
 
         function openRift() {
             gsap.killTweensOf(riftState);
+            // Explicit hard reset before every open, defense in depth
+            // on top of the momentum-kill fix above: the line always
+            // starts its opening animation from a clean, definite
+            // closed baseline, never inheriting whatever value it
+            // happened to be at from an interrupted previous cycle.
+            riftState.t = 0;
             gsap.to(riftState, { t: 1, duration: 0.4, ease: 'power2.out' });
             igniteWordCycle();
         }
@@ -1779,21 +1785,62 @@
         // wired to hideWordInstantly specifically as a safety net for
         // that case, so a bypass can never leave stale text behind
         // even though it would skip the intended lock/reconnect feel.
+        //
+        // Momentum kill: the reported "flies straight through and
+        // hangs below" bug wasn't from reacting to wheel events too
+        // slowly — it's that a fast trackpad/touch flick keeps
+        // animating scrollY via the BROWSER's own native momentum,
+        // entirely independent of further wheel events, so
+        // preventDefault() on NEW events can't stop motion that's
+        // already in flight. Toggling documentElement's overflow to
+        // hidden for the duration of the settle is the standard fix
+        // — verified directly that gsap's ScrollToPlugin (and plain
+        // window.scrollTo) still work fine to drive the page
+        // programmatically while overflow is hidden, so this blocks
+        // exactly the thing it needs to (native/user-driven scroll)
+        // without blocking our own controlled animation. That native-
+        // momentum overshoot is also what the reported "curved arc"
+        // on scroll-up actually was: overshooting scrollY made it all
+        // the way back up into Portfolio's own release window, where
+        // releaseAmount genuinely (correctly) isn't 1 yet, so its
+        // galaxy-ring geometry was legitimately still blending in —
+        // not a stale variable, an honestly-wrong scroll position.
+        // Fixing the overshoot fixes this by construction. riftState.t
+        // still gets an explicit hard reset in openRift() below as
+        // defense in depth, per the brief.
         let problemsLocked = false;
         let problemsSettling = false;
         let problemsGestureAccum = 0;
         let problemsLastWheelTime = 0;
         let problemsTouchStartY = null;
+        let problemsHardBlockUntil = 0;
         const EXIT_GESTURE_PX = 90;
+        const ENTRY_HARD_BLOCK_MS = 500;
+
+        function killScrollMomentum() {
+            gsap.killTweensOf(window);
+            const htmlEl = document.documentElement;
+            const frozenY = window.scrollY;
+            htmlEl.style.overflow = 'hidden';
+            window.scrollTo(0, frozenY);
+            return () => { htmlEl.style.overflow = ''; }; // caller restores once its own controlled animation has landed
+        }
+
+        function isProblemsInteractionBlocked() {
+            return problemsSettling || problemsLocked || performance.now() < problemsHardBlockUntil;
+        }
 
         function settleIntoProblems() {
             if (problemsLocked || problemsSettling) return;
             problemsSettling = true;
+            problemsHardBlockUntil = performance.now() + ENTRY_HARD_BLOCK_MS;
+            const restoreOverflow = killScrollMomentum();
             gsap.to(window, {
                 duration: 0.6,
                 scrollTo: { y: problemsTopCached, autoKill: false },
                 ease: 'power2.inOut',
                 onComplete: () => {
+                    restoreOverflow(); // we're now exactly at the target, so this can't cause a visible jump
                     problemsSettling = false;
                     problemsLocked = true;
                     problemsGestureAccum = 0;
@@ -1805,12 +1852,19 @@
         function exitProblems(direction) {
             if (!problemsLocked) return;
             problemsLocked = false;
+            problemsHardBlockUntil = performance.now() + 400 + 700 + 200; // covers closeRift's 0.4s + the 0.7s scroll-to-next + a small buffer
             closeRift();
             gsap.delayedCall(0.4, () => {
+                const restoreOverflow = killScrollMomentum(); // same overshoot risk on the way out — kill any residual momentum before taking over
                 const targetY = direction === 'forward'
                     ? expertiseSection.offsetTop
                     : Math.max(0, problemsTopCached - height);
-                gsap.to(window, { duration: 0.7, scrollTo: { y: targetY, autoKill: true }, ease: 'power2.inOut' });
+                gsap.to(window, {
+                    duration: 0.7,
+                    scrollTo: { y: targetY, autoKill: true },
+                    ease: 'power2.inOut',
+                    onComplete: restoreOverflow
+                });
             });
         }
 
@@ -1819,35 +1873,31 @@
             gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
 
             window.addEventListener('wheel', (e) => {
-                if (problemsLocked) {
-                    e.preventDefault();
-                    const now = performance.now();
-                    if (now - problemsLastWheelTime > 300) problemsGestureAccum = 0; // gap since the last tick — this is a fresh gesture, not a continuation
-                    problemsLastWheelTime = now;
-                    problemsGestureAccum += e.deltaY;
-                    if (Math.abs(problemsGestureAccum) > EXIT_GESTURE_PX) {
-                        exitProblems(problemsGestureAccum > 0 ? 'forward' : 'backward');
-                        problemsGestureAccum = 0;
-                    }
-                } else if (problemsSettling) {
-                    e.preventDefault(); // don't let the user fight the auto-snap mid-flight
+                if (!isProblemsInteractionBlocked()) return; // normal scrolling everywhere else on the page, completely untouched
+                e.preventDefault();
+                if (!problemsLocked || performance.now() < problemsHardBlockUntil) return; // still settling / still inside the hard debounce window — swallow silently, no gesture accounting yet
+                const now = performance.now();
+                if (now - problemsLastWheelTime > 300) problemsGestureAccum = 0; // gap since the last tick — this is a fresh gesture, not a continuation
+                problemsLastWheelTime = now;
+                problemsGestureAccum += e.deltaY;
+                if (Math.abs(problemsGestureAccum) > EXIT_GESTURE_PX) {
+                    exitProblems(problemsGestureAccum > 0 ? 'forward' : 'backward');
+                    problemsGestureAccum = 0;
                 }
             }, { passive: false });
 
             window.addEventListener('touchstart', (e) => {
-                if (problemsLocked || problemsSettling) problemsTouchStartY = e.touches[0].clientY;
+                if (isProblemsInteractionBlocked()) problemsTouchStartY = e.touches[0].clientY;
             }, { passive: true });
             window.addEventListener('touchmove', (e) => {
-                if (problemsLocked) {
-                    e.preventDefault();
-                    if (problemsTouchStartY === null) return;
-                    const dy = problemsTouchStartY - e.touches[0].clientY;
-                    if (Math.abs(dy) > EXIT_GESTURE_PX) {
-                        exitProblems(dy > 0 ? 'forward' : 'backward');
-                        problemsTouchStartY = null;
-                    }
-                } else if (problemsSettling) {
-                    e.preventDefault();
+                if (!isProblemsInteractionBlocked()) return;
+                e.preventDefault();
+                if (!problemsLocked || performance.now() < problemsHardBlockUntil) return;
+                if (problemsTouchStartY === null) return;
+                const dy = problemsTouchStartY - e.touches[0].clientY;
+                if (Math.abs(dy) > EXIT_GESTURE_PX) {
+                    exitProblems(dy > 0 ? 'forward' : 'backward');
+                    problemsTouchStartY = null;
                 }
             }, { passive: false });
             window.addEventListener('touchend', () => { problemsTouchStartY = null; }, { passive: true });
