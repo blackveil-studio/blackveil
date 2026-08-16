@@ -544,6 +544,16 @@
         .problems-col-left {
             flex: 0 0 40%;
             max-width: 40%;
+            /* Occlusion mask, not particle physics: the shared canvas
+               sits at z-index:1 behind .page-wrapper's own z-index:2, so
+               a background painted directly on this column paints above
+               it. Particles sliding underneath this box read as fading
+               near the letters simply because they're passing behind an
+               opaque patch — no per-particle text-avoidance math needed,
+               and nothing about the delicate orbitParticles morph gets
+               touched. */
+            background: radial-gradient(ellipse 78% 72% at 38% 50%, rgba(3, 3, 12, 0.85) 0%, rgba(3, 3, 12, 0.5) 45%, rgba(3, 3, 12, 0) 76%);
+            will-change: transform;
         }
         .problems-col-right {
             position: relative;
@@ -583,6 +593,7 @@
             inset: -25% -15%;
             pointer-events: none;
             z-index: 1;
+            will-change: transform;
         }
         .supernova-glow::before {
             content: '';
@@ -611,33 +622,50 @@
             z-index: 2;
             list-style: none;
             margin: 0;
-            padding: 0;
+            padding: 24px 28px;
             display: flex;
             flex-direction: column;
             gap: 3vh;
+            /* Same occlusion-mask principle as .problems-col-left, sized
+               to hug the list's own box instead of the whole column —
+               the padding above exists so the mask has room to breathe
+               around the first/last row rather than clipping flush to
+               the text. */
+            background: radial-gradient(ellipse 92% 88% at 34% 50%, rgba(3, 3, 12, 0.82) 0%, rgba(3, 3, 12, 0.48) 45%, rgba(3, 3, 12, 0) 78%);
+            will-change: transform;
         }
         .problem-item {
             display: block;
             opacity: 1;
             transform: translateX(0);
+            transform-origin: left center;
             transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease;
             will-change: transform, opacity;
         }
         /* Hard focus: every item dims once ANY item is active, the
-           active one alone stays lit and shifts right. */
+           active one alone stays lit, shifts right and grows slightly. */
         .problems-list.has-active .problem-item {
-            opacity: 0.18;
+            opacity: 0.15;
         }
         .problems-list.has-active .problem-item.is-active {
             opacity: 1;
-            transform: translateX(15px);
+            transform: translateX(15px) scale(1.03);
         }
         .problem-item-index {
             font-family: 'DM Sans', sans-serif;
-            font-size: 13px;
-            letter-spacing: 0.08em;
-            color: rgba(0, 229, 255, 0.8);
-            margin-right: 10px;
+            font-weight: 600;
+            font-size: clamp(20px, 2vw, 28px);
+            letter-spacing: 0.04em;
+            font-variant-numeric: tabular-nums;
+            color: #00E5FF;
+            opacity: 0.5;
+            display: inline-block;
+            width: 62px;
+            margin-right: 0;
+            transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .problems-list.has-active .problem-item.is-active .problem-item-index {
+            opacity: 1;
         }
         .problem-item-title {
             font-family: 'Bricolage Grotesque', sans-serif;
@@ -648,12 +676,17 @@
         }
         .problem-item-desc {
             display: block;
-            margin: 6px 0 0 34px;
+            margin: 8px 0 0 62px;
             font-family: 'DM Sans', sans-serif;
-            font-size: 14px;
+            font-size: clamp(14px, 1.05vw, 16px);
+            letter-spacing: 0.02em;
             line-height: 1.5;
             color: rgba(255, 255, 255, 0.55);
-            max-width: 460px;
+            max-width: 440px;
+            transition: color 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .problems-list.has-active .problem-item.is-active .problem-item-desc {
+            color: rgba(255, 255, 255, 0.92);
         }
         @media (max-width: 768px) {
             .problems-grid {
@@ -668,9 +701,16 @@
                 max-width: 100%;
             }
             .problems-manifest { font-size: clamp(22px, 6vw, 30px); line-height: 1.2; }
+            /* The occlusion mask exists to protect text from particles
+               passing BEHIND it on the wide desktop layout; on a stacked
+               mobile column the text already sits on its own clear
+               space, so the mask is just switched off here rather than
+               fighting the tighter layout. */
+            .problems-col-left, .problems-list { background: none; padding: 0; }
             .problems-list { gap: 1.8vh; }
+            .problem-item-index { font-size: 18px; margin-right: 8px; }
             .problem-item-title { font-size: 14px; }
-            .problem-item-desc { font-size: 12px; margin: 3px 0 0 0; max-width: 100%; }
+            .problem-item-desc { font-size: 12px; letter-spacing: 0.01em; margin: 3px 0 0 0; max-width: 100%; }
             .supernova-glow { inset: -15% -25%; }
         }
 
@@ -934,7 +974,12 @@
         </section>
     </div>
 
-
+    <!-- GSAP: only used for the Problems block's mouse-parallax depth
+         effect below (gsap.quickTo on three layers). Everything else in
+         this file is still vanilla JS/CSS — this is the one deliberate
+         exception, since a real spring-eased multi-layer parallax is
+         what was asked for here. -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
     <script>
         const canvas = document.getElementById('space-canvas');
         const ctx = canvas.getContext('2d');
@@ -1700,6 +1745,42 @@
                     supernovaGlowEl.style.setProperty('--glow-dy', '0px');
                     supernovaGlowEl.style.setProperty('--glow-scale', '1');
                 });
+            });
+        }
+
+        // Mouse parallax — three independent depth layers reacting to
+        // cursor position within #problems. The glow drifts WITH the
+        // cursor (small, positive speed); both text columns drift
+        // AGAINST it (larger, negative speed) — opposite directions is
+        // what actually reads as depth, not just everything sliding
+        // together. gsap.quickTo (not gsap.to per mousemove event) so
+        // each property reuses one tween instead of allocating a new
+        // one on every call — the standard pattern for high-frequency
+        // input. force3D is explicit, not left to GSAP's "auto"
+        // heuristic, so this is guaranteed to animate via
+        // transform: translate3d() and stay on the compositor.
+        const problemsColLeftEl = document.querySelector('.problems-col-left');
+        if (typeof gsap !== 'undefined' && problemsColLeftEl && problemsListEl && supernovaGlowEl) {
+            const PARALLAX_TWEEN = { duration: 1.1, ease: 'power3', force3D: true };
+            const glowX = gsap.quickTo(supernovaGlowEl, 'x', PARALLAX_TWEEN);
+            const glowY = gsap.quickTo(supernovaGlowEl, 'y', PARALLAX_TWEEN);
+            const leftX = gsap.quickTo(problemsColLeftEl, 'x', PARALLAX_TWEEN);
+            const leftY = gsap.quickTo(problemsColLeftEl, 'y', PARALLAX_TWEEN);
+            const listX = gsap.quickTo(problemsListEl, 'x', PARALLAX_TWEEN);
+            const listY = gsap.quickTo(problemsListEl, 'y', PARALLAX_TWEEN);
+
+            const GLOW_SPEED = 10;
+            const TEXT_SPEED = -15;
+            problemsSection.addEventListener('mousemove', (e) => {
+                const rect = problemsSection.getBoundingClientRect();
+                const nx = (e.clientX - rect.left - rect.width / 2) / (rect.width / 2);
+                const ny = (e.clientY - rect.top - rect.height / 2) / (rect.height / 2);
+                glowX(nx * GLOW_SPEED); glowY(ny * GLOW_SPEED);
+                leftX(nx * TEXT_SPEED); leftY(ny * TEXT_SPEED);
+                listX(nx * TEXT_SPEED); listY(ny * TEXT_SPEED);
+            });
+            problemsSection.addEventListener('mouseleave', () => {
+                glowX(0); glowY(0); leftX(0); leftY(0); listX(0); listY(0);
             });
         }
 
