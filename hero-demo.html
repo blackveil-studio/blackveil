@@ -502,18 +502,19 @@
         }
 
         /* ============================================================
-           Block: Problems — Monumental Kinetic Typography. A single,
-           fully static (no pin, no scroll-jack) 100vh screen. The
-           headline is deliberately THREE independent rows (static /
-           dynamic word / static), not one flowing sentence — that's
-           what guarantees the dynamic word never reflows or shifts
-           the surrounding text: each row only ever re-lays-out its
-           own content. It's also what makes "the particle line sits
-           under the word" possible at all: the word's row now has a
-           stable, predictable on-screen position regardless of which
-           of the 4 words is showing, instead of landing on whichever
-           wrapped line of a paragraph it happened to fall on. See the
-           JS for how the canvas reads that row's actual position.
+           Block: Problems — "Quantum Rift". A single, fully static (no
+           pin, no scroll-jack) 100vh screen. The headline is THREE
+           independent rows (static / dynamic word / static) so the
+           dynamic word never reflows or shifts the surrounding text.
+           The dynamic-word row's height is fixed in em units (2.3em,
+           relative to its own clamp()'d font-size) so it's always
+           tall enough for a two-line word — 1-line words just center
+           inside that same reserved space, so neighboring lines never
+           jump when the word changes. The shared canvas draws a
+           particle line that splits open around this row (see JS/
+           render() for "riftT") — no CSS involvement in that part,
+           it's all canvas, this file just needs to give the canvas a
+           stable, measurable target to split around.
            ============================================================ */
         #problems {
             position: relative;
@@ -541,43 +542,58 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: clamp(6px, 1.6vw, 18px);
+            gap: clamp(8px, 1.8vw, 20px);
         }
-        /* Deliberately quieter than the dynamic word — the brief asks
-           for the changing word to be the screen's one dominant
-           element, so the frame around it steps back rather than
-           competing with it. */
+        /* Confident and readable — quieter than the dynamic word (which
+           stays the screen's one dominant element) but sized to read
+           easily at a glance, not as a fine-print caption. */
         .headline-static {
             display: block;
             min-width: 0;
             font-family: 'Bricolage Grotesque', sans-serif;
             font-weight: 600;
-            font-size: clamp(15px, 2vw, 28px);
+            font-size: clamp(19px, 2.6vw, 34px);
             line-height: 1.3;
             letter-spacing: -0.005em;
-            color: rgba(255, 255, 255, 0.68);
+            color: rgba(255, 255, 255, 0.78);
         }
+        /* Fixed-height reserve (em-relative to the font-size set here,
+           inherited by .dynamic-word below) sized for the tallest
+           variant — a two-line word at line-height 1.05 plus a little
+           breathing room. Shorter, one-line words simply center
+           inside this same box rather than shrinking it, which is
+           what keeps the static lines above/below from ever jumping
+           when the word changes. */
         .dynamic-word-row {
-            display: block;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             min-width: 0;
-            line-height: 1;
+            font-size: clamp(36px, 7.2vw, 92px);
+            line-height: 1.05;
+            min-height: 2.3em;
         }
         /* The one dynamic word — a single span mutated in place by the
            JS word-cycle, never swapped for a different element. Only
            transform/opacity are ever animated on it (see JS), so
-           will-change is scoped to exactly those two. Bottom-anchored
-           transform-origin so the entrance's scaleY reads as
-           "standing up" from the particle line beneath it, not
-           squashing from its own center. */
+           will-change is scoped to exactly those two. white-space:
+           pre-line lets the JS put an actual line break in two-word
+           variants (BROKEN / MOBILE) via a literal \n instead of a
+           hyphen. text-transform:uppercase is applied here, in CSS,
+           rather than baked into the word data, so every variant gets
+           the same visual treatment from one source of truth. */
         .dynamic-word {
             display: inline-block;
             font-family: 'Bricolage Grotesque', sans-serif;
             font-weight: 800;
-            font-size: clamp(46px, 9.5vw, 128px);
-            line-height: 1;
-            letter-spacing: -0.02em;
+            font-size: inherit;
+            line-height: inherit;
+            letter-spacing: -0.01em;
+            white-space: pre-line;
+            text-transform: uppercase;
+            text-align: center;
             will-change: transform, opacity;
-            transform-origin: center bottom;
+            transform-origin: center center;
         }
         /* "invisible" stays a hollow outline — color:transparent with
            only the stroke visible reads as "not really there", the
@@ -588,24 +604,23 @@
             color: transparent;
             -webkit-text-stroke: 2.5px rgba(255, 255, 255, 0.92);
         }
-        /* The other three: massive, solid, crystal white with a
-           turquoise neon trail matching the particle line's own
-           color — this is the screen's one dominant visual element. */
+        /* The other three: solid, crystal white with a turquoise neon
+           trail matching the particle line's own color. */
         .dynamic-word.text-neon {
             color: #fff;
-            text-shadow: 0 0 15px rgba(0, 242, 254, 0.6), 0 0 42px rgba(0, 242, 254, 0.22);
+            text-shadow: 0 0 14px rgba(0, 242, 254, 0.6), 0 0 38px rgba(0, 242, 254, 0.22);
         }
         @media (max-width: 768px) {
             .problems-kinetic { padding: 0 7vw; }
-            .headline-static { font-size: clamp(13px, 3.6vw, 18px); }
+            .headline-static { font-size: clamp(15px, 4vw, 20px); }
             /* Shrinks harder than the static lines on small screens —
-               a flat vw-scale would still let "algorithm-trapped"
-               push past the viewport edge; capping the max lower and
-               the vw-multiplier tighter keeps every variant safely
-               inside 100vw at any phone width. */
-            .dynamic-word { font-size: clamp(28px, 10vw, 46px); }
+               a flat vw-scale would still push a two-line word like
+               ALGORITHM / TRAPPED close to the viewport edge; a lower
+               cap and tighter vw-multiplier keeps every variant
+               safely inside 100vw and centered at any phone width. */
+            .dynamic-word-row { font-size: clamp(26px, 9vw, 42px); min-height: 2.35em; }
             .dynamic-word.text-outline { -webkit-text-stroke-width: 1.3px; }
-            .dynamic-word.text-neon { text-shadow: 0 0 10px rgba(0, 242, 254, 0.55), 0 0 26px rgba(0, 242, 254, 0.2); }
+            .dynamic-word.text-neon { text-shadow: 0 0 9px rgba(0, 242, 254, 0.55), 0 0 24px rgba(0, 242, 254, 0.2); }
         }
 
         /* ============================================================
@@ -1570,12 +1585,12 @@
         }
         cacheSectionGeometry();
 
-        // Block: Problems — Monumental Kinetic Typography. Fully static
-        // (plain CSS height: 100vh, no sticky pin, no JS-set height —
-        // see the CSS comment). problemsTopCached/problemsMorphWindowPx
-        // exist purely to time the shared canvas's horizon->strings
-        // morph underneath (unchanged plumbing) — nothing about this
-        // section's own layout depends on them anymore.
+        // Block: Problems — "Quantum Rift". Fully static (plain CSS
+        // height: 100vh, no sticky pin, no JS-set height — see the CSS
+        // comment). problemsTopCached/problemsMorphWindowPx exist
+        // purely to time the shared canvas's rift-open/rift-close and
+        // horizon->strings narrative underneath (unchanged plumbing)
+        // — nothing about this section's own layout depends on them.
         const problemsSection = document.getElementById('problems');
         let problemsTopCached = 0;
         let problemsMorphWindowPx = 0;
@@ -1592,60 +1607,47 @@
         // Word cycle — a single <span> mutated in place every 2.2s,
         // entirely decoupled from scroll. The text-content swap
         // happens at the trough of the exit tween (opacity already 0),
-        // so the new word's own row resizing never happens while
-        // visible — and because the word lives in its OWN dedicated
-        // row (see CSS), that resize can never touch the static lines
-        // above/below regardless of word length. Paused via
-        // IntersectionObserver while #problems isn't the section on
-        // screen — no reason to keep a 2.2s timer (or its particle
-        // side-effects) running for a block nobody's looking at.
+        // so the new word's own resizing never happens while visible
+        // — and because the word lives in its own fixed-height row
+        // (see CSS, min-height:2.3em), that resize can never touch the
+        // static lines above/below regardless of word length or line
+        // count. No hyphens anywhere: two-word variants use a literal
+        // \n (the row's white-space:pre-line renders it as a real line
+        // break) instead. Paused via IntersectionObserver while
+        // #problems isn't the section on screen.
         const DYNAMIC_WORDS = [
-            { text: 'invisible', outline: true, effect: 'vacuum' },
-            { text: 'outdated', outline: false, effect: 'slow' },
-            { text: 'broken-mobile', outline: false, effect: 'glitch' },
-            { text: 'algorithm-trapped', outline: false, effect: null }
+            { text: 'invisible', outline: true },
+            { text: 'outdated', outline: false },
+            { text: 'broken\nmobile', outline: false },
+            { text: 'algorithm\ntrapped', outline: false }
         ];
         const dynamicWordEl = document.getElementById('dynamic-word');
         let dynamicWordIndex = 0;
 
-        // Particle-effect state, read every frame inside render()'s
-        // orbitParticles loop. dynamicWordCenterX/UnderY are what let
-        // the horizon line (both the dust and its stroke overlay)
-        // target the word's actual on-screen position instead of a
-        // fixed mid-viewport line — see measureDynamicWord and the
-        // render() comments by "lineUnderWordT" for how that blend
-        // works. currentWordParticleEffect/transitionPulseStart only
-        // ever get set to something live when !IS_MOBILE, so on
-        // phones the canvas never reacts to the word cycle at all —
-        // only the text itself animates, per the brief.
+        // Rift geometry, read every frame inside render(): where the
+        // particle line's gap should be centered/sized. X is scroll-
+        // invariant (no horizontal scroll) so a plain cached value is
+        // fine; Y is stored as an offset from #problems's own top (not
+        // a raw viewport Y) since this section isn't pinned — the
+        // word's viewport-relative Y changes every frame as the user
+        // scrolls past it, so render() reconstructs the live Y from
+        // this fixed offset + scrollY each frame instead of re-reading
+        // layout every frame.
         let dynamicWordCenterX = width / 2;
         let dynamicWordHalfWidth = 160;
-        // Stored as an offset from #problems's OWN top, not a raw
-        // viewport Y — this section isn't pinned, so the word's
-        // viewport-relative Y changes every frame as the user scrolls
-        // past it (unlike dynamicWordCenterX, which stays put since
-        // there's no horizontal scroll). render() reconstructs the
-        // live viewport Y each frame from this fixed offset + scrollY
-        // instead of re-reading layout every frame.
-        let dynamicWordUnderYOffset = 150;
-        let currentWordParticleEffect = null;
-        let glitchPulseUntil = 0;
-        let vacuumStrength = 0;
-        let horizonSpeedMultiplier = 1;
-        let transitionPulseStart = -9999;
+        let dynamicWordRowOffsetY = 150;
 
         function measureDynamicWord() {
             if (!dynamicWordEl) return;
-            const r = dynamicWordEl.getBoundingClientRect();
+            const wordRow = dynamicWordEl.parentElement;
+            const r = wordRow.getBoundingClientRect();
             dynamicWordCenterX = r.left + r.width / 2;
             dynamicWordHalfWidth = r.width / 2 + 60;
-            // A little below the word's own baseline, not through its
-            // vertical center — reads as a pedestal/underlay the word
-            // stands on, not a strikethrough. Both rects are read in
-            // the same snapshot, so their difference is scroll-
-            // invariant even though neither value alone is.
+            // Both rects read in the same snapshot, so their
+            // difference is scroll-invariant even though neither
+            // value alone is.
             const sectionTop = problemsSection.getBoundingClientRect().top;
-            dynamicWordUnderYOffset = (r.bottom + 16) - sectionTop;
+            dynamicWordRowOffsetY = (r.top + r.height / 2) - sectionTop;
         }
         measureDynamicWord();
 
@@ -1659,11 +1661,6 @@
                 dynamicWordEl.classList.toggle('text-neon', !word.outline);
                 dynamicWordIndex = next;
                 measureDynamicWord();
-                transitionPulseStart = performance.now();
-                if (!IS_MOBILE) {
-                    currentWordParticleEffect = word.effect;
-                    if (word.effect === 'glitch') glitchPulseUntil = performance.now() + 320;
-                }
             };
             if (typeof gsap === 'undefined') {
                 applyNewWord();
@@ -1671,9 +1668,9 @@
             }
             // Old word flies straight up and fades; new word rises
             // fast from below with a Y-axis squash that snaps back
-            // past 1 (back.out) — reads as landing on and springing
-            // off the particle pedestal beneath it. y/scaleY/opacity
-            // only, all transform/opacity, never a reflow property.
+            // past 1 (back.out) — reads as landing inside the rift's
+            // glow. y/scaleY/opacity only, all transform/opacity,
+            // never a reflow property.
             gsap.timeline({ defaults: { force3D: true } })
                 .to(dynamicWordEl, { duration: 0.18, y: -46, opacity: 0, ease: 'power3.in' })
                 .call(applyNewWord)
@@ -2060,48 +2057,34 @@
                 const brightnessBoost = surge1.boost * surge2.boost;
                 const dockFlash = surge2.flash; // only stage 2's flash drives the string line-stroke's own width pulse below
 
-                // Word-cycle particle effects — eased toward their
-                // target every frame (same lightweight per-frame
-                // damping this file already uses for explosionEnergy),
-                // so switching in/out of an effect never snaps. Gated
-                // by wordEffectGate so they only ever apply while
-                // genuinely on the horizon line, fading out as
-                // morphT2 pushes past it into the strings — a stray
-                // word effect has no business reaching into Expertise.
-                const wordEffectGate = Math.max(0, 1 - morphT2 / 0.6);
-                const vacuumTarget = (currentWordParticleEffect === 'vacuum') ? wordEffectGate : 0;
-                vacuumStrength += (vacuumTarget - vacuumStrength) * 0.06;
-                const slowTarget = (currentWordParticleEffect === 'slow') ? (1 - 0.9 * wordEffectGate) : 1;
-                horizonSpeedMultiplier += (slowTarget - horizonSpeedMultiplier) * 0.05;
-                const glitchActive = wordEffectGate > 0.3 && performance.now() < glitchPulseUntil;
-
-                // Where the horizon line itself should sit: blended
-                // between the old generic mid-viewport line (used
-                // while still approaching #problems, when the word's
-                // own DOM position is irrelevant/off-screen) and the
-                // dynamic word's actual position once genuinely inside
-                // #problems. Ramped by morphT2 directly (not
-                // wordEffectGate, which is already 1 before #problems
-                // is even reached) so this stays at 0 — the untouched
-                // generic line — right up until scrollY actually
-                // crosses into the section, then blends in fast.
-                const lineUnderWordT = wordEffectGate * Math.min(1, morphT2 * 50);
+                // Quantum Rift — riftT (0 = solid closed line, 1 = fully
+                // split open) is a pure function of morphT2: opens fast
+                // right as #problems is entered, holds a long plateau
+                // through the section's main dwell, then closes again
+                // as morphT2 approaches the strings-formation threshold
+                // (0.6) so the reconnect finishes exactly as the
+                // existing horizon->strings morph takes over below —
+                // one continuous handoff, never two effects fighting
+                // for the same particles at once.
+                function riftProgress(t2) {
+                    const openT = Math.min(1, t2 / 0.1);
+                    const closeT = Math.max(0, Math.min(1, (t2 - 0.42) / 0.16));
+                    return Math.max(0, openT - closeT);
+                }
+                const riftT = riftProgress(morphT2);
                 // Reconstructed from scrollY each frame, not a cached
-                // viewport Y — see dynamicWordUnderYOffset's own
-                // comment for why a raw snapshot would be wrong here.
-                const dynamicWordLiveY = (problemsTopCached - scrollY) + dynamicWordUnderYOffset;
-                const lineCenterY = height / 2 + (dynamicWordLiveY - height / 2) * lineUnderWordT;
-                const lineCenterXTarget = width / 2 + (dynamicWordCenterX - width / 2) * lineUnderWordT;
-                const lineHalfWidthTarget = width / 2 + (dynamicWordHalfWidth * 1.4 - width / 2) * lineUnderWordT;
-
-                // Transition pulse: a sharp, short-lived amplitude
-                // spike right as a new word lands, decaying back to
-                // calm — separate from the three per-word effects
-                // above (vacuum/slow/glitch), this one fires on EVERY
-                // cycle regardless of which word is next.
-                const TRANSITION_PULSE_MS = 550;
-                const pulseElapsedT = Math.max(0, Math.min(1, (performance.now() - transitionPulseStart) / TRANSITION_PULSE_MS));
-                const pulseAmp = lineUnderWordT * (1 - pulseElapsedT) * (1 - pulseElapsedT);
+                // viewport Y — see dynamicWordRowOffsetY's own comment
+                // for why a raw snapshot would be wrong here (this
+                // section isn't pinned, so the row's viewport Y sweeps
+                // top-to-bottom of the screen as the user scrolls past).
+                const riftCenterYTarget = (problemsTopCached - scrollY) + dynamicWordRowOffsetY;
+                const riftCenterY = height / 2 + (riftCenterYTarget - height / 2) * riftT;
+                const riftCenterX = width / 2 + (dynamicWordCenterX - width / 2) * riftT;
+                // Half-width of the actual empty gap once fully open —
+                // generous enough to comfortably clear a two-line word,
+                // with a sensible floor so it still reads clearly even
+                // if the word row measures unexpectedly narrow.
+                const riftGapHalfPx = Math.max(dynamicWordHalfWidth * 1.15, width * 0.11);
 
                 // Per-string hover physics — cursor proximity to a
                 // string's own X is the ONLY trigger; no heading/text
@@ -2127,25 +2110,31 @@
                     const gy = cy + ey * height * 0.5 * p.kJitter;
 
                     // Stage 1 target: an even spot along a horizontal
-                    // line, blended by lineUnderWordT from a full-width
-                    // spread at screen-center (the old behavior, still
-                    // exactly what plays out approaching #problems)
-                    // down to a tight band directly under the dynamic
-                    // word once inside it — a genuine "neon pedestal"
-                    // rather than a line that happens to cross whatever
-                    // text is on screen. targetYFrac (0..1, stable per
-                    // particle) places it evenly within whichever
-                    // range is currently blended in, so particles
-                    // don't jump around as the band narrows — they
-                    // just converge smoothly toward their same
-                    // fractional position in the new range. Y-jitter
-                    // (kJitter reused, as before) tightens along with
-                    // the band so the "line" reads as a bright thin
-                    // pedestal, not a diffuse cloud, once concentrated.
+                    // line. On desktop, riftT pulls each half of the
+                    // line AWAY from riftCenterX — targetYFrac below
+                    // 0.5 compresses into the left remainder, above
+                    // 0.5 into the right, leaving a genuinely empty
+                    // gap of riftGapHalfPx*2 in the middle rather than
+                    // just dimming particles that are still sitting
+                    // there. Uniformly stable per particle (same
+                    // fractional slot within its own half at every
+                    // riftT), so the two halves slide apart cleanly —
+                    // no reshuffling, no zigzag. On mobile, position
+                    // is left untouched entirely (the split there is a
+                    // pure alpha fade, see finalAlpha below) — cheaper
+                    // per the brief, since it skips this remap on
+                    // phone-class GPUs across all 900/300 particles
+                    // every frame.
                     const fullSpreadX = p.targetYFrac * width;
-                    const wordSpreadX = (lineCenterXTarget - lineHalfWidthTarget) + p.targetYFrac * (lineHalfWidthTarget * 2);
-                    const horizonTargetX = fullSpreadX + (wordSpreadX - fullSpreadX) * lineUnderWordT;
-                    const horizonTargetY = lineCenterY + (p.kJitter - 1) * (400 * (1 - lineUnderWordT * 0.85));
+                    let horizonTargetX = fullSpreadX;
+                    if (!IS_MOBILE) {
+                        const gapHalfFrac = (riftGapHalfPx / width) * riftT;
+                        const mappedFrac = p.targetYFrac < 0.5
+                            ? p.targetYFrac * (1 - gapHalfFrac * 2)
+                            : p.targetYFrac * (1 - gapHalfFrac * 2) + gapHalfFrac * 2;
+                        horizonTargetX = mappedFrac * width + (riftCenterX - width / 2);
+                    }
+                    const horizonTargetY = riftCenterY + (p.kJitter - 1) * (400 * (1 - riftT * 0.7));
                     let hx = gx, hy = gy;
                     if (morphT > 0.001) {
                         hx = gx + (horizonTargetX - gx) * morphT;
@@ -2184,46 +2173,18 @@
                         gravDissolveOrbit = g.dissolve;
                     }
 
-                    // Word-cycle effects — small additive perturbations
-                    // on top of the already-computed position, never
-                    // touching hx/px/py's own target formulas above.
-                    // "invisible": particles within the word's on-screen
-                    // radius fade toward 0 (a vacuum). "outdated":
-                    // scales a small ambient shimmer's own amplitude
-                    // down toward near-zero, reading as the line
-                    // grinding to a near-halt. "broken-mobile": a brief
-                    // hard zigzag jolt for particles in that same radius.
-                    let vacuumFade = 1;
-                    if (vacuumStrength > 0.01) {
-                        const dist = Math.abs(hx - dynamicWordCenterX);
-                        const t = Math.max(0, 1 - dist / dynamicWordHalfWidth);
-                        vacuumFade = 1 - t * t * vacuumStrength;
-                    }
-                    if (horizonSpeedMultiplier < 0.99 && wordEffectGate > 0.01) {
-                        const driftAmp = 2.2 * horizonSpeedMultiplier * wordEffectGate;
-                        py += Math.sin(time * 0.0007 + p.seed) * driftAmp;
-                        px += Math.cos(time * 0.00045 + p.seed * 1.7) * driftAmp * 0.6;
-                    }
-                    if (glitchActive && Math.abs(hx - dynamicWordCenterX) < dynamicWordHalfWidth) {
-                        const stepPhase = Math.floor(time / 45 + p.seed) % 2;
-                        const jolt = (stepPhase === 0 ? 1 : -1) * (6 + (p.seed % 8));
-                        py += jolt;
-                        px += jolt * 0.4;
-                    }
-                    // Transition pulse — every word change (regardless
-                    // of which word), not just the three per-effect
-                    // words above: a fast, punchy wave right under the
-                    // word that decays to nothing over ~550ms. Faster
-                    // sine frequency than the ambient "slow" shimmer
-                    // above so it reads as a distinct sharp wave, not
-                    // more of the same lazy drift.
-                    if (pulseAmp > 0.01) {
-                        const pulseDist = Math.abs(hx - dynamicWordCenterX);
-                        const pulseFalloff = Math.max(0, 1 - pulseDist / (dynamicWordHalfWidth * 1.3));
-                        if (pulseFalloff > 0) {
-                            const pulseWaveAmp = pulseAmp * pulseFalloff * pulseFalloff * 11;
-                            py += Math.sin(time * 0.012 + p.seed * 3) * pulseWaveAmp;
-                        }
+                    // Mobile's simplified rift: position was never
+                    // touched above (horizonTargetX stayed at
+                    // fullSpreadX), so the "split" here is a pure
+                    // alpha fade for particles inside the gap zone —
+                    // no per-particle position math, just one
+                    // multiply, matching the brief's request to keep
+                    // phone-class GPUs on the cheap path.
+                    let riftAlphaFade = 1;
+                    if (IS_MOBILE && riftT > 0.01) {
+                        const dist = Math.abs(hx - riftCenterX);
+                        const t = Math.max(0, 1 - dist / riftGapHalfPx);
+                        riftAlphaFade = 1 - t * t * riftT;
                     }
 
                     // Trail: a short streak back along whichever stage is
@@ -2242,7 +2203,7 @@
                         const trailT = Math.max(0, morphT - 0.1);
                         const tailX = gx + (horizonTargetX - gx) * trailT;
                         const tailY = gy + (horizonTargetY - gy) * trailT;
-                        ctx.strokeStyle = `rgba(${morphColorR}, ${morphColorG}, ${morphColorB}, ${p.alpha * a * 0.4 * brightnessBoost * vacuumFade})`;
+                        ctx.strokeStyle = `rgba(${morphColorR}, ${morphColorG}, ${morphColorB}, ${p.alpha * a * 0.4 * brightnessBoost * riftAlphaFade})`;
                         ctx.lineWidth = p.radius * 0.9;
                         ctx.lineCap = 'round';
                         ctx.beginPath();
@@ -2253,7 +2214,7 @@
                         const trailT2 = Math.max(0, morphT2 - 0.1);
                         const tailX = hx + (nearestX - hx) * trailT2;
                         const tailY = hy + (targetY - hy) * trailT2;
-                        ctx.strokeStyle = `rgba(${morphColorR}, ${morphColorG}, ${morphColorB}, ${p.alpha * a * 0.4 * brightnessBoost * vacuumFade})`;
+                        ctx.strokeStyle = `rgba(${morphColorR}, ${morphColorG}, ${morphColorB}, ${p.alpha * a * 0.4 * brightnessBoost * riftAlphaFade})`;
                         ctx.lineWidth = p.radius * 0.9;
                         ctx.lineCap = 'round';
                         ctx.beginPath();
@@ -2267,7 +2228,7 @@
                     // a frozen static image.
                     const twinkle = morphT2 > 0.9 ? (0.85 + 0.15 * Math.sin(time * 0.002 + p.seed)) : 1;
                     const headingBoost = 1 + stringHeadingBoostByIndex[nearestIdx] * 0.8;
-                    const finalAlpha = Math.min(1, p.alpha * a * twinkle * brightnessBoost * headingBoost * gravDissolveOrbit * vacuumFade);
+                    const finalAlpha = Math.min(1, p.alpha * a * twinkle * brightnessBoost * headingBoost * gravDissolveOrbit * riftAlphaFade);
                     const finalRadius = p.radius * (1 + (brightnessBoost - 1) * 0.35);
                     ctx.beginPath();
                     ctx.arc(px, py, finalRadius, 0, Math.PI * 2);
@@ -2282,39 +2243,78 @@
                 // once the dust has substantially formed the line
                 // (morphT > 0.15) and fades back out once stage 2 starts
                 // pulling it apart into strings, rather than lingering
-                // through that transition looking static. Position
-                // (lineCenterY/X/halfWidth) rides the same
-                // lineUnderWordT blend the dust itself uses, so this
-                // overlay and the dust it sits under always agree on
-                // where "the line" currently is — generic mid-viewport
-                // before #problems, tucked directly under the dynamic
-                // word once inside it. pulseAmp gives it a brief
-                // width/brightness surge right as a word lands.
+                // through that transition looking static. Spans the
+                // SAME full extent it always has (this isn't a band
+                // that narrows to the word anymore) — riftT just opens
+                // a literal gap in the middle of it on desktop, or
+                // dips its own gradient's alpha there on mobile.
                 if (morphT > 0.15) {
                     const horizonAlphaLocal = Math.min(1, (morphT - 0.15) / 0.65) * Math.max(0, 1 - morphT2 / 0.3);
                     if (horizonAlphaLocal > 0.01) {
-                        const lineX0 = lineCenterXTarget - lineHalfWidthTarget;
-                        const lineX1 = lineCenterXTarget + lineHalfWidthTarget;
-                        const bandHalfH = 90 * (1 - lineUnderWordT * 0.6);
+                        const lineX0 = width * 0.04;
+                        const lineX1 = width * 0.96;
+                        const bandHalfH = 90;
+                        const edgeAlpha = horizonAlphaLocal * 0.85;
+                        const gapPx = IS_MOBILE ? 0 : riftGapHalfPx * riftT;
+
                         ctx.save();
                         ctx.globalCompositeOperation = 'lighter';
-                        const glowGrad = ctx.createLinearGradient(0, lineCenterY - bandHalfH, 0, lineCenterY + bandHalfH);
+
+                        // Quantum Rift glow: a deep, soft, slowly-
+                        // pulsing radial light filling the gap once
+                        // it's open — drawn first so the line's own
+                        // glow band composites on top of it via
+                        // 'lighter'.
+                        if (riftT > 0.01) {
+                            const pulse = 0.8 + 0.2 * Math.sin(time * 0.0009);
+                            const riftGlowAlpha = riftT * pulse * 0.5;
+                            const riftGlowR = riftGapHalfPx * 1.3;
+                            const riftGlow = ctx.createRadialGradient(riftCenterX, riftCenterY, 0, riftCenterX, riftCenterY, riftGlowR);
+                            riftGlow.addColorStop(0, `rgba(0, 229, 255, ${riftGlowAlpha * 0.55})`);
+                            riftGlow.addColorStop(0.45, `rgba(107, 140, 245, ${riftGlowAlpha * 0.3})`);
+                            riftGlow.addColorStop(1, 'rgba(3, 3, 12, 0)');
+                            ctx.fillStyle = riftGlow;
+                            ctx.fillRect(riftCenterX - riftGlowR, riftCenterY - riftGlowR, riftGlowR * 2, riftGlowR * 2);
+                        }
+
+                        const glowGrad = ctx.createLinearGradient(0, riftCenterY - bandHalfH, 0, riftCenterY + bandHalfH);
                         glowGrad.addColorStop(0, 'rgba(0, 229, 255, 0)');
-                        glowGrad.addColorStop(0.5, `rgba(0, 229, 255, ${horizonAlphaLocal * 0.16 * (1 + pulseAmp * 0.8)})`);
+                        glowGrad.addColorStop(0.5, `rgba(0, 229, 255, ${horizonAlphaLocal * 0.16})`);
                         glowGrad.addColorStop(1, 'rgba(0, 229, 255, 0)');
                         ctx.fillStyle = glowGrad;
-                        ctx.fillRect(lineX0, lineCenterY - bandHalfH, lineX1 - lineX0, bandHalfH * 2);
+                        ctx.fillRect(lineX0, riftCenterY - bandHalfH, lineX1 - lineX0, bandHalfH * 2);
 
-                        const lineGrad = ctx.createLinearGradient(lineX0, lineCenterY, lineX1, lineCenterY);
+                        // On mobile the line stays one continuous path
+                        // and the gap is simulated by dipping this
+                        // gradient's own alpha near riftCenterX rather
+                        // than an actual break in the stroke.
+                        const lineGrad = ctx.createLinearGradient(lineX0, riftCenterY, lineX1, riftCenterY);
                         lineGrad.addColorStop(0, 'rgba(0, 229, 255, 0)');
-                        lineGrad.addColorStop(0.12, `rgba(0, 229, 255, ${horizonAlphaLocal * 0.85})`);
-                        lineGrad.addColorStop(0.88, `rgba(0, 229, 255, ${horizonAlphaLocal * 0.85})`);
+                        lineGrad.addColorStop(0.12, `rgba(0, 229, 255, ${edgeAlpha})`);
+                        if (IS_MOBILE && riftT > 0.01) {
+                            const span = lineX1 - lineX0;
+                            const centerFrac = Math.max(0.13, Math.min(0.87, (riftCenterX - lineX0) / span));
+                            const gapFrac = (riftGapHalfPx / span) * riftT;
+                            lineGrad.addColorStop(Math.max(0.12, centerFrac - gapFrac), `rgba(0, 229, 255, ${edgeAlpha})`);
+                            lineGrad.addColorStop(centerFrac, `rgba(0, 229, 255, ${edgeAlpha * (1 - riftT)})`);
+                            lineGrad.addColorStop(Math.min(0.88, centerFrac + gapFrac), `rgba(0, 229, 255, ${edgeAlpha})`);
+                        }
+                        lineGrad.addColorStop(0.88, `rgba(0, 229, 255, ${edgeAlpha})`);
                         lineGrad.addColorStop(1, 'rgba(0, 229, 255, 0)');
                         ctx.strokeStyle = lineGrad;
-                        ctx.lineWidth = 2.5 * (1 + surge1.flash * 0.8) * (1 + pulseAmp * 1.2);
+                        ctx.lineWidth = 2.5 * (1 + surge1.flash * 0.8);
                         ctx.beginPath();
-                        ctx.moveTo(lineX0, lineCenterY);
-                        ctx.lineTo(lineX1, lineCenterY);
+                        if (gapPx > 1) {
+                            const gapStart = Math.max(lineX0, riftCenterX - gapPx);
+                            const gapEnd = Math.min(lineX1, riftCenterX + gapPx);
+                            ctx.moveTo(lineX0, riftCenterY);
+                            ctx.lineTo(gapStart, riftCenterY);
+                            ctx.moveTo(gapEnd, riftCenterY);
+                            ctx.lineTo(lineX1, riftCenterY);
+                        } else {
+                            ctx.moveTo(lineX0, riftCenterY);
+                            ctx.lineTo(lineX1, riftCenterY);
+                        }
                         ctx.stroke();
                         ctx.restore();
                     }
