@@ -648,17 +648,17 @@
             position: relative;
             z-index: 2;
             width: 100%;
-            max-width: 1400px;
+            max-width: 1560px;
             margin: 0 auto;
             padding: 0 6vw;
             box-sizing: border-box;
             display: flex;
             align-items: center;
-            gap: 4vw;
+            gap: 3vw;
         }
         .solutions-col-left {
-            flex: 0 0 40%;
-            max-width: 40%;
+            flex: 0 0 38%;
+            max-width: 38%;
             /* Occlusion mask, same principle as #problems's own -
                painted directly on the column so it sits above the
                canvas (z-index:1) but below this column's own text -
@@ -685,8 +685,8 @@
         }
         .solutions-col-right {
             position: relative;
-            flex: 0 0 56%;
-            max-width: 56%;
+            flex: 0 0 59%;
+            max-width: 59%;
         }
         /* One continuous flowing paragraph - connectors and phrases
            are BOTH real spans (not raw text nodes) specifically so
@@ -714,7 +714,7 @@
            whole sentence in one pass. */
         .solutions-connector {
             color: #fff;
-            opacity: 0.45;
+            opacity: 0.5;
             transition: opacity 0.4s ease;
             will-change: opacity;
         }
@@ -1246,6 +1246,22 @@
             const j0 = Math.floor(t), j1 = Math.min(STRING_SEGMENTS, j0 + 1);
             const arr = stringWaveY[i];
             return arr[j0] + (arr[j1] - arr[j0]) * (t - j0);
+        }
+
+        // Hard reset for both the position AND previous-position buffers —
+        // Verlet integration derives velocity from their difference, so
+        // zeroing only stringWaveY would make stepStringWaves() read a
+        // spurious velocity next frame and "spring" back from the old
+        // value instead of staying flat. Called on (re-)entering #problems
+        // so a bend left over from hovering a Solutions phrase can never
+        // carry into the docking-transition particles (waveAt() below is
+        // added straight onto their X position while morphT2 is still
+        // animating) or the strings' own persistent curve.
+        function resetStringWaves() {
+            for (let i = 0; i < stringWaveY.length; i++) {
+                stringWaveY[i].fill(0);
+                stringWaveYPrev[i].fill(0);
+            }
         }
 
         // Smooth cubic-bezier stroke through the string's own simulated
@@ -1831,26 +1847,27 @@
             return problemsSettling || problemsLocked || performance.now() < problemsHardBlockUntil;
         }
 
-        // Escape hatch, same reasoning and same fix as #solutions' own
-        // (see that block's comment): Problems' and Solutions' trigger
-        // ranges overlap (Problems' own end sits inside Solutions'
-        // own start), so a fast scroll can cross into both at once and
-        // leave either lock holding control depending on timing. An
-        // upward gesture unconditionally clearing THIS lock too closes
-        // that gap — whichever lock ends up stuck, scrolling up always
-        // gets you out immediately.
-        function releaseProblemsLock() {
-            problemsSettling = false;
-            problemsLocked = false;
-            problemsHardBlockUntil = 0;
-            gsap.killTweensOf(window);
-            document.documentElement.style.overflow = '';
-        }
-
+        // A previous round added an "escape hatch" here — any upward
+        // wheel/touch tick unconditionally killed this lock's tweens,
+        // to defend against Problems' and Solutions' ScrollTrigger
+        // ranges overlapping (Problems' own 'bottom 40%' end sat past
+        // Solutions' own 'top 60%' start by ~0.2 viewport-heights of
+        // scrollY, so a single scroll motion could engage both locks
+        // at once). That defense had a real cost, confirmed on video:
+        // it also fired on EVERY wheel tick during a legitimate
+        // onEnterBack settle (entering from Solutions below), killing
+        // the settle tween before it could ever complete — the exact
+        // "auto-settle doesn't work, page judders" bug reported this
+        // round. The actual fix is below, at this section's own
+        // ScrollTrigger: 'bottom 40%' -> 'bottom 60%' makes Problems'
+        // end and Solutions' start cross at the identical scrollY, so
+        // the two ranges can no longer overlap at all — removing the
+        // need for a reactive kill-switch instead of tuning it.
         function settleIntoProblems() {
             if (problemsLocked || problemsSettling) return;
             problemsSettling = true;
             problemsHardBlockUntil = performance.now() + ENTRY_HARD_BLOCK_MS;
+            resetStringWaves(); // clear any bend left over from hovering a Solutions phrase before it can bleed into the docking-transition particles
             const restoreOverflow = killScrollMomentum();
             gsap.to(window, {
                 duration: 0.6,
@@ -1862,6 +1879,27 @@
                     problemsLocked = true;
                     problemsGestureAccum = 0;
                     openRift();
+                },
+                // A single instant jump (no scroll-behavior:smooth is set
+                // anywhere, so the nav bar's #solutions link is a plain
+                // one-shot native jump) can cross Problems' AND Solutions'
+                // entire trigger ranges in one native scroll event, firing
+                // both onEnters back to back. The second settle's own
+                // killScrollMomentum() then kills THIS tween via the
+                // shared gsap.killTweensOf(window) before onComplete ever
+                // runs, which would otherwise leave problemsSettling
+                // stuck true forever (nothing else clears it) and
+                // permanently swallow every wheel/touch event in this
+                // section. onInterrupt fires whenever a tween is killed
+                // before completing, so it's the correct place to
+                // guarantee the flag always gets cleared, not just on the
+                // happy path. restoreOverflow() is safe to call twice
+                // (the second settle already reset overflow itself via
+                // its own killScrollMomentum, but this keeps the pair
+                // self-contained regardless of ordering).
+                onInterrupt: () => {
+                    restoreOverflow();
+                    problemsSettling = false;
                 }
             });
         }
@@ -1890,15 +1928,6 @@
             gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
 
             window.addEventListener('wheel', (e) => {
-                // Upward, and not in the deliberate locked/exit-gesture
-                // state: instant release, no exceptions. Only outside
-                // problemsLocked (settling, or the transitional
-                // hard-block window after an exit) — the locked state
-                // itself keeps its own tuned gesture-threshold exit
-                // below (reconnect animation, not an abrupt cut),
-                // since that path already works and isn't what was
-                // reported broken.
-                if (e.deltaY < 0 && !problemsLocked) { releaseProblemsLock(); return; }
                 if (!isProblemsInteractionBlocked()) return; // normal scrolling everywhere else on the page, completely untouched
                 e.preventDefault();
                 if (!problemsLocked || performance.now() < problemsHardBlockUntil) return; // still settling / still inside the hard debounce window — swallow silently, no gesture accounting yet
@@ -1916,14 +1945,6 @@
                 problemsTouchStartY = e.touches[0].clientY;
             }, { passive: true });
             window.addEventListener('touchmove', (e) => {
-                // Same escape hatch as the wheel listener: a swipe whose
-                // direction means "scroll up" (finger moving down),
-                // outside the deliberately-preserved locked exit-gesture
-                // state, releases instantly.
-                if (!problemsLocked && problemsTouchStartY !== null) {
-                    const upDy = e.touches[0].clientY - problemsTouchStartY;
-                    if (upDy > 5) { releaseProblemsLock(); return; }
-                }
                 if (!isProblemsInteractionBlocked()) return;
                 e.preventDefault();
                 if (!problemsLocked || performance.now() < problemsHardBlockUntil) return;
@@ -1938,15 +1959,30 @@
 
             // The one and only ScrollTrigger for this section — a pure
             // threshold sensor, no pin, no scrub. onEnter/onEnterBack
-            // hand off to the settle+lock sequence above; onLeave/
-            // onLeaveBack are the keyboard-bypass safety net described
-            // above (exitProblems already calls hideWordInstantly for
-            // the normal wheel/touch path, so this is redundant there
-            // — cheap insurance, not the primary mechanism).
+            // hand off to the settle+lock sequence above, identically
+            // in both directions; onLeave/onLeaveBack are the keyboard-
+            // bypass safety net described above (exitProblems already
+            // calls hideWordInstantly for the normal wheel/touch path,
+            // so this is redundant there — cheap insurance, not the
+            // primary mechanism).
+            //
+            // end: 'bottom 60%' — deliberately matches Solutions' own
+            // start: 'top 60%' below. With zero-gap adjacent 100vh
+            // sections, this trigger's bottom edge IS the next
+            // section's top edge, so the two ScrollTriggers now cross
+            // that shared line at the exact same scrollY instead of
+            // 'bottom 40%' vs 'top 60%' leaving a ~0.2-viewport-height
+            // window where both were simultaneously "active" — that
+            // overlap was the root cause of a dead-lock two rounds ago
+            // (whichever lock ended up holding preventDefault()), and
+            // more recently of onEnterBack settles getting killed
+            // mid-flight by the reactive fix for that (see the comment
+            // on settleIntoProblems above). Matching thresholds removes
+            // the overlap at its source instead of patching around it.
             ScrollTrigger.create({
                 trigger: problemsSection,
                 start: 'top 60%',
-                end: 'bottom 40%',
+                end: 'bottom 60%',
                 onEnter: settleIntoProblems,
                 onEnterBack: settleIntoProblems,
                 onLeave: hideWordInstantly,
@@ -3141,19 +3177,20 @@
             return solutionsSettling || performance.now() < solutionsHardBlockUntil;
         }
 
-        // Escape hatch — the critical fix for the reported dead-lock:
-        // whatever state the settle/hold machinery is in, an upward
-        // gesture unconditionally and instantly clears every block and
-        // hands control straight back to native scroll. No waiting out
-        // a timer, no state to get stuck in — the very next scroll-up
-        // input always works.
-        function releaseSolutionsLock() {
-            solutionsSettling = false;
-            solutionsHardBlockUntil = 0;
-            gsap.killTweensOf(window);
-            document.documentElement.style.overflow = '';
-        }
-
+        // A previous round added an unconditional "any upward tick
+        // releases everything" escape hatch here, to defend against
+        // this section's trigger range overlapping Problems' own (see
+        // the long comment on Problems' settleIntoProblems). That
+        // defense is what was silently killing THIS section's own
+        // settle tween on the very next wheel tick after it started -
+        // Solutions is the last section, so onEnterBack here is rare
+        // in practice, but the SAME listener also reached into
+        // Problems' in-flight settle via the shared gsap.killTweensOf
+        // (window) call and aborted it too, since both locks' wheel
+        // listeners sit on the same window target. Now that Problems'
+        // own trigger end matches this section's start exactly (no
+        // overlap possible), this hatch has nothing left to defend
+        // against - removed rather than re-tuned.
         function settleIntoSolutions() {
             if (solutionsSettling || performance.now() < solutionsHardBlockUntil) return;
             solutionsSettling = true;
@@ -3168,28 +3205,46 @@
                     solutionsSettling = false;
                     igniteSolutionsReveal();
                     solutionsHardBlockUntil = performance.now() + SOLUTIONS_REVEAL_HOLD_MS;
+                },
+                // Same reasoning as settleIntoProblems' own onInterrupt:
+                // a single instant jump (e.g. the nav bar's #solutions
+                // link, or Problems' own settle starting right after
+                // this one in the same native scroll event) can kill
+                // this tween via the shared gsap.killTweensOf(window)
+                // before onComplete runs — without this, solutionsSettling
+                // would stay stuck true forever and permanently block
+                // scroll in this section.
+                onInterrupt: () => {
+                    restoreOverflow();
+                    solutionsSettling = false;
                 }
             });
+        }
+
+        // Hard reset on leaving, mirroring Problems' own
+        // hideWordInstantly - killTweensOf first is load-bearing, not
+        // decoration (see that function's comment): without it a
+        // still-running reveal tween keeps writing its own
+        // interpolated opacity a frame or two after this runs, which
+        // is exactly the kind of thing that would let Solutions' text
+        // linger visible after scrolling back up into Problems.
+        function hideSolutionsInstantly() {
+            gsap.killTweensOf([solutionsManifestoEl, solutionsParagraphEl]);
+            gsap.set([solutionsManifestoEl, solutionsParagraphEl], { opacity: 0, y: 24 });
+            solutionsHoveredPhrase = -1;
+            solutionsParagraphEl.classList.remove('has-active');
+            solutionPhraseEls.forEach(p => p.classList.remove('is-active'));
         }
 
         if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
             gsap.set([solutionsManifestoEl, solutionsParagraphEl], { opacity: 0, y: 24 });
 
             window.addEventListener('wheel', (e) => {
-                if (e.deltaY < 0) { releaseSolutionsLock(); return; } // scrolling up: instant release, never blocked
                 if (!isSolutionsInteractionBlocked()) return;
                 e.preventDefault();
             }, { passive: false });
 
-            let solutionsTouchStartY = null;
-            window.addEventListener('touchstart', (e) => {
-                solutionsTouchStartY = e.touches[0].clientY;
-            }, { passive: true });
             window.addEventListener('touchmove', (e) => {
-                if (solutionsTouchStartY !== null) {
-                    const dy = e.touches[0].clientY - solutionsTouchStartY; // finger moving down = content scrolling up/backward
-                    if (dy > 5) { releaseSolutionsLock(); return; }
-                }
                 if (!isSolutionsInteractionBlocked()) return;
                 e.preventDefault();
             }, { passive: false });
@@ -3197,9 +3252,11 @@
             ScrollTrigger.create({
                 trigger: solutionsSection,
                 start: 'top 60%',
-                end: 'bottom 40%',
+                end: 'bottom 60%',
                 onEnter: settleIntoSolutions,
                 onEnterBack: settleIntoSolutions,
+                onLeave: hideSolutionsInstantly,
+                onLeaveBack: hideSolutionsInstantly,
             });
         }
 
