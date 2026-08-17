@@ -264,7 +264,7 @@
             width: 100%;
             /* Height is set in JS (cacheSectionGeometry) from the exact
                numbers driving the fly-off animation, so the box always
-               ends exactly where the crossfade into #expertise ends —
+               ends exactly where the crossfade into #solutions ends —
                zero dead scroll, by construction. This fallback only
                matters for the instant before that JS runs. */
             height: 300vh;
@@ -624,145 +624,127 @@
         }
 
         /* ============================================================
-           Block 2 — Expertise & Tech Stack
+           Block 4 - Solutions. A monolithic visual statement, not a
+           list: no enumeration, no bullets, no numbering anywhere.
+           Fully static (no pin, no scroll-jack in the CSS sense) -
+           same page-snap lock ARCHITECTURE as #problems (see the JS
+           block), reusing the pattern but not the code (each lock is
+           self-contained; see that JS comment for why). Same shared
+           canvas underneath, its strings now amber/gold instead of
+           turquoise for this block specifically - see render()'s
+           three-stage color comment.
            ============================================================ */
-        /* Mirrors #portfolio's own pattern exactly: a plain scroll-through
-           box whose height is set in JS (cacheExpertiseGeometry) so its
-           sticky-zone hands off from #portfolio's with zero gap. No
-           background of its own — background: transparent lets the single
-           shared #space-canvas (now drawing the strings too) show through
-           underneath instead of a second, separately-colored layer. */
-        #expertise {
+        #solutions {
             position: relative;
             width: 100%;
-            height: 180vh;
-            background: transparent;
-        }
-        .expertise-sticky-zone {
-            position: sticky;
-            top: 0;
             height: 100vh;
-            width: 100vw;
-            /* box-sizing: border-box is load-bearing here, not cosmetic —
-               without it, this element's rendered height becomes
-               100vh + its own padding (content-box default), which
-               silently breaks the "zero gap" scroll-math elsewhere in
-               this file that assumes this box is EXACTLY 100vh tall (it
-               computes settleWindowPx and the sticky desticking boundary
-               from that assumption). Found by testing: adding padding
-               here made the zone 988px tall instead of 800px on an
-               800px-tall viewport, which pushed the sticky-pin boundary
-               past the page's actual max scroll — the Capabilities link
-               was landing exactly at the page's bottom, one frame past
-               where the zone was still pinned. */
-            box-sizing: border-box;
+            background: transparent;
             overflow: hidden;
             display: flex;
-            align-items: flex-start;
-            /* Flat px padding, not vh-based — the top value needs to hold
-               a PRECISE gap below the fixed 92px header (92 + 28 = 120,
-               inside the requested 20-30px band) regardless of viewport
-               height, which a vh component would have thrown off at
-               different screen sizes. Bottom trimmed to a small fixed
-               clearance for the same reason: predictable regardless of
-               vh, and this file's own math (settleWindowPx,
-               expertiseTopCached) doesn't depend on this padding at all
-               — only the content's own fit within the fixed 100vh box
-               does (see .expertise-stack/.expertise-row/.expertise-
-               heading below for the actual overflow fix). */
-            padding: 120px 0 24px;
+            align-items: center;
+            justify-content: center;
         }
-        .expertise-stack {
+        .solutions-grid {
             position: relative;
             z-index: 2;
             width: 100%;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 6vw;
+            box-sizing: border-box;
             display: flex;
-            flex-direction: column;
-            /* Cut from 5vh — at line-height 1.9 (see .expertise-heading)
-               the 4-row stack plus this gap plus the header-clearance
-               padding above genuinely didn't fit in 100vh on realistic
-               screens (measured: overflowed by ~70px on a wide-but-short
-               1920x600-class viewport, and was already only ~4px short
-               of overflowing even on a plain 800px-tall one) — this is
-               the actual fix for "High-End Product Solutions обрезается
-               экраном", not a cosmetic tweak. gap alone (no per-row
-               margin-bottom below, which just duplicated it) is now the
-               only spacing between rows. */
-            gap: 1.5vh;
-            pointer-events: none;
+            align-items: center;
+            gap: 4vw;
         }
-        .expertise-row {
-            display: flex;
-            pointer-events: auto;
+        .solutions-col-left {
+            flex: 0 0 40%;
+            max-width: 40%;
+            /* Occlusion mask, same principle as #problems's own -
+               painted directly on the column so it sits above the
+               canvas (z-index:1) but below this column's own text -
+               keeps the manifesto legible regardless of an amber
+               string passing behind it. */
+            background: radial-gradient(ellipse 78% 70% at 38% 50%, rgba(3, 3, 12, 0.85) 0%, rgba(3, 3, 12, 0.5) 45%, rgba(3, 3, 12, 0) 76%);
         }
-        /* True cascade — each row indented further right than the last,
-           strictly increasing, not an alternating left/right pattern. */
-        .expertise-row:nth-child(1) { padding-left: 4vw; }
-        .expertise-row:nth-child(2) { padding-left: 14vw; }
-        .expertise-row:nth-child(3) { padding-left: 24vw; }
-        .expertise-row:nth-child(4) { padding-left: 34vw; }
-
-        .expertise-heading {
+        .solutions-manifesto {
             font-family: 'Bricolage Grotesque', sans-serif;
             font-weight: 700;
-            font-size: clamp(26px, 4.6vw, 68px);
-            /* Journal-style air, not the tight display-type spacing the
-               first pass used: a taller line-height and slightly open
-               letter-spacing on a single line of text just reads as
-               generous vertical rhythm around it. Trimmed from 1.9 to
-               1.5 — still noticeably airier than a tight headline stack,
-               but 1.9 was the single biggest contributor to the 4-row
-               stack overflowing 100vh on shorter/wider real screens (see
-               .expertise-stack's own comment for the actual measurements
-               that drove this). */
-            letter-spacing: 0.05em;
-            line-height: 1.5;
+            font-size: clamp(26px, 2.9vw, 44px);
+            line-height: 1.3;
+            letter-spacing: -0.01em;
             color: #fff;
             margin: 0;
-            cursor: default;
             user-select: none;
-            white-space: nowrap;
-            /* Starts invisible — render()'s updateExpertiseHeadings() sets
-               this every frame, staggered per heading, once the particle
-               morph has finished and the user scrolls a bit further into
-               the settle window. No transition on opacity: the per-frame
-               JS update is already continuous/smooth, and a CSS
-               transition layered on top of a fast-changing target would
-               just lag behind it. */
-            opacity: 0;
-            /* mix-blend-mode: difference against the near-black canvas
-               behind it, the text stays effectively white (difference of
-               white and near-black is still white) — but where the
-               canvas is genuinely bright underneath (the aquamarine
-               string glow, boosted on hover — see updateHeadingHover()),
-               the difference blend visibly tints the letters, reading as
-               the light "showing through" them. Same technique this file
-               already uses on the Hero/Portfolio text for contrast
-               safety, applied here for the color interaction itself. */
-            mix-blend-mode: difference;
-            /* Resting transform; JS (see the mousemove listener below)
-               drives rotateX/rotateY directly via inline style once the
-               cursor is over the heading, tracking cursor position for a
-               genuine tilt-follows-cursor effect — a fixed CSS :hover
-               transform can't do that. Perspective stays 600px at rest;
-               JS switches to 1000px only while tilted, which is
-               invisible at rotate=0 so there's no seam. Transition
-               shortened for transform specifically so the tilt reads as
-               responsive tracking, not a laggy chase, while still
-               smoothing between individual mousemove samples. */
-            transform: perspective(600px) rotateX(0deg) rotateY(0deg);
-            transition: transform 0.15s ease-out, color 0.3s ease;
-            will-change: transform;
         }
-        .expertise-heading:hover {
-            color: #eafff5; /* the faintest mint tint on hover, not a full color swap — stays "почти белый" */
+        /* "dominance" - hollow outline in the block's own amber, not
+           the Problems block's white, so the one contoured word here
+           reads as tied to THIS block's identity. */
+        .solutions-manifesto .solutions-outline {
+            color: transparent;
+            -webkit-text-stroke: 2px rgba(255, 197, 120, 0.92);
         }
-        @media (max-width: 900px) {
-            .expertise-row:nth-child(1) { padding-left: 4vw; }
-            .expertise-row:nth-child(2) { padding-left: 8vw; }
-            .expertise-row:nth-child(3) { padding-left: 12vw; }
-            .expertise-row:nth-child(4) { padding-left: 16vw; }
-            .expertise-heading { font-size: 7vw; white-space: normal; }
+        .solutions-col-right {
+            position: relative;
+            flex: 0 0 56%;
+            max-width: 56%;
+        }
+        /* One continuous flowing paragraph - connectors and phrases
+           are BOTH real spans (not raw text nodes) specifically so
+           the hover-dim below can address every piece individually.
+           Opacity on the shared .solutions-paragraph parent would
+           multiply with any child's own opacity instead of letting a
+           hovered phrase "cancel it out" back to full brightness -
+           sibling-level opacity on every child avoids that trap. */
+        .solutions-paragraph {
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 300;
+            font-size: clamp(17px, 1.5vw, 23px);
+            line-height: 1.95;
+            letter-spacing: 0.005em;
+            color: rgba(255, 255, 255, 0.5);
+            margin: 0;
+        }
+        .solutions-connector {
+            transition: opacity 0.4s ease;
+            will-change: opacity;
+        }
+        .solution-phrase {
+            display: inline-block;
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-weight: 800;
+            font-size: 1.5em;
+            letter-spacing: 0;
+            color: #fff;
+            text-shadow: 0 0 15px rgba(255, 176, 60, 0.55), 0 0 40px rgba(255, 138, 24, 0.22);
+            transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transform: translate3d(0, 0, 0) scale(1);
+            will-change: opacity, transform;
+            cursor: default;
+        }
+        .solutions-paragraph.has-active .solutions-connector,
+        .solutions-paragraph.has-active .solution-phrase {
+            opacity: 0.15;
+        }
+        .solutions-paragraph.has-active .solution-phrase.is-active {
+            opacity: 1;
+            transform: translate3d(0, 0, 0) scale(1.05);
+        }
+        @media (max-width: 768px) {
+            .solutions-grid {
+                flex-direction: column;
+                align-items: flex-start;
+                justify-content: center;
+                gap: 3.5vh;
+                padding: 96px 6vw 32px;
+            }
+            .solutions-col-left, .solutions-col-right {
+                flex: none;
+                max-width: 100%;
+            }
+            .solutions-col-left { background: none; }
+            .solutions-manifesto { font-size: clamp(21px, 6vw, 28px); line-height: 1.25; }
+            .solutions-paragraph { font-size: clamp(14px, 3.6vw, 17px); line-height: 1.75; }
+            .solution-phrase { font-size: 1.4em; }
         }
     </style>
 </head>
@@ -775,7 +757,7 @@
             <a href="#" class="site-logo">B L A C K V E I L &nbsp; S T U D I O</a>
             <nav class="site-nav">
                 <a href="#portfolio" class="nav-link">Work</a>
-                <a href="#expertise" class="nav-link" id="nav-capabilities">Capabilities</a>
+                <a href="#solutions" class="nav-link" id="nav-capabilities">Capabilities</a>
                 <a href="#" class="nav-link">Process</a>
                 <a href="#" class="nav-link">About</a>
                 <a href="#" class="neon-btn neon-btn--small" id="lets-talk-btn">Let's Talk</a>
@@ -852,13 +834,13 @@
             </div>
         </section>
 
-        <section id="expertise">
-            <div class="expertise-sticky-zone">
-                <div class="expertise-stack">
-                    <div class="expertise-row"><h2 class="expertise-heading" data-heading="0">Design &amp; Art Direction</h2></div>
-                    <div class="expertise-row"><h2 class="expertise-heading" data-heading="1">Frontend Development</h2></div>
-                    <div class="expertise-row"><h2 class="expertise-heading" data-heading="2">Motion &amp; Interactive Web</h2></div>
-                    <div class="expertise-row"><h2 class="expertise-heading" data-heading="3">High-End Product Solutions</h2></div>
+        <section id="solutions">
+            <div class="solutions-grid">
+                <div class="solutions-col-left">
+                    <p class="solutions-manifesto">We pull your brand out of the dark. No templates. No limits. Just pure digital <span class="solutions-outline">dominance</span>.</p>
+                </div>
+                <div class="solutions-col-right">
+                    <p class="solutions-paragraph" id="solutions-paragraph"><span class="solutions-connector">We completely transform your business by delivering </span><span class="solution-phrase" data-phrase="0">DESIGN THAT SELLS</span><span class="solutions-connector"> through a fully independent </span><span class="solution-phrase" data-phrase="1">PREMIUM WEBSITE</span><span class="solutions-connector"> with </span><span class="solution-phrase" data-phrase="2">ULTRA-FAST LOADING</span><span class="solutions-connector"> and flawless </span><span class="solution-phrase" data-phrase="3">MOBILE INTERACTION</span><span class="solutions-connector">.</span></p>
                 </div>
             </div>
         </section>
@@ -918,7 +900,7 @@
         // position never changes) and "Explore Showcase" (normal
         // document flow inside Hero, scrolls with the page) get tracked
         // here in one shared array, so Hero's particle system and the
-        // Portfolio/Expertise orbitParticles morph can both pull toward
+        // Portfolio/Solutions orbitParticles morph can both pull toward
         // whichever buttons are actually near them without duplicating
         // this logic per system. Rects are cached once (load + resize —
         // never a per-frame layout read, per this file's established
@@ -946,7 +928,7 @@
         // synchronous initial cache and the settled layout in testing,
         // small enough to never break the effect but still worth
         // correcting since it's nearly free.
-        window.addEventListener('load', () => { cacheGravityButtons(); cacheHeadingRanges(); });
+        window.addEventListener('load', () => { cacheGravityButtons(); measureSolutionPhrases(); });
 
         function currentButtonRect(b) {
             if (b.kind === 'fixed') return b;
@@ -1147,7 +1129,7 @@
         const SQUIRCLE_EXP = 2 / 4; // exponent applied to |cos|/|sin|, i.e. 2/n for n=4
         // Single unified transition (see render()'s morph block below): the
         // SAME 900 particles that draw the galaxy's corner ring also draw
-        // the Expertise strings — no separate array, no second canvas.
+        // the Solutions strings — no separate array, no second canvas.
         // targetYFrac is each particle's fixed, even spread along a
         // string's full length once morphed in (0..1, independent of which
         // string it lands in — the column is picked live, every frame, by
@@ -1579,7 +1561,7 @@
             // the box in JS from the exact numbers driving the animation
             // removes it by construction: the section's own box now ends
             // exactly where the crossfade ends, so native document flow
-            // hands off to #expertise at the very instant the fly-off
+            // hands off to #solutions at the very instant the fly-off
             // completes — no re-tuned vh guess involved.
             PROGRESS_SCROLL_PX = height * 2;
             RELEASE_WINDOW_PX = height;
@@ -1857,7 +1839,7 @@
             gsap.delayedCall(0.4, () => {
                 const restoreOverflow = killScrollMomentum(); // same overshoot risk on the way out — kill any residual momentum before taking over
                 const targetY = direction === 'forward'
-                    ? expertiseSection.offsetTop
+                    ? solutionsSection.offsetTop
                     : Math.max(0, problemsTopCached - height);
                 gsap.to(window, {
                     duration: 0.7,
@@ -1985,8 +1967,8 @@
             cacheSectionGeometry();
             cacheProblemsGeometry();
             computeStringTargets();
-            cacheExpertiseGeometry();
-            cacheHeadingRanges();
+            cacheSolutionsGeometry();
+            measureSolutionPhrases();
             cacheGravityButtons();
             measureDynamicWord();
         });
@@ -2115,7 +2097,7 @@
             // #portfolio's CSS height is now sized to end exactly
             // RELEASE_WINDOW_PX past the release point, this guarantees
             // flyOffsetPx reaches its max (fully flown off) at exactly the
-            // same scrollY the section's box ends and #expertise begins
+            // same scrollY the section's box ends and #solutions begins
             // its native entry — the two animations share one window
             // instead of running back-to-back with dead scroll between
             // them. Applied to .portfolio-sticky-zone directly: sticky
@@ -2127,8 +2109,7 @@
             const releaseAmount = Math.max(0, Math.min(1, (scrollY - portfolioTopCached - releaseStartPx) / RELEASE_WINDOW_PX));
             const flyOffsetPx = releaseAmount * height;
             portfolioStickyZone.style.transform = flyOffsetPx > 0 ? `translateY(${-flyOffsetPx}px)` : '';
-            updateExpertiseHeadings();
-            updateHeadingHover();
+            updateSolutionsStringBoost();
             updateButtonHover();
 
             // --- nebula clouds — Hero-only now. Swells through the first half
@@ -2220,7 +2201,7 @@
                 // OWN decoration (rays, galaxy sprite, side streamers, rim
                 // dust, sparks, ripples) dissolves away via this fade,
                 // while orbitParticles (below) do the opposite — they stay
-                // fully present and morph into the Expertise strings. One
+                // fully present and morph into the Solutions strings. One
                 // shared array, one shared progress value, no separate
                 // "collapse to a point" stage and no second canvas to hand
                 // off to.
@@ -2241,19 +2222,20 @@
                 //
                 // TWO-STAGE morph, one particle array carrying the whole
                 // journey: galaxy ring -> horizon line (#problems) ->
-                // vertical strings (#expertise). Stage 1 uses morphT
+                // vertical strings (#solutions). Stage 1 uses morphT
                 // (releaseAmount, unchanged from before #problems
                 // existed); stage 2 uses morphT2 (problemsReleaseAmount,
                 // new). Since #problems only begins after #portfolio's
                 // own box ends, morphT is always pinned at 1 by the time
                 // morphT2 becomes relevant — stage 2 always starts from
                 // the fully-formed horizon line, never mid-flight from
-                // the galaxy. Color still lerps blue -> aquamarine
-                // (#00E5FF) over morphT alone (unchanged) — that's
-                // already the "неоново-бирюзовая" the horizon line needs,
-                // and it stays at that color through stage 2 too (the
-                // strings' own resting gradient is applied separately by
-                // the line-stroke pass below, same as before).
+                // the galaxy. THREE-stage color now: blue -> aquamarine
+                // over morphT (unchanged — that's the Problems horizon's
+                // own turquoise identity, untouched by this round), then
+                // aquamarine -> amber/gold over morphT2 as particles land
+                // on the Solutions strings, so the two blocks keep their
+                // own distinct colors and the transition between them
+                // reads as dust genuinely "heating up" as it arrives.
                 const orbitAngle = time * 0.00002;
                 const morphT = releaseAmount;
                 // Suppressed by (1 - riftT): the Quantum Rift and the
@@ -2273,9 +2255,20 @@
                 // reintroducing the real value as the rift finishes
                 // closing gives a clean handoff instead.
                 const morphT2 = problemsReleaseAmount() * (1 - riftState.t);
-                const morphColorR = Math.round(60 + (0 - 60) * morphT);
-                const morphColorG = Math.round(120 + (229 - 120) * morphT);
-                const morphColorB = 255;
+                // Stage 1 (galaxy -> horizon): blue -> aquamarine, over
+                // morphT, exactly as before.
+                const stage1ColorR = 60 + (0 - 60) * morphT;
+                const stage1ColorG = 120 + (229 - 120) * morphT;
+                const stage1ColorB = 255;
+                // Stage 2 (horizon -> strings): aquamarine -> amber/gold,
+                // over morphT2. At morphT2=0 this is identically the old
+                // stage-1 output, so Problems' own dust color is
+                // unchanged; it only shifts once particles actually
+                // start landing on the Solutions strings.
+                const AMBER_R = 245, AMBER_G = 158, AMBER_B = 40;
+                const morphColorR = Math.round(stage1ColorR + (AMBER_R - stage1ColorR) * morphT2);
+                const morphColorG = Math.round(stage1ColorG + (AMBER_G - stage1ColorG) * morphT2);
+                const morphColorB = Math.round(stage1ColorB + (AMBER_B - stage1ColorB) * morphT2);
 
                 // Brightness surge, duplicated per stage (each stage gets
                 // its own "energy" flight — the galaxy rushing into the
@@ -2334,6 +2327,7 @@
                 // energy keeps decaying properly.
                 if (morphT2 > 0.6) {
                     exciteStrings();
+                    exciteSolutionStrings();
                     stepStringWaves();
                 }
 
@@ -2575,8 +2569,8 @@
                         const depth = i / (STRING_COUNT - 1);
                         const boosted = lineAlpha * (1 + stringHeadingBoostByIndex[i] * 0.8);
                         const grad = ctx.createLinearGradient(sx, 0, sx, height);
-                        grad.addColorStop(0, `rgba(58, 52, 214, ${boosted})`);
-                        grad.addColorStop(1, `rgba(0, 245, 212, ${boosted * (1 - depth * 0.4)})`);
+                        grad.addColorStop(0, `rgba(120, 60, 15, ${boosted})`);
+                        grad.addColorStop(1, `rgba(255, 195, 80, ${boosted * (1 - depth * 0.4)})`);
                         ctx.strokeStyle = grad;
                         ctx.lineWidth = (1.6 - depth * 0.8) * (1 + dockFlash * 0.5);
                         strokeStringBezier(i, sx);
@@ -2607,8 +2601,8 @@
                             const glowR = 24 * 1.5;
                             const grad = ctx.createRadialGradient(sx, py, 0, sx, py, glowR);
                             const alpha = dockEnergy * fade * 0.5 * (1 + stringHeadingBoostByIndex[i] * 0.8);
-                            grad.addColorStop(0, `rgba(160, 240, 255, ${alpha})`);
-                            grad.addColorStop(1, `rgba(0, 229, 255, 0)`);
+                            grad.addColorStop(0, `rgba(255, 228, 180, ${alpha})`);
+                            grad.addColorStop(1, `rgba(255, 160, 40, 0)`);
                             ctx.beginPath();
                             ctx.arc(sx, py, glowR, 0, Math.PI * 2);
                             ctx.fillStyle = grad;
@@ -2935,160 +2929,217 @@
         requestAnimationFrame(render);
 
         // ============================================================
-        // Block 2 — Expertise & Tech Stack
+        // Block 4 - Solutions
         // ============================================================
-        // No canvas of its own anymore, no separate physics/rAF loop —
-        // the strings themselves are drawn by render() above, as part of
-        // the single orbitParticles morph on the one shared #space-canvas.
-        // All that's left here is: (1) sizing #expertise so its own
-        // sticky-zone hands off from #portfolio with zero gap, exactly
-        // the same principle #portfolio's own height already uses, and
-        // (2) fading each heading in, once pinned, as the user scrolls
-        // through a short settle window after the morph completes.
-        const expertiseSection = document.getElementById('expertise');
-        const expertiseHeadingEls = Array.from(document.querySelectorAll('.expertise-heading'));
-
-        // A short additional scroll-through budget, purely for the
-        // heading reveal — the particle morph itself lives entirely
-        // within #portfolio's own box (unchanged, ends exactly at
-        // expertiseTopCached, per the zero-gap fix from an earlier
-        // round). This is genuinely additional content to scroll through
-        // (the section settling into view and its text appearing), not
-        // dead space. Trimmed from 0.8x viewport height to 0.6x — the
-        // stagger formula below only needs settleProgress up to ~0.85 to
-        // fully reveal all 4 headings (last one starts at 0.45, needs
-        // +0.4), so 0.8x was leaving a genuinely empty trailing ~15-20%
-        // of the window after everything had already appeared. 0.6x
-        // still clears that 0.85 comfortably while cutting the dead tail.
-        let expertiseTopCached = 0;
-        let settleWindowPx = 0;
-        function cacheExpertiseGeometry() {
-            settleWindowPx = height * 0.6;
-            expertiseSection.style.height = (height + settleWindowPx) + 'px';
-            expertiseTopCached = expertiseSection.offsetTop;
+        // Strings are drawn by render() above (part of the shared
+        // orbitParticles morph, now amber/gold for this block - see
+        // that function's three-stage color comment). This block just
+        // needs: (1) a page-snap settle - NOT the full Problems-style
+        // enter/exit gesture lock (deliberately lighter: nothing here
+        // needs a "reconnect before leaving" reset the way Problems'
+        // rift did, so a settle-then-auto-release is enough - just the
+        // momentum-kill technique from that same block, reused here
+        // because the underlying bug is identical: native scroll
+        // momentum can carry the page past where it should land); (2)
+        // measuring where each of the 4 bold phrases actually lands on
+        // screen and mapping it to its nearest string column; (3) the
+        // hover interaction - dim siblings, pull the associated string
+        // toward the cursor, a soft amber brightness pulse reusing the
+        // same stringHeadingBoostByIndex mechanism this file already
+        // has for string brightness boosts.
+        const solutionsSection = document.getElementById('solutions');
+        let solutionsTopCached = 0;
+        function cacheSolutionsGeometry() {
+            solutionsTopCached = solutionsSection.offsetTop;
         }
-        cacheExpertiseGeometry();
+        cacheSolutionsGeometry();
 
-        function settleProgress() {
-            return Math.max(0, Math.min(1, (window.scrollY - expertiseTopCached) / settleWindowPx));
-        }
+        const solutionsParagraphEl = document.getElementById('solutions-paragraph');
+        const solutionPhraseEls = Array.from(document.querySelectorAll('.solution-phrase'));
+        const solutionsManifestoEl = document.querySelector('.solutions-manifesto');
 
-        // Header -> Capabilities anchor fix: a plain <a href="#expertise">
-        // relies on the browser's native anchor scroll, which lands
-        // exactly at expertiseSection.offsetTop — i.e. exactly
-        // expertiseTopCached, the scrollY where settleProgress is by
-        // definition still 0. That's the reported bug: click the nav
-        // link, land on a section where every heading is still at
-        // opacity 0, and nothing advances until the user scrolls
-        // manually. Fixed by intercepting the click and targeting a
-        // scrollY already past the settle window instead of the
-        // section's bare top — native smooth-scroll behavior is
-        // preserved (still an animated scroll, not a hard cut), it's
-        // just aimed at the point where settleProgress is already 1 by
-        // the time it arrives, so the whole block — strings and all 4
-        // headings — is standing fully formed the instant the scroll
-        // settles, with no additional manual scrolling needed.
-        const capabilitiesNavLink = document.getElementById('nav-capabilities');
-        if (capabilitiesNavLink) {
-            capabilitiesNavLink.addEventListener('click', (e) => {
-                e.preventDefault();
-                window.scrollTo({ top: expertiseTopCached + settleWindowPx, behavior: 'smooth' });
+        // Each phrase's nearest string column - recomputed on load and
+        // resize, not a fixed assignment, since the paragraph is real
+        // flowing text and where each phrase actually lands depends on
+        // viewport width/font metrics, not a hardcoded slot.
+        let solutionPhraseStringIndex = solutionPhraseEls.map(() => 0);
+        function measureSolutionPhrases() {
+            solutionPhraseEls.forEach((el, i) => {
+                const r = el.getBoundingClientRect();
+                const cx = r.left + r.width / 2;
+                let bestD = Infinity, bestIdx = 0;
+                stringTargetX.forEach((sx, si) => {
+                    const d = Math.abs(cx - sx);
+                    if (d < bestD) { bestD = d; bestIdx = si; }
+                });
+                solutionPhraseStringIndex[i] = bestIdx;
             });
         }
+        measureSolutionPhrases();
 
-        // Header/Hero -> Work anchor fix (covers both the nav link and
-        // the "Explore Showcase" button, same target). #portfolio's own
-        // reveal — the "scrolled"/"cards-revealed" classes that gate the
-        // title fade-in and the card container's opacity — is driven by
-        // a passive `scroll` event listener, not read from scrollY
-        // directly. Verified while testing this round: reaching the
-        // target scrollY is not a strict guarantee that listener has
-        // already run (a navigation that changes scrollY without a
-        // 'scroll' event landing in between would otherwise leave the
-        // cards permanently at opacity: 0, invisible, with nothing to
-        // ever trigger the reveal). Setting the classes directly here
-        // removes that dependency instead of trusting an async event to
-        // arrive before anyone looks. Target offset mirrors
-        // scroll-padding-top's effective behavior (-100px), since
-        // preventDefault()-ing the native jump means that CSS property
-        // no longer applies to this navigation.
-        document.querySelectorAll('a[href="#portfolio"]').forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                portfolioSection.classList.add('scrolled', 'cards-revealed');
-                window.scrollTo({ top: portfolioTopCached - 100, behavior: 'smooth' });
+        // Hover state - dim every sibling (both the other phrases AND
+        // the thin connecting text - see the CSS comment on why those
+        // are real spans, not raw text nodes) down to the hovered one.
+        let solutionsHoveredPhrase = -1;
+        solutionPhraseEls.forEach((el, i) => {
+            el.addEventListener('mouseenter', () => {
+                solutionsHoveredPhrase = i;
+                solutionsParagraphEl.classList.add('has-active');
+                solutionPhraseEls.forEach((p, j) => p.classList.toggle('is-active', j === i));
+            });
+            el.addEventListener('mouseleave', () => {
+                solutionsHoveredPhrase = -1;
+                solutionsParagraphEl.classList.remove('has-active');
+                solutionPhraseEls.forEach(p => p.classList.remove('is-active'));
             });
         });
 
-        // Staggered opacity-only reveal — no translateY, no growth-front
-        // tracking, just each heading fading in in its own slice of the
-        // settle window once the strings have already fully formed
-        // behind it. Called from render() every frame.
-        function updateExpertiseHeadings() {
-            const sp = settleProgress();
-            expertiseHeadingEls.forEach((h, i) => {
-                const start = i * 0.15;
-                const local = Math.max(0, Math.min(1, (sp - start) / 0.4));
-                h.style.opacity = local;
-            });
-        }
-
-        // Heading <-> string coupling: purely visual, no physics — the
-        // hovered heading never injects any displacement into the
-        // strings behind it, only a smoothed brightness multiplier
-        // (smoothed rather than a snap on/off, so it fades in/out rather
-        // than popping). headingHoverRanges cache each heading's on-
-        // screen X span (with a small margin) once, refreshed on resize;
-        // stringHeadingBoostByIndex is recomputed once a frame — the max
-        // hover intensity among any heading whose range covers that
-        // string's X — and read by index inside render()'s particle/
-        // line/pulse loops rather than doing this lookup per particle.
-        let headingHoverT = expertiseHeadingEls.map(() => 0);
-        let headingHoverRanges = expertiseHeadingEls.map(() => ({ left: -Infinity, right: -Infinity }));
-        function cacheHeadingRanges() {
-            headingHoverRanges = expertiseHeadingEls.map(h => {
-                const r = h.getBoundingClientRect();
-                return { left: r.left - 20, right: r.right + 20 };
-            });
-        }
-        cacheHeadingRanges();
-
+        // Brightness pulse - reuses the SAME stringHeadingBoostByIndex
+        // array render()'s particle/line/pulse loops already read (it
+        // used to be driven by the old Expertise heading hover; now by
+        // which solution phrase is hovered instead). Called every
+        // frame alongside updateButtonHover() below, unconditionally -
+        // cheap, and this file's own established pattern for this
+        // exact kind of per-frame DOM-driven lookup.
+        let solutionsHoverT = solutionPhraseEls.map(() => 0);
         const stringHeadingBoostByIndex = stringTargetX.map(() => 0);
-        function updateHeadingHover() {
-            expertiseHeadingEls.forEach((h, i) => {
-                const target = h.matches(':hover') ? 1 : 0;
-                headingHoverT[i] += (target - headingHoverT[i]) * 0.12;
+        function updateSolutionsStringBoost() {
+            solutionPhraseEls.forEach((el, i) => {
+                const target = (i === solutionsHoveredPhrase) ? 1 : 0;
+                solutionsHoverT[i] += (target - solutionsHoverT[i]) * 0.12;
             });
             stringTargetX.forEach((sx, si) => {
                 let boost = 0;
-                headingHoverRanges.forEach((r, i) => {
-                    if (sx >= r.left && sx <= r.right) boost = Math.max(boost, headingHoverT[i]);
+                solutionPhraseEls.forEach((el, i) => {
+                    if (solutionPhraseStringIndex[i] === si) boost = Math.max(boost, solutionsHoverT[i]);
                 });
                 stringHeadingBoostByIndex[si] = boost;
             });
         }
 
-        // Cursor-following 3D tilt. perspective(1000px) only while
-        // active — the resting CSS transform uses 600px, but that only
-        // matters once an angle is applied, so there's no visible seam
-        // switching between the two at rotate===0. mouseleave resets to
-        // the CSS resting transform (clearing the inline style) rather
-        // than animating to a hardcoded flat value, so it still respects
-        // whatever the base transform is.
-        expertiseHeadingEls.forEach(h => {
-            h.addEventListener('mousemove', (e) => {
-                const rect = h.getBoundingClientRect();
+        // String bend toward the cursor - reuses the SAME wave-physics
+        // engine as the general cursor-proximity string touch already
+        // in this file (stepStringWaves/stringWaveY), just with a
+        // different excitation source: continuous injection at the
+        // hovered phrase's own Y while hovered, rather than requiring
+        // the literal cursor to land within STRING_TOUCH_RADIUS of the
+        // string's raw X - hovering the TEXT is the trigger, not
+        // pixel-precision cursor placement. Skipped entirely on mobile
+        // (no cursor there; the brief asks for the strings to stay a
+        // static background on phones).
+        function exciteSolutionStrings() {
+            if (IS_MOBILE || solutionsHoveredPhrase < 0) return;
+            const si = solutionPhraseStringIndex[solutionsHoveredPhrase];
+            const el = solutionPhraseEls[solutionsHoveredPhrase];
+            const r = el.getBoundingClientRect();
+            const targetY = r.top + r.height / 2;
+            const j = Math.round((targetY / height) * STRING_SEGMENTS);
+            const pull = (mouse.x - stringTargetX[si]) * 0.05;
+            for (let dj = -1; dj <= 1; dj++) {
+                const jj = j + dj;
+                if (jj > 0 && jj < STRING_SEGMENTS) {
+                    stringWaveYPrev[si][jj] -= pull * (dj === 0 ? 0.16 : 0.07);
+                }
+            }
+        }
+
+        // Entrance/reset - opacity+y only (transform/opacity, GPU),
+        // matching the brief. Starts hidden via an inline style set
+        // only once GSAP is confirmed available below, same reasoning
+        // as #problems: a failed CDN load shouldn't leave this text
+        // permanently invisible.
+        function igniteSolutionsReveal() {
+            gsap.killTweensOf([solutionsManifestoEl, solutionsParagraphEl]);
+            gsap.fromTo([solutionsManifestoEl, solutionsParagraphEl],
+                { opacity: 0, y: 24 },
+                { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out', stagger: 0.15, force3D: true });
+        }
+
+        // Page-snap settle - the momentum-kill technique from
+        // #problems, reused because the underlying bug is identical: a
+        // fast trackpad/touch flick keeps animating scrollY via the
+        // browser's own native momentum, independent of further wheel
+        // events, so a section can be flown straight through even
+        // though JS reacted correctly to every event it received. This
+        // block doesn't need the FULL enter/exit gesture lock #problems
+        // has (nothing here needs a "reset before leaving" state) - just
+        // settle, reveal, and a brief protective hold so a stray scroll
+        // can't interrupt the reveal animation mid-flight, then release
+        // automatically.
+        let solutionsSettling = false;
+        let solutionsHardBlockUntil = 0;
+        const SOLUTIONS_ENTRY_HARD_BLOCK_MS = 500;
+        const SOLUTIONS_REVEAL_HOLD_MS = 950;
+
+        function killSolutionsScrollMomentum() {
+            gsap.killTweensOf(window);
+            const htmlEl = document.documentElement;
+            const frozenY = window.scrollY;
+            htmlEl.style.overflow = 'hidden';
+            window.scrollTo(0, frozenY);
+            return () => { htmlEl.style.overflow = ''; };
+        }
+
+        function isSolutionsInteractionBlocked() {
+            return solutionsSettling || performance.now() < solutionsHardBlockUntil;
+        }
+
+        function settleIntoSolutions() {
+            if (solutionsSettling || performance.now() < solutionsHardBlockUntil) return;
+            solutionsSettling = true;
+            solutionsHardBlockUntil = performance.now() + SOLUTIONS_ENTRY_HARD_BLOCK_MS;
+            const restoreOverflow = killSolutionsScrollMomentum();
+            gsap.to(window, {
+                duration: 0.6,
+                scrollTo: { y: solutionsTopCached, autoKill: false },
+                ease: 'power2.inOut',
+                onComplete: () => {
+                    restoreOverflow();
+                    solutionsSettling = false;
+                    igniteSolutionsReveal();
+                    solutionsHardBlockUntil = performance.now() + SOLUTIONS_REVEAL_HOLD_MS;
+                }
+            });
+        }
+
+        if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
+            gsap.set([solutionsManifestoEl, solutionsParagraphEl], { opacity: 0, y: 24 });
+
+            window.addEventListener('wheel', (e) => {
+                if (!isSolutionsInteractionBlocked()) return;
+                e.preventDefault();
+            }, { passive: false });
+            window.addEventListener('touchmove', (e) => {
+                if (!isSolutionsInteractionBlocked()) return;
+                e.preventDefault();
+            }, { passive: false });
+
+            ScrollTrigger.create({
+                trigger: solutionsSection,
+                start: 'top 60%',
+                end: 'bottom 40%',
+                onEnter: settleIntoSolutions,
+                onEnterBack: settleIntoSolutions,
+            });
+        }
+
+        // Cursor-following 3D tilt on the manifesto - a small, "едва
+        // заметный" touch matching the equivalent effect this file
+        // used to give the old Expertise headings.
+        if (solutionsManifestoEl) {
+            solutionsManifestoEl.addEventListener('mousemove', (e) => {
+                const rect = solutionsManifestoEl.getBoundingClientRect();
                 const relX = (e.clientX - rect.left) / rect.width - 0.5;
                 const relY = (e.clientY - rect.top) / rect.height - 0.5;
-                const maxTilt = 6; // degrees — "едва заметный", not a showpiece rotation
+                const maxTilt = 4;
                 const rotateY = relX * maxTilt * 2;
                 const rotateX = -relY * maxTilt;
-                h.style.transform = `perspective(1000px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg)`;
+                solutionsManifestoEl.style.transform = `perspective(1000px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg)`;
             });
-            h.addEventListener('mouseleave', () => {
-                h.style.transform = '';
+            solutionsManifestoEl.addEventListener('mouseleave', () => {
+                solutionsManifestoEl.style.transform = '';
             });
-        });
+        }
 
     </script>
 </body>
