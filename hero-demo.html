@@ -701,10 +701,20 @@
             font-size: clamp(17px, 1.5vw, 23px);
             line-height: 1.95;
             letter-spacing: 0.005em;
-            color: rgba(255, 255, 255, 0.5);
+            /* Every character is inside a .solutions-connector or
+               .solution-phrase span, both with their own explicit
+               color — this is just a sane fallback, not something
+               that actually paints. */
+            color: #fff;
             margin: 0;
         }
+        /* Stable 0.45 at rest — the color's own baked-in alpha wasn't
+           the readability problem by itself, but stacked with this
+           opacity it was reading as too faint to comfortably read the
+           whole sentence in one pass. */
         .solutions-connector {
+            color: #fff;
+            opacity: 0.45;
             transition: opacity 0.4s ease;
             will-change: opacity;
         }
@@ -715,12 +725,20 @@
             font-size: 1.5em;
             letter-spacing: 0;
             color: #fff;
-            text-shadow: 0 0 15px rgba(255, 176, 60, 0.55), 0 0 40px rgba(255, 138, 24, 0.22);
-            transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            /* Subtle at rest, not the full glow — the brief specifically
+               frames the golden text-shadow as something a phrase
+               "gets" on hover, so resting state stays close to plain
+               white and .is-active is where it actually lights up. */
+            text-shadow: 0 0 8px rgba(255, 176, 60, 0.22);
+            transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), text-shadow 0.4s ease;
             transform: translate3d(0, 0, 0) scale(1);
             will-change: opacity, transform;
             cursor: default;
         }
+        /* Strict hover focus: hovering ANY one phrase drags literally
+           everything else in the paragraph — every other phrase AND
+           every connector — down to 0.15, so only the hovered phrase
+           reads clearly. */
         .solutions-paragraph.has-active .solutions-connector,
         .solutions-paragraph.has-active .solution-phrase {
             opacity: 0.15;
@@ -728,6 +746,7 @@
         .solutions-paragraph.has-active .solution-phrase.is-active {
             opacity: 1;
             transform: translate3d(0, 0, 0) scale(1.05);
+            text-shadow: 0 0 16px rgba(255, 176, 60, 0.65), 0 0 42px rgba(255, 138, 24, 0.3);
         }
         @media (max-width: 768px) {
             .solutions-grid {
@@ -1812,6 +1831,22 @@
             return problemsSettling || problemsLocked || performance.now() < problemsHardBlockUntil;
         }
 
+        // Escape hatch, same reasoning and same fix as #solutions' own
+        // (see that block's comment): Problems' and Solutions' trigger
+        // ranges overlap (Problems' own end sits inside Solutions'
+        // own start), so a fast scroll can cross into both at once and
+        // leave either lock holding control depending on timing. An
+        // upward gesture unconditionally clearing THIS lock too closes
+        // that gap — whichever lock ends up stuck, scrolling up always
+        // gets you out immediately.
+        function releaseProblemsLock() {
+            problemsSettling = false;
+            problemsLocked = false;
+            problemsHardBlockUntil = 0;
+            gsap.killTweensOf(window);
+            document.documentElement.style.overflow = '';
+        }
+
         function settleIntoProblems() {
             if (problemsLocked || problemsSettling) return;
             problemsSettling = true;
@@ -1855,6 +1890,15 @@
             gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
 
             window.addEventListener('wheel', (e) => {
+                // Upward, and not in the deliberate locked/exit-gesture
+                // state: instant release, no exceptions. Only outside
+                // problemsLocked (settling, or the transitional
+                // hard-block window after an exit) — the locked state
+                // itself keeps its own tuned gesture-threshold exit
+                // below (reconnect animation, not an abrupt cut),
+                // since that path already works and isn't what was
+                // reported broken.
+                if (e.deltaY < 0 && !problemsLocked) { releaseProblemsLock(); return; }
                 if (!isProblemsInteractionBlocked()) return; // normal scrolling everywhere else on the page, completely untouched
                 e.preventDefault();
                 if (!problemsLocked || performance.now() < problemsHardBlockUntil) return; // still settling / still inside the hard debounce window — swallow silently, no gesture accounting yet
@@ -1869,9 +1913,17 @@
             }, { passive: false });
 
             window.addEventListener('touchstart', (e) => {
-                if (isProblemsInteractionBlocked()) problemsTouchStartY = e.touches[0].clientY;
+                problemsTouchStartY = e.touches[0].clientY;
             }, { passive: true });
             window.addEventListener('touchmove', (e) => {
+                // Same escape hatch as the wheel listener: a swipe whose
+                // direction means "scroll up" (finger moving down),
+                // outside the deliberately-preserved locked exit-gesture
+                // state, releases instantly.
+                if (!problemsLocked && problemsTouchStartY !== null) {
+                    const upDy = e.touches[0].clientY - problemsTouchStartY;
+                    if (upDy > 5) { releaseProblemsLock(); return; }
+                }
                 if (!isProblemsInteractionBlocked()) return;
                 e.preventDefault();
                 if (!problemsLocked || performance.now() < problemsHardBlockUntil) return;
@@ -3034,7 +3086,12 @@
             const r = el.getBoundingClientRect();
             const targetY = r.top + r.height / 2;
             const j = Math.round((targetY / height) * STRING_SEGMENTS);
-            const pull = (mouse.x - stringTargetX[si]) * 0.05;
+            // Amplitude cut 3.5x from the first pass (0.05 -> ~0.0143) —
+            // the original read as the string flying a quarter-screen
+            // and slicing through neighboring words. Still only 3
+            // segments wide (dj -1..1), so the bend stays tight and
+            // local to the hovered phrase's own row, not spreading.
+            const pull = (mouse.x - stringTargetX[si]) * (0.05 / 3.5);
             for (let dj = -1; dj <= 1; dj++) {
                 const jj = j + dj;
                 if (jj > 0 && jj < STRING_SEGMENTS) {
@@ -3084,6 +3141,19 @@
             return solutionsSettling || performance.now() < solutionsHardBlockUntil;
         }
 
+        // Escape hatch — the critical fix for the reported dead-lock:
+        // whatever state the settle/hold machinery is in, an upward
+        // gesture unconditionally and instantly clears every block and
+        // hands control straight back to native scroll. No waiting out
+        // a timer, no state to get stuck in — the very next scroll-up
+        // input always works.
+        function releaseSolutionsLock() {
+            solutionsSettling = false;
+            solutionsHardBlockUntil = 0;
+            gsap.killTweensOf(window);
+            document.documentElement.style.overflow = '';
+        }
+
         function settleIntoSolutions() {
             if (solutionsSettling || performance.now() < solutionsHardBlockUntil) return;
             solutionsSettling = true;
@@ -3106,10 +3176,20 @@
             gsap.set([solutionsManifestoEl, solutionsParagraphEl], { opacity: 0, y: 24 });
 
             window.addEventListener('wheel', (e) => {
+                if (e.deltaY < 0) { releaseSolutionsLock(); return; } // scrolling up: instant release, never blocked
                 if (!isSolutionsInteractionBlocked()) return;
                 e.preventDefault();
             }, { passive: false });
+
+            let solutionsTouchStartY = null;
+            window.addEventListener('touchstart', (e) => {
+                solutionsTouchStartY = e.touches[0].clientY;
+            }, { passive: true });
             window.addEventListener('touchmove', (e) => {
+                if (solutionsTouchStartY !== null) {
+                    const dy = e.touches[0].clientY - solutionsTouchStartY; // finger moving down = content scrolling up/backward
+                    if (dy > 5) { releaseSolutionsLock(); return; }
+                }
                 if (!isSolutionsInteractionBlocked()) return;
                 e.preventDefault();
             }, { passive: false });
