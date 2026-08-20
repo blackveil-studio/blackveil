@@ -1420,10 +1420,17 @@
         // B at or above R, which is what made the first pass read as
         // "Hero again" despite the different exact RGB values. Nothing
         // here has B higher than about half of R.
+        // Weighted toward vivid raspberry specifically (duplicated, not
+        // just added, so it wins the random pick roughly half the
+        // time) - the block's own signature color, per direct request
+        // for more of it. Wine and ember stay as minority accents for
+        // depth/warmth rather than dominating the mix.
         const quizCloudColors = [
+            { r: 226, g: 26,  b: 104 },  // vivid raspberry
+            { r: 226, g: 26,  b: 104 },
+            { r: 214, g: 64,  b: 104 },  // warm magenta-pink
             { r: 182, g: 28,  b: 68  },  // crimson rose
             { r: 138, g: 16,  b: 42  },  // deep wine
-            { r: 214, g: 64,  b: 104 },  // warm magenta-pink
             { r: 208, g: 96,  b: 54  }   // ember rose-gold - bridges toward Solutions' own amber
         ];
         function initQuizNebulaClouds() {
@@ -1441,7 +1448,7 @@
                     x: 0, y: 0,
                     radius: Math.random() * 150 + 170,
                     r: c.r, g: c.g, b: c.b,
-                    baseAlpha: Math.random() * 0.14 + 0.1,
+                    baseAlpha: Math.random() * 0.16 + 0.13,
                     angle: Math.random() * Math.PI * 2,
                     speed: (Math.random() * 0.0012 + 0.0004) / 3,
                     pulsePhase: Math.random() * Math.PI * 2,
@@ -2351,6 +2358,54 @@
             });
         }
 
+        // A native anchor jump (any nav-link click) or a single fast
+        // flick can cross Problems' entire onEnter range in one native
+        // scroll event, exactly like the "single instant jump" case
+        // already documented above for onEnterBack. Confirmed directly:
+        // clicking the Quiz nav link from the top of the page fired
+        // onEnter mid-flight and settleIntoProblems() then forced
+        // scroll back to Problems' own top, hijacking the click's real
+        // destination - this is the "the header menu breaks the site"
+        // report. Deferring the decision by one short beat and only
+        // actually settling if the ScrollTrigger instance is STILL
+        // active at that point (self.isActive) tells apart "the user's
+        // scroll genuinely came to rest inside Problems" from "this
+        // was just a waypoint on a much larger jump" - a real
+        // incremental scroll into Problems is unaffected (its own
+        // deceleration already keeps it here well past 120ms), while a
+        // jump headed further has already moved on by the time this
+        // fires, so it correctly skips the hijack.
+        let problemsEnterCheckTimer = null;
+        function maybeSettleIntoProblems(self) {
+            if (problemsEnterCheckTimer) clearTimeout(problemsEnterCheckTimer);
+            problemsEnterCheckTimer = setTimeout(() => {
+                problemsEnterCheckTimer = null;
+                if (self.isActive) settleIntoProblems();
+            }, 120);
+        }
+
+        // Re-entering Problems from BELOW (scrolling up out of
+        // Solutions) no longer force-scrolls or re-engages the hard
+        // lock at all - it's now a plain reveal, the same minimal
+        // pattern Solutions/Quiz already use. Two real reports drove
+        // this: (1) forcing a hard snap-to-exact-top on ANY upward
+        // crossing, however small, meant the slightest nudge triggered
+        // the full settle tween + rift-reopen + word pop-in sequence,
+        // which is what read as ugly "sticks" flashing in; (2) because
+        // that same forced scrollTo can itself cross back OUT of
+        // Solutions' own range while completing, a fast scroll up from
+        // Quiz would get caught by Problems' snap before the user ever
+        // got to experience Solutions, reading as "it skips straight
+        // to Problems." Removing the force here fixes both at once:
+        // scrolling up now glides through Solutions and into Problems
+        // exactly as it visually should, with the word/rift simply
+        // fading back in along the way instead of yanking the page.
+        function revealProblemsPlain() {
+            if (problemsLocked || problemsSettling) return; // already mid-lock via the forward path - don't fight it
+            resetStringWaves();
+            openRift();
+        }
+
         function exitProblems(direction) {
             if (!problemsLocked) return;
             problemsLocked = false;
@@ -2430,8 +2485,8 @@
                 trigger: problemsSection,
                 start: 'top 60%',
                 end: 'bottom 60%',
-                onEnter: settleIntoProblems,
-                onEnterBack: settleIntoProblems,
+                onEnter: maybeSettleIntoProblems,
+                onEnterBack: revealProblemsPlain,
                 onLeave: hideWordInstantly,
                 onLeaveBack: hideWordInstantly,
             });
@@ -3555,6 +3610,37 @@
                 ctx.beginPath();
                 ctx.arc(s.x, s.y, 1.8, 0, Math.PI * 2);
                 ctx.fill();
+            }
+
+            // Edge vignette - only present as the canvas approaches its
+            // own cap (MAX_CANVAS_W/H). At an ordinary viewport size
+            // this is fully zero (capProximity 0), so it never touches
+            // Problems' own glow band, which was deliberately fixed
+            // last round to reach the TRUE screen edges with no hard
+            // cutoff. Only once the canvas is large enough to be
+            // sitting inside a visibly bigger black margin (a huge
+            // monitor, or extreme zoom-out) does this fade the
+            // composition's own busy content back toward the shared
+            // background color before it hits that edge, so the capped
+            // canvas reads as a field that organically thins out rather
+            // than a hard rectangle dropped onto plain black. One
+            // extra full-canvas radial gradient fill - cheap regardless
+            // of particle count, unlike rendering further into the
+            // margin itself would be.
+            // canvasOffsetX/Y are exactly 0 unless capping is actually
+            // active (real viewport bigger than the cap in that
+            // dimension) - keying off them directly, rather than off
+            // width/height themselves, means every ordinary viewport
+            // (1440px, 1920px, whatever, as long as it fits under the
+            // cap) gets exactly zero vignette, and only a real margin
+            // fades anything.
+            const vignetteStrength = Math.min(1, Math.max(canvasOffsetX, canvasOffsetY) / 400);
+            if (vignetteStrength > 0.01) {
+                const vignetteGrad = ctx.createRadialGradient(width / 2, height / 2, Math.min(width, height) * 0.32, width / 2, height / 2, Math.max(width, height) * 0.64);
+                vignetteGrad.addColorStop(0, 'rgba(3, 3, 12, 0)');
+                vignetteGrad.addColorStop(1, `rgba(3, 3, 12, ${vignetteStrength})`);
+                ctx.fillStyle = vignetteGrad;
+                ctx.fillRect(0, 0, width, height);
             }
 
             requestAnimationFrame(render);
