@@ -1451,7 +1451,16 @@
         ];
         function initQuizNebulaClouds() {
             quizNebulaClouds.length = 0;
-            for (let i = 0; i < 9; i++) {
+            // 14, not 9 - with fully random placement, 9 clouds left
+            // real run-to-run variance in how full the field looked
+            // (confirmed directly: two screenshots of the same page,
+            // one sparse/washed-out, one rich, from nothing but
+            // Math.random() landing differently). More samples evens
+            // that out by the law of large numbers instead of leaving
+            // it to luck. baseAlpha's floor is also raised so even an
+            // unlucky draw still reads as vivid, per direct request to
+            // brighten the block overall.
+            for (let i = 0; i < 14; i++) {
                 const c = quizCloudColors[Math.floor(Math.random() * quizCloudColors.length)];
                 quizNebulaClouds.push({
                     // Wider, less centered spread than a single "glow
@@ -1464,7 +1473,7 @@
                     x: 0, y: 0,
                     radius: Math.random() * 150 + 170,
                     r: c.r, g: c.g, b: c.b,
-                    baseAlpha: Math.random() * 0.16 + 0.13,
+                    baseAlpha: Math.random() * 0.14 + 0.22,
                     angle: Math.random() * Math.PI * 2,
                     speed: (Math.random() * 0.0012 + 0.0004) / 3,
                     pulsePhase: Math.random() * Math.PI * 2,
