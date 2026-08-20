@@ -715,8 +715,11 @@
             margin: 0;
         }
         /* Serif italic against the phrases' heavy grotesk caps - a
-           genuine typeface pairing (contrast of FORM, not just size)
-           rather than the same sans in a lighter weight. Georgia is a
+           genuine typeface pairing (contrast of FORM, not just size).
+           Sized close to the phrases now (was roughly half their size,
+           now nearly on par) so the contrast reads as weight/style -
+           heavy massive grotesk vs. slender elegant italic - rather
+           than one being simply bigger than the other. Georgia is a
            safe system serif with a proper italic cut, so this needs no
            extra font load. */
         .solutions-connector {
@@ -724,27 +727,30 @@
             font-family: Georgia, 'Times New Roman', serif;
             font-weight: 400;
             font-style: italic;
-            font-size: clamp(21px, 1.85vw, 27px);
-            line-height: 1.5;
-            letter-spacing: 0.01em;
+            font-size: clamp(38px, 3.3vw, 49px);
+            line-height: 1.2;
+            letter-spacing: 0.005em;
             color: #fff;
             opacity: 0.5;
-            margin: 0.6em 0 0 0;
+            margin: 0.2em 0 0 0;
             transition: opacity 0.4s ease;
             will-change: opacity;
         }
         .solutions-connector--intro {
             margin-top: 0;
         }
-        /* Massive bold caps - the block's own visual anchor, on the
-           exact same left edge as the connectors above and below it
-           (see .solutions-paragraph). */
+        /* Bold caps - reined in from the previous "massive" scale
+           (~30-35% smaller) specifically so they sit closer to the
+           connectors' own new size, per the brief: a dense, single-
+           breath editorial block rather than a few huge accents
+           punctuated by gaps. Same left edge as the connectors above
+           and below it (see .solutions-paragraph). */
         .solution-phrase {
             display: block;
-            white-space: nowrap; /* a single massive line is the intended read - never wrap mid-phrase */
+            white-space: nowrap; /* a single line is the intended read - never wrap mid-phrase */
             font-family: 'Bricolage Grotesque', sans-serif;
             font-weight: 800;
-            font-size: clamp(34px, 3.6vw, 58px);
+            font-size: clamp(23px, 2.4vw, 39px);
             letter-spacing: 0.01em;
             line-height: 1.05;
             color: #fff;
@@ -753,7 +759,7 @@
                "gets" on hover, so resting state stays close to plain
                white and .is-active is where it actually lights up. */
             text-shadow: 0 0 8px rgba(255, 176, 60, 0.22);
-            margin: 0.3em 0 0 0;
+            margin: 0.15em 0 0 0;
             transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), text-shadow 0.4s ease;
             transform: translate3d(0, 0, 0) scale(1);
             will-change: opacity, transform;
@@ -787,12 +793,15 @@
             .solutions-col-left { background: none; }
             .solutions-col-right { padding-left: 0; } /* the string-gap nudge is a desktop-only concern - stacked mobile columns don't need it and every extra px counts on a phone width */
             .solutions-manifesto { font-size: clamp(21px, 6vw, 28px); line-height: 1.25; }
-            /* Brighter than desktop's 0.5 - thin italic text needs the
-               extra contrast to stay readable outdoors on a phone
-               screen, per the brief. */
-            .solutions-connector { font-size: clamp(14px, 3.8vw, 18px); opacity: 0.6; margin-top: 0.5em; }
+            /* Same near-1:1 balance as desktop, scaled down - brighter
+               than the desktop 0.5 too, since thin italic text needs
+               the extra contrast to stay readable outdoors on a phone
+               screen, per the brief. Connectors are allowed to wrap
+               here (unlike phrases) - ordinary sentence fragments
+               wrapping is normal typographic behavior, not a bug. */
+            .solutions-connector { font-size: clamp(25px, 6.8vw, 32px); line-height: 1.2; opacity: 0.6; margin-top: 0.2em; }
             .solutions-connector--intro { margin-top: 0; }
-            .solution-phrase { font-size: clamp(24px, 8vw, 34px); margin: 0.25em 0 0 0 !important; }
+            .solution-phrase { font-size: clamp(16px, 5.4vw, 23px); margin: 0.15em 0 0 0 !important; }
         }
     </style>
 </head>
