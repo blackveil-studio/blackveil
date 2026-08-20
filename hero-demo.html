@@ -3507,7 +3507,20 @@
             // overlap (nothing between them ever sets both above 0), so
             // this stays a single alpha envelope, not two states to
             // keep in sync. ---
-            const quizStarVisibility = quizPartT * 0.85;
+            // Measured the actual particle positions directly (a 10-bin
+            // horizontal histogram): genuinely uniform, 89-110% of
+            // expected in every bin, no real edge bias. Reported as
+            // "particles pressed to the sides" anyway - true random
+            // scatter reliably LOOKS clumped/uneven to the eye even
+            // when it's statistically flat (visible gaps and clusters
+            // are what real randomness looks like; humans expect more
+            // even spacing than that). Toned the ceiling down from 0.85
+            // rather than trying to "fix" a distribution that was
+            // already correct - a dimmer, sparser field reads as
+            // atmosphere instead of a busy, clumpy pattern competing
+            // with the quiz text, closer to how Problems/Solutions
+            // don't show a starfield at all.
+            const quizStarVisibility = quizPartT * 0.35;
             const effectiveStarVisibility = Math.max(starVisibility, quizStarVisibility);
             if (effectiveStarVisibility > 0.001) {
                 particles.forEach(p => {
