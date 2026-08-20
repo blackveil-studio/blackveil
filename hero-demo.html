@@ -39,12 +39,32 @@
                anchor target. */
             scroll-padding-top: 100px;
         }
+        /* Capped and centered instead of always covering the raw
+           viewport - at extreme browser zoom-out (e.g. 25%) the
+           effective CSS viewport can balloon to several times a normal
+           screen's size, and this canvas's particle counts are fixed,
+           so the exact same field spread across that much more area
+           reads as scattered and the backing-store buffer (proportional
+           to width*height*dpr^2) gets enormous, which is the real
+           source of the reported slowdown. Capping keeps both the
+           composition's density and the render cost constant past a
+           normal screen size, and centering (rather than anchoring
+           top-left) is what keeps it looking intentional instead of
+           pinned to one corner.
+           top/left/width/height are set from JS (see canvasOffsetX/Y
+           and resizeCanvasForDPR below), not CSS vw units - a CSS
+           min(100vw, Npx) here measured ~7px off from what JS's own
+           window.innerWidth reports (a scrollbar-width discrepancy),
+           which would have misaligned mouse tracking and every other
+           DOM-rect-vs-canvas-space comparison in this file even at
+           perfectly normal viewport sizes. Driving both the visual box
+           and the coordinate math from the exact same numbers removes
+           that ambiguity entirely. body/html already share this exact
+           background color, so whatever margin becomes visible around
+           a capped canvas on a very wide viewport reads as more empty
+           space, not a mismatched edge. */
         #space-canvas {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
             z-index: 1;
             pointer-events: none;
         }
@@ -840,7 +860,11 @@
             font-family: 'DM Sans', sans-serif;
             font-size: 26px;
             line-height: 1;
-            padding: 6px 10px;
+            /* Enlarged from 6px/10px - the glyph itself measured a
+               27x38px tap target, under the ~40px minimum for a
+               comfortable thumb tap. Padding grows the hit area without
+               changing the visual arrow's own size. */
+            padding: 13px 17px;
             cursor: pointer;
             opacity: 0;
             pointer-events: none;
@@ -995,6 +1019,7 @@
             <nav class="site-nav">
                 <a href="#portfolio" class="nav-link">Work</a>
                 <a href="#solutions" class="nav-link" id="nav-capabilities">Capabilities</a>
+                <a href="#quiz" class="nav-link">Quiz</a>
                 <a href="#" class="nav-link">Process</a>
                 <a href="#" class="nav-link">About</a>
                 <a href="#" class="neon-btn neon-btn--small" id="lets-talk-btn">Let's Talk</a>
@@ -1169,8 +1194,25 @@
         // browser stretches a 1x-resolution canvas up to fill the physical
         // pixels, and every small sharp dot blurs into a soft, oversized
         // glow — reads exactly like a halo that isn't actually drawn.
-        let width = window.innerWidth;
-        let height = window.innerHeight;
+        //
+        // Capped - width/height here are what EVERY piece of particle/
+        // layout math in this file treats as "the canvas", so capping
+        // them here is what actually shrinks the particle count's
+        // effective density and the draw cost back down at an extreme
+        // viewport size, not just the visual box. canvasOffsetX/Y is how
+        // far the (now possibly smaller-than-viewport) canvas sits from
+        // the real top-left corner - both drive the canvas element's own
+        // actual position/size too (see resizeCanvasForDPR below), and
+        // every raw DOM/pointer coordinate this file compares against
+        // canvas-space positions (mouse tracking, gravity buttons, word-
+        // position measurements) needs this subtracted once, right at
+        // the point it's captured.
+        const MAX_CANVAS_W = 1920;
+        const MAX_CANVAS_H = 1200;
+        let width = Math.min(window.innerWidth, MAX_CANVAS_W);
+        let height = Math.min(window.innerHeight, MAX_CANVAS_H);
+        let canvasOffsetX = (window.innerWidth - width) / 2;
+        let canvasOffsetY = (window.innerHeight - height) / 2;
         // One coarse device-class gate, computed once — used to halve/
         // third particle density and to skip the Problems block's
         // canvas-side word-cycle effects on phones (text-only swap
@@ -1190,6 +1232,16 @@
             canvas.width = width * dpr;
             canvas.height = height * dpr;
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            // Pixel-exact, driven by the same numbers as every coordinate
+            // calculation elsewhere in this file (see canvasOffsetX/Y
+            // above) - not CSS vw units, which measured a few pixels off
+            // from window.innerWidth (scrollbar-width discrepancy) and
+            // would have thrown off mouse tracking and every other DOM-
+            // rect comparison even at ordinary viewport sizes.
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
+            canvas.style.left = canvasOffsetX + 'px';
+            canvas.style.top = canvasOffsetY + 'px';
         }
         resizeCanvasForDPR();
 
@@ -1210,15 +1262,21 @@
         const gravityButtons = [];
         function cacheGravityButtons() {
             gravityButtons.length = 0;
+            // Every stored coordinate has canvasOffsetX/Y subtracted right
+            // here, once - everything downstream that reads these rects
+            // (buttonGravityOffset, the render() calls that use it) can
+            // then compare directly against canvas-space particle
+            // positions without knowing or caring that the canvas might
+            // be smaller than the real viewport.
             const letsTalk = document.getElementById('lets-talk-btn');
             if (letsTalk) {
                 const r = letsTalk.getBoundingClientRect();
-                gravityButtons.push({ el: letsTalk, kind: 'fixed', left: r.left, top: r.top, right: r.right, bottom: r.bottom, hoverT: 0 });
+                gravityButtons.push({ el: letsTalk, kind: 'fixed', left: r.left - canvasOffsetX, top: r.top - canvasOffsetY, right: r.right - canvasOffsetX, bottom: r.bottom - canvasOffsetY, hoverT: 0 });
             }
             const heroCta = document.getElementById('hero-cta-btn');
             if (heroCta) {
                 const r = heroCta.getBoundingClientRect();
-                gravityButtons.push({ el: heroCta, kind: 'scrolling', docTop: r.top + window.scrollY, docLeft: r.left, w: r.width, h: r.height, hoverT: 0 });
+                gravityButtons.push({ el: heroCta, kind: 'scrolling', docTop: r.top + window.scrollY - canvasOffsetY, docLeft: r.left - canvasOffsetX, w: r.width, h: r.height, hoverT: 0 });
             }
         }
         cacheGravityButtons();
@@ -1757,7 +1815,7 @@
 
         // raw cursor position, no smoothing/lerp on the mouse itself — the
         // "smoothness" now comes entirely from the particles' own friction
-        document.addEventListener('mousemove', function(e){ mouse.x = e.clientX; mouse.y = e.clientY; });
+        document.addEventListener('mousemove', function(e){ mouse.x = e.clientX - canvasOffsetX; mouse.y = e.clientY - canvasOffsetY; });
 
         // --- Portfolio: sticky centered text, two columns of real projects
         // floating past at different scroll-linked speeds ---
@@ -2003,7 +2061,7 @@
             if (!dynamicWordEl) return;
             const wordRow = dynamicWordEl.parentElement;
             const r = wordRow.getBoundingClientRect();
-            dynamicWordCenterX = r.left + r.width / 2;
+            dynamicWordCenterX = r.left + r.width / 2 - canvasOffsetX;
             dynamicWordHalfWidth = r.width / 2 + 60;
         }
         measureDynamicWord();
@@ -2165,6 +2223,18 @@
         // defense in depth, per the brief.
         let problemsLocked = false;
         let problemsSettling = false;
+        // On reload, the browser restores scroll position BEFORE this
+        // script runs, so by the time ScrollTrigger.create() below
+        // evaluates the Problems trigger against that already-restored
+        // position, it sees a range that's already been "passed" and
+        // fires onEnter as part of its own initial sync - even though
+        // no real user scroll ever crossed it. settleIntoProblems()
+        // then forces scroll to Problems' own top, which is exactly
+        // why reloading anywhere below Problems always snapped back
+        // there instead of staying put. This flag suppresses that one
+        // synthetic initial firing; cleared right after setup so every
+        // REAL scroll-driven crossing afterward still locks normally.
+        let pageInitialLoad = true;
         let problemsGestureAccum = 0;
         let problemsLastWheelTime = 0;
         let problemsTouchStartY = null;
@@ -2231,7 +2301,7 @@
         // the two ranges can no longer overlap at all — removing the
         // need for a reactive kill-switch instead of tuning it.
         function settleIntoProblems() {
-            if (problemsLocked || problemsSettling) return;
+            if (pageInitialLoad || problemsLocked || problemsSettling) return;
             problemsSettling = true;
             resetStringWaves(); // clear any bend left over from hovering a Solutions phrase before it can bleed into the docking-transition particles
             const restoreOverflow = killScrollMomentum();
@@ -2426,8 +2496,10 @@
         });
 
         window.addEventListener('resize', () => {
-            width = window.innerWidth;
-            height = window.innerHeight;
+            width = Math.min(window.innerWidth, MAX_CANVAS_W);
+            height = Math.min(window.innerHeight, MAX_CANVAS_H);
+            canvasOffsetX = (window.innerWidth - width) / 2;
+            canvasOffsetY = (window.innerHeight - height) / 2;
             resizeCanvasForDPR();
             cacheSectionGeometry();
             cacheProblemsGeometry();
@@ -2831,14 +2903,29 @@
                 // involvement anywhere in this file drives the strings
                 // (Solutions' own "Signal Points" design deliberately
                 // leaves every string exactly as-is - see that block's
-                // own comment for why). Only live once the strings are
-                // a recognizable thing to touch (morphT2 > 0.6 — the
-                // OLD gate was releaseAmount, which now just means
-                // "horizon formed", not "strings formed"); stepped
-                // every frame regardless so residual energy keeps
-                // decaying properly.
+                // own comment for why). Only touchable once the strings
+                // are a recognizable thing to touch (morphT2 > 0.6 —
+                // the OLD gate was releaseAmount, which now just means
+                // "horizon formed", not "strings formed").
+                //
+                // stepStringWaves() itself runs on a WIDER gate than
+                // excite - matching the string's own draw condition
+                // below (morphT2 > 0.15) - so a bend from hovering a
+                // Solutions phrase keeps relaxing via its own damping
+                // physics for the whole time the string is still
+                // visible while scrolling back toward Problems, instead
+                // of freezing mid-bend the instant morphT2 drops below
+                // 0.6 and drawing a stale kinked line for the rest of
+                // the fade-out (confirmed directly: without this, the
+                // wave value from a Solutions hover was still ~8px off
+                // zero all the way down through the fade). Only
+                // resetStringWaves() on actually re-entering #problems
+                // is a genuine hard reset; this is just letting the
+                // spring finish relaxing on its own before that.
                 if (morphT2 > 0.6) {
                     exciteStrings();
+                }
+                if (morphT2 > 0.15) {
                     stepStringWaves();
                 }
 
@@ -3529,7 +3616,8 @@
         // different right edge each time.
         let solutionsWordBoostTargets = [];
         function updateSolutionsWordStringTargets() {
-            const r = solutionsDynamicWordEl.getBoundingClientRect();
+            const rRaw = solutionsDynamicWordEl.getBoundingClientRect();
+            const r = { left: rRaw.left - canvasOffsetX, right: rRaw.right - canvasOffsetX, width: rRaw.width };
             const inSpan = stringTargetX
                 .map((sx, si) => ({ sx, si }))
                 .filter(c => c.sx > r.left - 12 && c.sx < r.right + 12)
@@ -3828,6 +3916,14 @@
                 onLeaveBack: hideQuizInstantly,
             });
         }
+
+        // Clears pageInitialLoad once ScrollTrigger's own initial sync
+        // pass (which happens synchronously above, but GSAP can also
+        // defer a follow-up refresh to the next tick while fonts/images
+        // settle) has had time to run its course, so a reload's
+        // synthetic onEnter firings are suppressed but any real scroll
+        // the user makes shortly after load still locks normally.
+        setTimeout(() => { pageInitialLoad = false; }, 200);
 
     </script>
 </body>
