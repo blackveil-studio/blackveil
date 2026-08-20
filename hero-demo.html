@@ -2139,6 +2139,37 @@
             gsap.to(riftState, { t: 0, duration: 0.4, ease: 'power2.inOut' });
         }
 
+        // Safety net for exactly the same class of bypass hideWordInstantly
+        // already exists to catch (see its own onLeave/onLeaveBack comment
+        // below) - but covering riftState.t AND problemsLocked, not just
+        // the word. Two things only the locked exit-gesture flow
+        // (exitProblems -> closeRift) was ever responsible for undoing: (1)
+        // morphT2 (horizon line vs strings) is deliberately SUPPRESSED
+        // while riftState.t is open, so a stale-open rift bleeds Problems'
+        // own horizon line into whatever section the page actually landed
+        // on - confirmed directly; (2) problemsLocked gates wheel/touch
+        // preventDefault - if it's never cleared, scrolling stays
+        // incorrectly intercepted even after leaving Problems entirely.
+        // A big jump that skips the lock (nav link, fast flick, keyboard)
+        // never runs exitProblems, so neither ever gets cleaned up.
+        //
+        // Guarded by problemsSettling alone, not problemsLocked or
+        // isProblemsInteractionBlocked - those both read problemsLocked,
+        // and the whole point here is to correct problemsLocked when IT
+        // is the stale value. problemsSettling is the one flag that
+        // means "a tween I must not interrupt is actively in flight right
+        // now" (the entry settle only) - onLeave/onLeaveBack can only
+        // fire here at all once scroll has left Problems' own zone, which
+        // a genuinely-intercepted lock could never let happen, so by
+        // construction this never fires mid-way through the legitimate
+        // exit flow.
+        function forceCleanProblemsStateIfStale() {
+            if (problemsSettling) return;
+            gsap.killTweensOf(riftState);
+            gsap.set(riftState, { t: 0 });
+            problemsLocked = false;
+        }
+
         function igniteWordCycle() {
             if (dynamicWordTimer || !dynamicWordEl) return;
             measureDynamicWord();
@@ -2380,7 +2411,15 @@
             if (problemsEnterCheckTimer) clearTimeout(problemsEnterCheckTimer);
             problemsEnterCheckTimer = setTimeout(() => {
                 problemsEnterCheckTimer = null;
-                if (self.isActive) settleIntoProblems();
+                if (self.isActive) {
+                    settleIntoProblems();
+                } else {
+                    // Passing through, not staying - belt and braces
+                    // alongside onLeave's own forceCleanProblemsStateIfStale
+                    // below, in case this particular jump doesn't
+                    // register as a clean onLeave crossing.
+                    forceCleanProblemsStateIfStale();
+                }
             }, 120);
         }
 
@@ -2487,8 +2526,8 @@
                 end: 'bottom 60%',
                 onEnter: maybeSettleIntoProblems,
                 onEnterBack: revealProblemsPlain,
-                onLeave: hideWordInstantly,
-                onLeaveBack: hideWordInstantly,
+                onLeave: () => { hideWordInstantly(); forceCleanProblemsStateIfStale(); },
+                onLeaveBack: () => { hideWordInstantly(); forceCleanProblemsStateIfStale(); },
             });
         } else {
             // Fallback if GSAP/ScrollTrigger fails to load: no lock,
