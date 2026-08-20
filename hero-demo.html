@@ -757,6 +757,232 @@
             .headline-static-solutions { font-size: clamp(15px, 4vw, 20px); }
             .dynamic-word-row-solutions { font-size: clamp(26px, 9vw, 42px); min-height: 1.3em; }
         }
+
+        /* ===== Quiz (#quiz) — the site's own closing beat: the golden
+           strings from Solutions part to the edges, a neon-purple
+           nebula rises behind the questions — coming full circle back
+           to Hero's own color family after Problems' cyan and
+           Solutions' gold, so the last thing a visitor sees rhymes
+           with the first. ===== */
+        #quiz {
+            position: relative;
+            width: 100%;
+            min-height: 100vh;
+            background: transparent;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 10vh 0;
+            box-sizing: border-box;
+        }
+        /* A real element, not a pseudo-element - so its own infinite
+           pulse (transform only) never fights with GSAP's opacity
+           tween on reveal/hide. Cheaper than a canvas particle field
+           and lower-risk: a single composited gradient layer instead
+           of more physics bolted onto an already-complex shared
+           canvas, with the identical "glow behind the text" result. */
+        .quiz-nebula {
+            position: absolute;
+            inset: -15%;
+            z-index: -1;
+            pointer-events: none;
+            opacity: 0;
+            background: radial-gradient(ellipse 58% 54% at 50% 42%, rgba(176, 90, 235, 0.42) 0%, rgba(122, 64, 200, 0.22) 42%, rgba(10, 6, 22, 0) 74%);
+            will-change: transform, opacity;
+            animation: quizNebulaPulse 8s ease-in-out infinite;
+        }
+        @keyframes quizNebulaPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.07); }
+        }
+        .quiz-shell {
+            position: relative;
+            width: 100%;
+            max-width: 720px;
+            margin: 0 auto;
+            padding: 0 6vw;
+            box-sizing: border-box;
+            opacity: 0;
+        }
+        .quiz-progress {
+            position: absolute;
+            top: -6vh;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            z-index: 3;
+        }
+        .quiz-progress-seg {
+            width: 30px;
+            height: 3px;
+            border-radius: 2px;
+            background: rgba(255, 255, 255, 0.14);
+            overflow: hidden;
+        }
+        .quiz-progress-seg::after {
+            content: '';
+            display: block;
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #6b8cf5, #b06ee8, #e8548c);
+            transition: width 0.4s ease;
+        }
+        .quiz-progress-seg.filled::after { width: 100%; }
+        .quiz-back {
+            position: absolute;
+            top: -6.5vh;
+            left: 0;
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.4);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 26px;
+            line-height: 1;
+            padding: 6px 10px;
+            cursor: pointer;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease, color 0.3s ease, transform 0.25s ease;
+            z-index: 3;
+        }
+        .quiz-back.visible { opacity: 1; pointer-events: auto; }
+        .quiz-back:hover { color: #fff; transform: translateX(-2px); }
+        .quiz-track-viewport {
+            overflow: hidden;
+            width: 100%;
+        }
+        .quiz-track {
+            display: flex;
+            width: 500%;
+            will-change: transform;
+        }
+        .quiz-step {
+            width: 20%;
+            flex-shrink: 0;
+            box-sizing: border-box;
+            padding: 0 1vw;
+            text-align: center;
+            min-height: 42vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+        .quiz-question {
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-weight: 700;
+            font-size: clamp(21px, 3.2vw, 36px);
+            line-height: 1.25;
+            color: #fff;
+            margin: 0 0 5.5vh 0;
+        }
+        .quiz-options {
+            display: flex;
+            flex-direction: column;
+            gap: clamp(12px, 1.8vw, 20px);
+            width: 100%;
+        }
+        .quiz-option {
+            background: none;
+            border: none;
+            padding: 12px 4px;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 500;
+            font-size: clamp(16px, 1.9vw, 21px);
+            color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            text-align: center;
+            position: relative;
+            transition: color 0.25s ease, transform 0.25s ease;
+        }
+        .quiz-option::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            bottom: 2px;
+            width: 0;
+            height: 1.5px;
+            background: linear-gradient(90deg, #6b8cf5, #b06ee8, #e8548c);
+            transition: width 0.3s ease, left 0.3s ease;
+        }
+        .quiz-option:hover, .quiz-option:focus-visible {
+            color: #fff;
+            transform: translateY(-1px);
+        }
+        .quiz-option:hover::after, .quiz-option:focus-visible::after, .quiz-option.selected::after {
+            left: 0;
+            width: 100%;
+        }
+        .quiz-option.selected { color: #fff; }
+        .quiz-text-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            font-family: 'DM Sans', sans-serif;
+            font-size: clamp(16px, 2vw, 22px);
+            color: rgba(255, 255, 255, 0.55);
+            margin-bottom: 4.5vh;
+            width: 100%;
+        }
+        .quiz-text-input {
+            background: none;
+            border: none;
+            border-bottom: 1.5px solid rgba(255, 255, 255, 0.25);
+            font-family: 'DM Sans', sans-serif;
+            font-size: clamp(16px, 2vw, 22px);
+            color: #fff;
+            padding: 4px 2px;
+            min-width: 200px;
+            max-width: 90vw;
+            text-align: center;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+        .quiz-text-input:focus { border-color: #b06ee8; }
+        .quiz-text-input::placeholder { color: rgba(255, 255, 255, 0.3); }
+        .quiz-contact-input { min-width: 260px; }
+        .quiz-cta-btn {
+            margin-top: 0.5vh;
+        }
+        .quiz-cta-btn:disabled {
+            opacity: 0.32;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+        .quiz-final {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-weight: 700;
+            font-size: clamp(21px, 3vw, 34px);
+            color: #fff;
+            line-height: 1.4;
+            opacity: 0;
+            min-height: 42vh;
+        }
+        .quiz-final .quiz-final-sub {
+            display: block;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 400;
+            font-size: clamp(14px, 1.7vw, 18px);
+            color: rgba(255, 255, 255, 0.55);
+            margin-top: 1.1em;
+        }
+        @media (max-width: 768px) {
+            .quiz-shell { padding: 0 7vw; }
+            .quiz-question { font-size: clamp(18px, 5.2vw, 25px); margin-bottom: 4.5vh; }
+            .quiz-step { min-height: 48vh; padding: 0; }
+            .quiz-option { font-size: clamp(15.5px, 4.4vw, 19px); }
+            .quiz-progress { top: -5vh; }
+            .quiz-back { top: -5.5vh; }
+        }
     </style>
 </head>
 <body>
@@ -852,6 +1078,69 @@
                     <span class="dynamic-word-row-solutions"><span class="dynamic-word-solutions" id="solutions-dynamic-word">DESIGN</span></span>
                     <span class="headline-static-solutions">— pure digital <span class="solutions-outline">dominance</span>.</span>
                 </h2>
+            </div>
+        </section>
+
+        <section id="quiz">
+            <div class="quiz-nebula"></div>
+            <div class="quiz-shell">
+                <div class="quiz-progress">
+                    <div class="quiz-progress-seg"></div>
+                    <div class="quiz-progress-seg"></div>
+                    <div class="quiz-progress-seg"></div>
+                    <div class="quiz-progress-seg"></div>
+                    <div class="quiz-progress-seg"></div>
+                </div>
+                <button type="button" class="quiz-back" aria-label="Previous step">‹</button>
+
+                <div class="quiz-track-viewport">
+                    <div class="quiz-track">
+                        <div class="quiz-step">
+                            <h2 class="quiz-question">What is the current state of your website?</h2>
+                            <div class="quiz-options">
+                                <button type="button" class="quiz-option">I don't have a website at all</button>
+                                <button type="button" class="quiz-option">My current site is outdated or slow</button>
+                                <button type="button" class="quiz-option">I only sell through social media / Instagram</button>
+                            </div>
+                        </div>
+                        <div class="quiz-step">
+                            <h2 class="quiz-question">What is the main goal of your future website?</h2>
+                            <div class="quiz-options">
+                                <button type="button" class="quiz-option">To launch a premium service and look expensive</button>
+                                <button type="button" class="quiz-option">To fix broken mobile layout and increase speed</button>
+                                <button type="button" class="quiz-option">To get independence from social media algorithms</button>
+                            </div>
+                        </div>
+                        <div class="quiz-step">
+                            <h2 class="quiz-question">Tell us briefly about your business or service.</h2>
+                            <div class="quiz-text-row">
+                                <span>My business is focused on:</span>
+                                <input type="text" class="quiz-text-input" id="quiz-business-input" placeholder="Type here..." autocomplete="off">
+                            </div>
+                            <button type="button" class="neon-btn neon-btn--small quiz-cta-btn" id="quiz-next-btn" disabled>NEXT STEP</button>
+                        </div>
+                        <div class="quiz-step">
+                            <h2 class="quiz-question">What is your desired launch timeline?</h2>
+                            <div class="quiz-options">
+                                <button type="button" class="quiz-option">As soon as possible (Urgent)</button>
+                                <button type="button" class="quiz-option">Within a month (Steady pace)</button>
+                                <button type="button" class="quiz-option">No rush, focusing on deep strategy</button>
+                            </div>
+                        </div>
+                        <div class="quiz-step">
+                            <h2 class="quiz-question">Secure your digital coordinate.</h2>
+                            <div class="quiz-text-row">
+                                <input type="text" class="quiz-text-input quiz-contact-input" id="quiz-contact-input" placeholder="Your Telegram or Email" autocomplete="off">
+                            </div>
+                            <button type="button" class="neon-btn neon-btn--small quiz-cta-btn" id="quiz-send-btn" disabled>SEND SIGNAL</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="quiz-final">
+                    Signal received.
+                    <span class="quiz-final-sub">Blackveil is preparing your digital solution.</span>
+                </div>
             </div>
         </section>
     </div>
@@ -2090,6 +2379,7 @@
             computeStringTargets();
             cacheSolutionsGeometry();
             if (solutionsDynamicWordEl.textContent) updateSolutionsWordStringTargets();
+            cacheQuizGeometry();
             cacheGravityButtons();
             measureDynamicWord();
         });
@@ -2109,6 +2399,16 @@
 
         function render(time) {
             const scrollY = window.scrollY;
+            // Pure function of scrollY, defined near Quiz's own setup
+            // below (hoisted - same pattern already used for
+            // solutionsSection etc, read here before their declaration
+            // in source order but always initialized by the time this
+            // actually runs, since render() is only ever invoked from
+            // the rAF loop after the full script has executed once).
+            // Zero everywhere except right at the Quiz boundary, so
+            // nothing about the existing Problems->Solutions morph
+            // changes.
+            const quizPartT = quizPartAmount();
 
             // Energy decays every single frame, independent of whether a scroll
             // event ever arrives again — this is what lets the streaks keep
@@ -2506,6 +2806,14 @@
                             const d = Math.abs(hx - stringTargetX[si]);
                             if (d < bestD) { bestD = d; nearestX = stringTargetX[si]; nearestIdx = si; }
                         }
+                        // Nearest-string SEARCH stays on the strings'
+                        // true positions (identity/topology shouldn't
+                        // change); only the final resting target shifts
+                        // outward, so a particle still docks onto the
+                        // same string it always would, just wherever
+                        // that string currently sits once Quiz starts
+                        // pulling it toward the edge.
+                        nearestX += quizStringOffset(nearestX, quizPartT);
                         targetY = p.targetYFrac * height;
                         px = hx + (nearestX - hx) * morphT2;
                         py = hy + (targetY - hy) * morphT2;
@@ -2689,14 +2997,18 @@
                     ctx.save();
                     ctx.globalCompositeOperation = 'lighter';
                     stringTargetX.forEach((sx, i) => {
+                        // Same additive offset as the docking particles
+                        // above, so the crisp stroke never separates
+                        // from the dust that makes it up.
+                        const effSx = sx + quizStringOffset(sx, quizPartT);
                         const depth = i / (STRING_COUNT - 1);
                         const boosted = lineAlpha * (1 + stringHeadingBoostByIndex[i] * 0.8);
-                        const grad = ctx.createLinearGradient(sx, 0, sx, height);
+                        const grad = ctx.createLinearGradient(effSx, 0, effSx, height);
                         grad.addColorStop(0, `rgba(120, 60, 15, ${boosted})`);
                         grad.addColorStop(1, `rgba(255, 195, 80, ${boosted * (1 - depth * 0.4)})`);
                         ctx.strokeStyle = grad;
                         ctx.lineWidth = (1.6 - depth * 0.8) * (1 + dockFlash * 0.5);
-                        strokeStringBezier(i, sx);
+                        strokeStringBezier(i, effSx);
                     });
                     ctx.restore();
                 }
@@ -2715,6 +3027,7 @@
                     ctx.save();
                     ctx.globalCompositeOperation = 'lighter';
                     stringTargetX.forEach((sx, i) => {
+                        const effSx = sx + quizStringOffset(sx, quizPartT);
                         const depth = i / (STRING_COUNT - 1);
                         const speed = (0.00042 + depth * 0.00008) / 2;
                         for (let pulseI = 0; pulseI < 2; pulseI++) {
@@ -2722,12 +3035,12 @@
                             const py = phase * height;
                             const fade = Math.sin(phase * Math.PI); // soft appear/disappear at both ends of the run
                             const glowR = 24 * 1.5;
-                            const grad = ctx.createRadialGradient(sx, py, 0, sx, py, glowR);
+                            const grad = ctx.createRadialGradient(effSx, py, 0, effSx, py, glowR);
                             const alpha = dockEnergy * fade * 0.5 * (1 + stringHeadingBoostByIndex[i] * 0.8);
                             grad.addColorStop(0, `rgba(255, 228, 180, ${alpha})`);
                             grad.addColorStop(1, `rgba(255, 160, 40, 0)`);
                             ctx.beginPath();
-                            ctx.arc(sx, py, glowR, 0, Math.PI * 2);
+                            ctx.arc(effSx, py, glowR, 0, Math.PI * 2);
                             ctx.fillStyle = grad;
                             ctx.fill();
                         }
@@ -3231,6 +3544,170 @@
                 onEnterBack: revealSolutions,
                 onLeave: hideSolutionsInstantly,
                 onLeaveBack: hideSolutionsInstantly,
+            });
+        }
+
+        // ===== Quiz (#quiz) — the site's closing beat. 5 steps, one
+        // question each, auto-advance on click (no "Next" button except
+        // the two text steps). Answers are kept in quizAnswers purely so
+        // a re-visited step (via Back) shows its own prior choice - this
+        // block does not send anything anywhere; see submitQuiz below.
+        const QUIZ_STEPS = 5;
+        const quizSection = document.getElementById('quiz');
+        const quizNebulaEl = document.querySelector('.quiz-nebula');
+        const quizShellEl = document.querySelector('.quiz-shell');
+        const quizTrack = document.querySelector('.quiz-track');
+        const quizTrackViewport = document.querySelector('.quiz-track-viewport');
+        const quizBackBtn = document.querySelector('.quiz-back');
+        const quizProgressSegs = Array.from(document.querySelectorAll('.quiz-progress-seg'));
+        const quizFinalEl = document.querySelector('.quiz-final');
+        const quizBusinessInput = document.getElementById('quiz-business-input');
+        const quizNextBtn = document.getElementById('quiz-next-btn');
+        const quizContactInput = document.getElementById('quiz-contact-input');
+        const quizSendBtn = document.getElementById('quiz-send-btn');
+
+        let quizCurrentStep = 0;
+        let quizAnswers = {};
+        let quizTopCached = 0;
+        function cacheQuizGeometry() {
+            if (quizSection) quizTopCached = quizSection.offsetTop;
+        }
+        cacheQuizGeometry();
+
+        // Pure function of scrollY (same idiom as this file's other
+        // continuous "Zone math") - 0 until well before Quiz arrives,
+        // ramps to 1 as it comes into view, stays 1 while in/past it.
+        // Referenced from render() above, defined here: safe because
+        // render() only ever runs from the rAF loop, well after this
+        // function declaration has been hoisted and this whole script
+        // has executed once (same pattern already relied on for
+        // solutionsSection and friends).
+        function quizPartAmount() {
+            if (!quizSection || !quizTopCached) return 0;
+            // Stays at 0 through all of Solutions (which sits exactly
+            // one viewport tall right before this) - starts only as
+            // Quiz's own reveal trigger approaches ('top 60%', roughly
+            // quizTopCached - height*0.6) so the strings hold still for
+            // the entire time someone is reading Solutions, and only
+            // begin departing once Quiz itself is actually arriving.
+            const start = quizTopCached - height * 0.55;
+            const end = quizTopCached - height * 0.05;
+            if (end <= start) return 0;
+            return Math.max(0, Math.min(1, (window.scrollY - start) / (end - start)));
+        }
+        function quizStringOffset(sx, t) {
+            if (t <= 0) return 0;
+            const eased = t * t * (3 - 2 * t); // smoothstep - no mechanical linear sweep
+            const dir = sx < width / 2 ? -1 : 1;
+            return dir * eased * width * 0.9;
+        }
+
+        function updateQuizProgress() {
+            quizProgressSegs.forEach((seg, i) => seg.classList.toggle('filled', i <= quizCurrentStep));
+        }
+        function updateQuizBackVisibility() {
+            quizBackBtn.classList.toggle('visible', quizCurrentStep > 0);
+        }
+
+        function goToQuizStep(index) {
+            quizCurrentStep = Math.max(0, Math.min(QUIZ_STEPS - 1, index));
+            gsap.to(quizTrack, { xPercent: -20 * quizCurrentStep, duration: 0.6, ease: 'power3.inOut' });
+            updateQuizProgress();
+            updateQuizBackVisibility();
+            const stepEl = quizTrack.children[quizCurrentStep];
+            if (stepEl) {
+                stepEl.querySelectorAll('.quiz-option').forEach((o, i) => o.classList.toggle('selected', quizAnswers[quizCurrentStep] === i));
+            }
+        }
+
+        function selectQuizOption(stepIndex, optionIndex, optionEl) {
+            quizAnswers[stepIndex] = optionIndex;
+            const stepEl = quizTrack.children[stepIndex];
+            stepEl.querySelectorAll('.quiz-option').forEach(o => o.classList.remove('selected'));
+            optionEl.classList.add('selected');
+            // Brief pause so the selection itself is visible before the
+            // step slides away - an instant jump would read as the
+            // click doing nothing.
+            setTimeout(() => {
+                if (stepIndex < QUIZ_STEPS - 1) goToQuizStep(stepIndex + 1);
+            }, 260);
+        }
+
+        document.querySelectorAll('.quiz-option').forEach(btn => {
+            const stepEl = btn.closest('.quiz-step');
+            const stepIndex = Array.from(quizTrack.children).indexOf(stepEl);
+            const optionIndex = Array.from(stepEl.querySelectorAll('.quiz-option')).indexOf(btn);
+            btn.addEventListener('click', () => selectQuizOption(stepIndex, optionIndex, btn));
+        });
+
+        if (quizBackBtn) {
+            quizBackBtn.addEventListener('click', () => {
+                if (quizCurrentStep > 0) goToQuizStep(quizCurrentStep - 1);
+            });
+        }
+
+        function updateQuizNextBtnState() {
+            quizNextBtn.disabled = quizBusinessInput.value.trim().length < 2;
+        }
+        if (quizBusinessInput && quizNextBtn) {
+            quizBusinessInput.addEventListener('input', updateQuizNextBtnState);
+            quizBusinessInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !quizNextBtn.disabled) goToQuizStep(3);
+            });
+            quizNextBtn.addEventListener('click', () => {
+                quizAnswers[2] = quizBusinessInput.value.trim();
+                goToQuizStep(3);
+            });
+        }
+
+        function updateQuizSendBtnState() {
+            quizSendBtn.disabled = quizContactInput.value.trim().length < 3;
+        }
+        // Front-end only: this is a visual simulation of a submission.
+        // No data actually leaves the page - wiring "SEND SIGNAL" to a
+        // real inbox/Telegram bot/form endpoint is a separate step once
+        // a service is chosen, deliberately not invented here.
+        function submitQuiz() {
+            if (quizSendBtn.disabled) return;
+            quizAnswers[4] = quizContactInput.value.trim();
+            gsap.timeline()
+                .to(quizNebulaEl, { opacity: 1, filter: 'brightness(1.7)', duration: 0.45, ease: 'power2.out' })
+                .to(quizTrackViewport, { opacity: 0, y: -14, duration: 0.4, ease: 'power2.in' }, '<0.05')
+                .to(quizNebulaEl, { filter: 'brightness(1)', duration: 1, ease: 'power2.out' })
+                .set(quizTrackViewport, { display: 'none' })
+                .set(quizFinalEl, { display: 'flex' })
+                .to(quizFinalEl, { opacity: 1, duration: 0.7, ease: 'power2.out' }, '<');
+        }
+        if (quizContactInput && quizSendBtn) {
+            quizContactInput.addEventListener('input', updateQuizSendBtnState);
+            quizContactInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') submitQuiz();
+            });
+            quizSendBtn.addEventListener('click', submitQuiz);
+        }
+
+        function revealQuiz() {
+            gsap.killTweensOf([quizShellEl, quizNebulaEl]);
+            gsap.to(quizShellEl, { opacity: 1, duration: 0.7, ease: 'power3.out' });
+            gsap.to(quizNebulaEl, { opacity: 0.9, duration: 1.3, ease: 'power2.out' });
+        }
+        function hideQuizInstantly() {
+            gsap.killTweensOf([quizShellEl, quizNebulaEl]);
+            gsap.set(quizShellEl, { opacity: 0 });
+            gsap.set(quizNebulaEl, { opacity: 0 });
+        }
+
+        if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined' && quizSection) {
+            gsap.set(quizShellEl, { opacity: 0 });
+            gsap.set(quizNebulaEl, { opacity: 0 });
+            ScrollTrigger.create({
+                trigger: quizSection,
+                start: 'top 60%',
+                end: 'bottom 60%',
+                onEnter: revealQuiz,
+                onEnterBack: revealQuiz,
+                onLeave: hideQuizInstantly,
+                onLeaveBack: hideQuizInstantly,
             });
         }
 
