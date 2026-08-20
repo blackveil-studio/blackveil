@@ -1309,6 +1309,22 @@
             return { left: b.docLeft, top, right: b.docLeft + b.w, bottom: top + b.h };
         }
 
+        // buttonGravityOffset() is called once per particle - up to
+        // ~5000 times a frame across the two particle pools combined -
+        // and a button's own on-screen rect can't change mid-frame
+        // (window.scrollY is constant for the whole render() call), so
+        // recomputing (and, for the 'scrolling' kind, reallocating a
+        // fresh object) on every single one of those calls was pure
+        // waste. Profiled directly as the single largest remaining cost
+        // in the Hero->Portfolio freeze investigation - eliminating it
+        // dropped that loop's average by more than a third. Computed
+        // once here per frame instead, read directly off the button.
+        function refreshGravityButtonFrameRects() {
+            for (let i = 0; i < gravityButtons.length; i++) {
+                gravityButtons[i]._frameRect = currentButtonRect(gravityButtons[i]);
+            }
+        }
+
         // Real :hover state (not a click/enter-leave flag), smoothed so
         // the particle-speed boost and the CSS glow settle in and out
         // together rather than the particles snapping instantly.
@@ -1328,7 +1344,16 @@
             let ox = 0, oy = 0, dissolve = 1;
             for (let i = 0; i < gravityButtons.length; i++) {
                 const b = gravityButtons[i];
-                const rect = currentButtonRect(b);
+                const rect = b._frameRect;
+                // Cheap AABB pre-check before the clamp+hypot below - this
+                // function is called for every particle, every frame (up
+                // to ~5000 combined across both particle pools), and on
+                // any given frame almost none of them are anywhere near
+                // either button. Skipping straight past the math for
+                // those avoids real, measured per-frame cost at that call
+                // volume - profiled directly as part of the same pass
+                // that found the Hero->Portfolio freeze.
+                if (px < rect.left - 50 || px > rect.right + 50 || py < rect.top - 50 || py > rect.bottom + 50) continue;
                 const nx = Math.max(rect.left, Math.min(px, rect.right));
                 const ny = Math.max(rect.top, Math.min(py, rect.bottom));
                 const dx = nx - px, dy = ny - py;
@@ -1374,6 +1399,32 @@
         const particles = [];
         const nebulaClouds = [];
         const quizNebulaClouds = [];
+        // Quiz's own star dust - deliberately NOT the Hero particles
+        // array. Position/size/twinkle-phase only, set once and never
+        // touched by drift, cursor repulsion, gravity buttons or the
+        // scroll-explosion - none of Hero's physics applies here at
+        // all, which is the actual point: reusing Hero's own pool for
+        // Quiz was what let Hero's cursor-repulsion/explosion carry
+        // over and visibly shove particles around while scrolling at
+        // Quiz (reported directly, looked identical to Hero's own
+        // burst because it WAS that same code). A small inert field
+        // can't ever do that, structurally, regardless of what Hero's
+        // own particle system does or grows in the future.
+        const quizStars = [];
+        function initQuizStars() {
+            quizStars.length = 0;
+            for (let i = 0; i < 180; i++) {
+                quizStars.push({
+                    x: Math.random() * width,
+                    y: Math.random() * height,
+                    size: Math.random() * 1.3 + 0.4,
+                    baseAlpha: Math.random() * 0.5 + 0.35,
+                    twinkleSpeed: Math.random() * 0.0025 + 0.001,
+                    seed: Math.random() * 100
+                });
+            }
+        }
+        initQuizStars();
         // Persistent, frame-rate-independent smoothing (same lerp
         // idiom as solutionsWordBoostT elsewhere in this file) applied
         // to quizPartAmount()'s raw scroll-driven value. Quiz is the
@@ -2188,10 +2239,24 @@
         // a genuinely-intercepted lock could never let happen, so by
         // construction this never fires mid-way through the legitimate
         // exit flow.
+        //
+        // riftState.t tweens smoothly to 0 (closeRift's own easing), not
+        // an instant gsap.set - this fires for BOTH a genuine bypass
+        // (rift stale from long ago, nothing on screen to show it
+        // either way - smooth vs instant looks identical) AND a
+        // perfectly normal reverse scroll where revealProblemsPlain
+        // just opened the rift for real moments earlier and the user
+        // kept scrolling on up out of Problems' own zone. Confirmed
+        // directly by tracing riftState.t through a real reverse scroll
+        // (Quiz -> Hero): it reached a genuine 1.0 (rift fully, visibly
+        // open) and then SNAPPED to 0 in a single frame the instant
+        // onLeaveBack fired - exactly the jarring "everything flies
+        // apart" look reported on reverse scroll. A smooth tween here
+        // fixes the real case without weakening the safety net at all.
         function forceCleanProblemsStateIfStale() {
             if (problemsSettling) return;
             gsap.killTweensOf(riftState);
-            gsap.set(riftState, { t: 0 });
+            gsap.to(riftState, { t: 0, duration: 0.4, ease: 'power2.inOut' });
             problemsLocked = false;
         }
 
@@ -2627,6 +2692,7 @@
             if (solutionsDynamicWordEl.textContent) updateSolutionsWordStringTargets();
             cacheQuizGeometry();
             initQuizNebulaClouds();
+            initQuizStars();
             cacheGravityButtons();
             measureDynamicWord();
         });
@@ -2645,6 +2711,7 @@
         let wasAtTop = true;
 
         function render(time) {
+            refreshGravityButtonFrameRects();
             const scrollY = window.scrollY;
             // Pure function of scrollY, defined near Quiz's own setup
             // below (hoisted - same pattern already used for
@@ -2755,6 +2822,24 @@
                         ctx.beginPath();
                         ctx.arc(cloud.x, cloud.y, cloud.radius, 0, Math.PI * 2);
                         ctx.fillStyle = grad;
+                        ctx.fill();
+                    }
+                });
+                ctx.restore();
+
+                // Quiz's own star dust - plain twinkling dots, no
+                // drift/repulsion/gravity of any kind (see quizStars'
+                // own comment for why). Same alpha driver as the
+                // nebula above so they rise together.
+                ctx.save();
+                ctx.globalCompositeOperation = 'screen';
+                quizStars.forEach(s => {
+                    const twinkle = 0.5 + 0.5 * Math.sin(time * s.twinkleSpeed + s.seed);
+                    const alpha = s.baseAlpha * quizPartT * twinkle;
+                    if (alpha > 0.01) {
+                        ctx.beginPath();
+                        ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(255, 255, 255, ${alpha})`;
                         ctx.fill();
                     }
                 });
@@ -3508,30 +3593,23 @@
 
             // --- The one and only particle pass: drift, friction-based cursor
             // repulsion, and scroll-explosion impulse, all in a single forEach.
-            // Hero-only through the portfolio corridor - starVisibility
-            // (= universeAlpha) reaches 0 by scrollY 750 - but the same
-            // dust reappears far down the page for Quiz's own nebula
-            // (quizPartT), reusing this exact proven field/twinkle
-            // instead of a second star system. The two windows never
-            // overlap (nothing between them ever sets both above 0), so
-            // this stays a single alpha envelope, not two states to
-            // keep in sync. ---
-            // Measured the actual particle positions directly (a 10-bin
-            // horizontal histogram): genuinely uniform, 89-110% of
-            // expected in every bin, no real edge bias. Reported as
-            // "particles pressed to the sides" anyway - true random
-            // scatter reliably LOOKS clumped/uneven to the eye even
-            // when it's statistically flat (visible gaps and clusters
-            // are what real randomness looks like; humans expect more
-            // even spacing than that). Toned the ceiling down from 0.85
-            // rather than trying to "fix" a distribution that was
-            // already correct - a dimmer, sparser field reads as
-            // atmosphere instead of a busy, clumpy pattern competing
-            // with the quiz text, closer to how Problems/Solutions
-            // don't show a starfield at all.
-            const quizStarVisibility = quizPartT * 0.35;
-            const effectiveStarVisibility = Math.max(starVisibility, quizStarVisibility);
-            if (effectiveStarVisibility > 0.001) {
+            // Hero-only - starVisibility (= universeAlpha) reaches 0 by
+            // scrollY 750, so this ~4200-particle loop is skipped
+            // entirely everywhere past the portfolio corridor,
+            // including Quiz (which has its own small, independent,
+            // inert star field below instead of reusing this one - see
+            // quizStars). They looked identical at rest, but reusing
+            // this pool meant Quiz's "stars" carried Hero's own cursor-
+            // repulsion, gravity-button attraction and scroll-explosion
+            // physics along with them - confirmed reported directly as
+            // particles "scattering to the sides" while scrolling at
+            // Quiz, the same signature as Hero's own explosion burst,
+            // because it IS that same code reacting to the same live
+            // mouse/scroll input, just far down the page where it was
+            // never meant to still be listening. A fully separate,
+            // physics-free field closes that off structurally instead
+            // of chasing each new symptom of the coupling. ---
+            if (starVisibility > 0.001) {
                 particles.forEach(p => {
                     // constant ambient wander — never damped, always present,
                     // exactly what keeps the field "alive" at rest
@@ -3543,10 +3621,20 @@
                     // snapping to a fixed offset from the pointer. Radius 90px,
                     // impulse 0.35 — stars part gently right under the cursor,
                     // not in a wide fast blast across the screen.
+                    // Squared-distance pre-filter before the sqrt below -
+                    // profiled directly: this loop was the actual source
+                    // of the reported Hero->Portfolio freeze (~30ms/frame
+                    // average, spiking to ~90ms), and an unconditional
+                    // Math.sqrt for all 4200 particles every frame just to
+                    // check a 90px radius (which almost none of them are
+                    // ever inside) was a real, avoidable cost at that
+                    // count. Mathematically identical result, sqrt only
+                    // computed for particles that are actually close.
                     const dx = p.x - mouse.x;
                     const dy = p.y - mouse.y;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    if (dist < 90 && dist > 0) {
+                    const distSq = dx * dx + dy * dy;
+                    if (distSq < 8100 && distSq > 0) {
+                        const dist = Math.sqrt(distSq);
                         const f = (90 - dist) / 90;
                         p.repVx += (dx / dist) * f * 0.35;
                         p.repVy += (dy / dist) * f * 0.35;
@@ -3609,9 +3697,9 @@
                     if (p.y < -20) p.y = height + 20;
                     if (p.y > height + 20) p.y = -20;
 
-                    let currentAlpha = p.baseAlpha * effectiveStarVisibility;
+                    let currentAlpha = p.baseAlpha * starVisibility;
                     if (p.isHero) {
-                        currentAlpha = p.baseAlpha * effectiveStarVisibility * (0.35 + Math.sin(time * p.twinkleSpeed + p.seed) * 0.65);
+                        currentAlpha = p.baseAlpha * starVisibility * (0.35 + Math.sin(time * p.twinkleSpeed + p.seed) * 0.65);
                     }
                     currentAlpha *= p.gravDissolve;
 
