@@ -4050,6 +4050,29 @@
         // the user makes shortly after load still locks normally.
         setTimeout(() => { pageInitialLoad = false; }, 200);
 
+        // Capabilities/Quiz nav links land exactly on their section's
+        // own top instead of the native anchor jump, which fell short
+        // by scroll-padding-top (100px, set globally so anchor targets
+        // don't tuck under the fixed header - the right call for
+        // ordinary content, but wrong here). Confirmed directly: 100px
+        // short of Solutions' top left morphT2 at ~0.89 instead of the
+        // 1.0 it reaches exactly at that top - squarely inside the
+        // particle trail-stroke's own visible range (0.03-0.97), which
+        // is what was freezing into the jagged/torn look on arrival,
+        // since a real user stops scrolling right there instead of
+        // ever passing through it in motion the way normal scrolling
+        // would. Landing exactly at the section's own top guarantees
+        // the morph is already fully settled the instant it appears.
+        document.querySelectorAll('a.nav-link[href="#solutions"], a.nav-link[href="#quiz"]').forEach(link => {
+            link.addEventListener('click', (e) => {
+                const targetId = link.getAttribute('href').slice(1);
+                const targetEl = document.getElementById(targetId);
+                if (!targetEl) return;
+                e.preventDefault();
+                window.scrollTo(0, targetEl.offsetTop);
+            });
+        });
+
     </script>
 </body>
 </html>
