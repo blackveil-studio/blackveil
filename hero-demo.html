@@ -687,89 +687,66 @@
             position: relative;
             flex: 0 0 59%;
             max-width: 59%;
-            /* Nudges the whole block off the densest cluster of string
-               columns rather than starting flush against the column
-               boundary (which landed almost exactly on one) - the
-               strings behind the text read as ambient background
-               structure this way instead of a ruler bisecting specific
-               letters. Tuned against the actual ~154px string spacing,
-               verified directly against rendered string positions. */
-            padding-left: clamp(24px, 4vw, 64px);
         }
-        /* Strict architectural stack, not flowing prose: connectors and
-           phrases are BOTH real block-level spans (not raw text nodes,
-           not inline flow) so each sits on its own line and the
-           hover-dim below can address every piece individually.
-           Opacity on the shared .solutions-paragraph parent would
-           multiply with any child's own opacity instead of letting a
-           hovered phrase "cancel it out" back to full brightness -
-           sibling-level opacity on every child avoids that trap. Every
-           line - thin connector or massive phrase alike - starts on
-           the exact same left edge; nothing here shifts individual
-           lines to chase a string's own x. */
+        /* 2x2 grid of business statements - DOM order (top-left,
+           top-right, bottom-left, bottom-right) maps directly onto
+           grid auto-placement, no explicit grid-area needed. The
+           generous gap is deliberate breathing room, not incidental -
+           it's what lets a string pass between cells (see the JS
+           measureSolutionPhrases comment) instead of through one. */
         .solutions-paragraph {
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-            text-align: left;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: auto auto;
+            column-gap: clamp(48px, 7vw, 110px);
+            row-gap: clamp(40px, 5.5vw, 76px);
             margin: 0;
         }
-        /* Serif italic against the phrases' heavy grotesk caps - a
-           genuine typeface pairing (contrast of FORM, not just size).
-           Sized close to the phrases now (was roughly half their size,
-           now nearly on par) so the contrast reads as weight/style -
-           heavy massive grotesk vs. slender elegant italic - rather
-           than one being simply bigger than the other. Georgia is a
-           safe system serif with a proper italic cut, so this needs no
-           extra font load. */
-        .solutions-connector {
-            display: block;
-            font-family: Georgia, 'Times New Roman', serif;
-            font-weight: 400;
-            font-style: italic;
-            font-size: clamp(38px, 3.3vw, 49px);
-            line-height: 1.2;
-            letter-spacing: 0.005em;
-            color: #fff;
-            opacity: 0.5;
-            margin: 0.2em 0 0 0;
-            transition: opacity 0.4s ease;
-            will-change: opacity;
-        }
-        .solutions-connector--intro {
-            margin-top: 0;
-        }
-        /* Bold caps - reined in from the previous "massive" scale
-           (~30-35% smaller) specifically so they sit closer to the
-           connectors' own new size, per the brief: a dense, single-
-           breath editorial block rather than a few huge accents
-           punctuated by gaps. Same left edge as the connectors above
-           and below it (see .solutions-paragraph). */
+        /* Massive, crystal-white, contrastive caps - no small text, no
+           serif anywhere in this block anymore. Each cell's own text
+           can wrap onto two lines (MOBILE ARCHITECTURE is long) - a
+           controlled two-line headline inside a grid cell is a normal,
+           clean read, unlike the earlier single-line stack where any
+           wrap would have broken the layout. */
         .solution-phrase {
             display: block;
-            white-space: nowrap; /* a single line is the intended read - never wrap mid-phrase */
+            position: relative;
             font-family: 'Bricolage Grotesque', sans-serif;
             font-weight: 800;
-            font-size: clamp(23px, 2.4vw, 39px);
+            font-size: clamp(26px, 2.7vw, 43px);
             letter-spacing: 0.01em;
-            line-height: 1.05;
+            line-height: 1.15;
             color: #fff;
+            text-align: left;
+            /* Occlusion mask behind each sector's own text, same
+               principle as the manifesto's own (.solutions-col-left) -
+               strings sit ~154px apart, narrower than any word wide
+               enough to read as a real business phrase, so at least
+               one will always physically cross a cell's actual glyphs
+               (confirmed directly via Range-based glyph measurement,
+               not just this stretched grid-item box - the true glyph
+               span is narrower than the box but still wider than the
+               string spacing). This dims that one crossing down to a
+               soft ambient glow instead of a bright line slicing the
+               letters, while leaving strings that fall IN THE GAPS
+               between cells untouched and fully bright - those are the
+               ones reading as the living sector dividers the brief
+               asks for. */
+            background: radial-gradient(ellipse 95% 90% at 32% 50%, rgba(3, 3, 12, 0.72) 0%, rgba(3, 3, 12, 0.38) 55%, rgba(3, 3, 12, 0) 84%);
             /* Subtle at rest, not the full glow — the brief specifically
                frames the golden text-shadow as something a phrase
                "gets" on hover, so resting state stays close to plain
                white and .is-active is where it actually lights up. */
             text-shadow: 0 0 8px rgba(255, 176, 60, 0.22);
-            margin: 0.15em 0 0 0;
+            margin: 0;
             transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), text-shadow 0.4s ease;
             transform: translate3d(0, 0, 0) scale(1);
             will-change: opacity, transform;
             cursor: default;
         }
-        /* Strict hover focus: hovering ANY one phrase drags literally
-           everything else in the stack — every other phrase AND every
-           connector — down to 0.15, so only the hovered phrase reads
+        /* Strict hover focus: hovering ANY one sector drags the other
+           three down to 0.15, so only the hovered statement reads
            clearly. */
-        .solutions-paragraph.has-active .solutions-connector,
         .solutions-paragraph.has-active .solution-phrase {
             opacity: 0.15;
         }
@@ -791,17 +768,17 @@
                 max-width: 100%;
             }
             .solutions-col-left { background: none; }
-            .solutions-col-right { padding-left: 0; } /* the string-gap nudge is a desktop-only concern - stacked mobile columns don't need it and every extra px counts on a phone width */
             .solutions-manifesto { font-size: clamp(21px, 6vw, 28px); line-height: 1.25; }
-            /* Same near-1:1 balance as desktop, scaled down - brighter
-               than the desktop 0.5 too, since thin italic text needs
-               the extra contrast to stay readable outdoors on a phone
-               screen, per the brief. Connectors are allowed to wrap
-               here (unlike phrases) - ordinary sentence fragments
-               wrapping is normal typographic behavior, not a bug. */
-            .solutions-connector { font-size: clamp(25px, 6.8vw, 32px); line-height: 1.2; opacity: 0.6; margin-top: 0.2em; }
-            .solutions-connector--intro { margin-top: 0; }
-            .solution-phrase { font-size: clamp(16px, 5.4vw, 23px); margin: 0.15em 0 0 0 !important; }
+            /* 2x2 becomes a single strict column - one statement per
+               row, top to bottom, string-bend disabled entirely (see
+               exciteSolutionStrings' IS_MOBILE gate), strings left as
+               a slow ambient pulse in the background per the brief. */
+            .solutions-paragraph {
+                grid-template-columns: 1fr;
+                grid-template-rows: none;
+                row-gap: clamp(20px, 4.5vh, 36px);
+            }
+            .solution-phrase { font-size: clamp(22px, 7.2vw, 32px); line-height: 1.15; }
         }
     </style>
 </head>
@@ -898,14 +875,10 @@
                 </div>
                 <div class="solutions-col-right">
                     <div class="solutions-paragraph" id="solutions-paragraph">
-                        <span class="solutions-connector solutions-connector--intro">We completely transform your business by delivering:</span>
-                        <span class="solution-phrase" data-phrase="0">DESIGN THAT SELLS</span>
-                        <span class="solutions-connector">through a fully independent</span>
-                        <span class="solution-phrase" data-phrase="1">PREMIUM WEBSITE</span>
-                        <span class="solutions-connector">optimized for</span>
-                        <span class="solution-phrase" data-phrase="2">ULTRA-FAST LOADING</span>
-                        <span class="solutions-connector">and flawless</span>
-                        <span class="solution-phrase" data-phrase="3">MOBILE INTERACTION</span>
+                        <span class="solution-phrase" data-phrase="0">BESPOKE DESIGN</span>
+                        <span class="solution-phrase" data-phrase="1">OWNED PLATFORM</span>
+                        <span class="solution-phrase" data-phrase="2">ZERO-LAG SPEED</span>
+                        <span class="solution-phrase" data-phrase="3">MOBILE ARCHITECTURE</span>
                     </div>
                 </div>
             </div>
@@ -3093,41 +3066,40 @@
         const solutionPhraseEls = Array.from(document.querySelectorAll('.solution-phrase'));
         const solutionsManifestoEl = document.querySelector('.solutions-manifesto');
 
-        // Every line in the stack - thin connector or massive phrase
-        // alike - stays on the exact same left edge (see the CSS
-        // comment on .solutions-paragraph); a prior version of this
-        // block nudged each phrase's own position to land precisely on
-        // a string's x, which was reversed - strict uniform left
-        // alignment reads as more architectural than four separately-
-        // shifted lines, and the strings now just pass behind the text
-        // as ambient structure (the column's own padding-left, in the
-        // CSS, keeps that passage from centering directly through any
-        // one phrase).
-        //
-        // solutionPhraseStringIndex is still needed here though - the
-        // hover-bend interaction below excites ONE string per hovered
-        // phrase, and needs to know which one is nearest to read as
-        // connected to that specific phrase rather than an arbitrary
-        // one. Recomputed on load/resize since a phrase's natural
-        // position depends on viewport width and font metrics.
-        let solutionPhraseStringIndex = solutionPhraseEls.map(() => 0);
+        // Each grid cell gets a PAIR of boundary strings - the nearest
+        // one to its left, the nearest one to its right - rather than
+        // one "nearest string" for the whole phrase. That's the actual
+        // mechanism behind "strings as sector borders": the string
+        // just left of a cell and the string just right of it are what
+        // hover-bends when that cell is hovered, reading as the two
+        // edges of its own sector lighting up. Two horizontally
+        // adjacent cells (top-left/top-right, bottom-left/bottom-right)
+        // naturally share their inner boundary string, which is
+        // correct - that shared string IS the divider between them.
+        // Recomputed on load/resize since the grid's own column widths
+        // (and therefore each cell's left/right edges) depend on
+        // viewport size and font metrics.
+        let solutionPhraseBoundaryStrings = solutionPhraseEls.map(() => []);
         function measureSolutionPhrases() {
             solutionPhraseEls.forEach((el, i) => {
                 const r = el.getBoundingClientRect();
-                const cx = r.left + r.width / 2;
-                let bestD = Infinity, bestIdx = 0;
+                let leftIdx = -1, leftD = Infinity, rightIdx = -1, rightD = Infinity;
                 stringTargetX.forEach((sx, si) => {
-                    const d = Math.abs(cx - sx);
-                    if (d < bestD) { bestD = d; bestIdx = si; }
+                    if (sx <= r.left) {
+                        const d = r.left - sx;
+                        if (d < leftD) { leftD = d; leftIdx = si; }
+                    } else if (sx >= r.right) {
+                        const d = sx - r.right;
+                        if (d < rightD) { rightD = d; rightIdx = si; }
+                    }
                 });
-                solutionPhraseStringIndex[i] = bestIdx;
+                solutionPhraseBoundaryStrings[i] = [leftIdx, rightIdx].filter(idx => idx !== -1);
             });
         }
         measureSolutionPhrases();
 
-        // Hover state - dim every sibling (both the other phrases AND
-        // the thin connecting text - see the CSS comment on why those
-        // are real spans, not raw text nodes) down to the hovered one.
+        // Hover state - dim the other three sectors, focus on the one
+        // under the cursor.
         let solutionsHoveredPhrase = -1;
         solutionPhraseEls.forEach((el, i) => {
             el.addEventListener('mouseenter', () => {
@@ -3145,7 +3117,7 @@
         // Brightness pulse - reuses the SAME stringHeadingBoostByIndex
         // array render()'s particle/line/pulse loops already read (it
         // used to be driven by the old Expertise heading hover; now by
-        // which solution phrase is hovered instead). Called every
+        // which solution sector is hovered instead). Called every
         // frame alongside updateButtonHover() below, unconditionally -
         // cheap, and this file's own established pattern for this
         // exact kind of per-frame DOM-driven lookup.
@@ -3159,7 +3131,7 @@
             stringTargetX.forEach((sx, si) => {
                 let boost = 0;
                 solutionPhraseEls.forEach((el, i) => {
-                    if (solutionPhraseStringIndex[i] === si) boost = Math.max(boost, solutionsHoverT[i]);
+                    if (solutionPhraseBoundaryStrings[i].includes(si)) boost = Math.max(boost, solutionsHoverT[i]);
                 });
                 stringHeadingBoostByIndex[si] = boost;
             });
@@ -3169,31 +3141,34 @@
         // engine as the general cursor-proximity string touch already
         // in this file (stepStringWaves/stringWaveY), just with a
         // different excitation source: continuous injection at the
-        // hovered phrase's own Y while hovered, rather than requiring
+        // hovered sector's own Y while hovered, rather than requiring
         // the literal cursor to land within STRING_TOUCH_RADIUS of the
         // string's raw X - hovering the TEXT is the trigger, not
-        // pixel-precision cursor placement. Skipped entirely on mobile
-        // (no cursor there; the brief asks for the strings to stay a
-        // static background on phones).
+        // pixel-precision cursor placement. Bends BOTH of the hovered
+        // sector's boundary strings (its left and right border), not
+        // just one - that's what makes the sector read as framed.
+        // Skipped entirely on mobile (no cursor there; the brief asks
+        // for the strings to stay a slow ambient pulse on phones).
         function exciteSolutionStrings() {
             if (IS_MOBILE || solutionsHoveredPhrase < 0) return;
-            const si = solutionPhraseStringIndex[solutionsHoveredPhrase];
             const el = solutionPhraseEls[solutionsHoveredPhrase];
             const r = el.getBoundingClientRect();
             const targetY = r.top + r.height / 2;
             const j = Math.round((targetY / height) * STRING_SEGMENTS);
-            // Amplitude cut 3.5x from the first pass (0.05 -> ~0.0143) —
-            // the original read as the string flying a quarter-screen
-            // and slicing through neighboring words. Still only 3
-            // segments wide (dj -1..1), so the bend stays tight and
-            // local to the hovered phrase's own row, not spreading.
-            const pull = (mouse.x - stringTargetX[si]) * (0.05 / 3.5);
-            for (let dj = -1; dj <= 1; dj++) {
-                const jj = j + dj;
-                if (jj > 0 && jj < STRING_SEGMENTS) {
-                    stringWaveYPrev[si][jj] -= pull * (dj === 0 ? 0.16 : 0.07);
+            solutionPhraseBoundaryStrings[solutionsHoveredPhrase].forEach(si => {
+                // Amplitude cut 3.5x from the first pass (0.05 -> ~0.0143) —
+                // the original read as the string flying a quarter-screen
+                // and slicing through neighboring words. Still only 3
+                // segments wide (dj -1..1), so the bend stays tight and
+                // local to the hovered sector's own row, not spreading.
+                const pull = (mouse.x - stringTargetX[si]) * (0.05 / 3.5);
+                for (let dj = -1; dj <= 1; dj++) {
+                    const jj = j + dj;
+                    if (jj > 0 && jj < STRING_SEGMENTS) {
+                        stringWaveYPrev[si][jj] -= pull * (dj === 0 ? 0.16 : 0.07);
+                    }
                 }
-            }
+            });
         }
 
         // Entrance/reset - opacity+y only (transform/opacity, GPU),
