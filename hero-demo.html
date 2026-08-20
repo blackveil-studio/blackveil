@@ -688,60 +688,96 @@
             flex: 0 0 59%;
             max-width: 59%;
         }
-        /* One continuous flowing paragraph - connectors and phrases
-           are BOTH real spans (not raw text nodes) specifically so
-           the hover-dim below can address every piece individually.
+        /* Strict architectural stack, not flowing prose: connectors and
+           phrases are BOTH real block-level spans (not raw text nodes,
+           not inline flow) so each sits on its own line and the
+           hover-dim below can address every piece individually.
            Opacity on the shared .solutions-paragraph parent would
            multiply with any child's own opacity instead of letting a
            hovered phrase "cancel it out" back to full brightness -
            sibling-level opacity on every child avoids that trap. */
         .solutions-paragraph {
-            font-family: 'DM Sans', sans-serif;
-            font-weight: 300;
-            font-size: clamp(17px, 1.5vw, 23px);
-            line-height: 1.95;
-            letter-spacing: 0.005em;
-            /* Every character is inside a .solutions-connector or
-               .solution-phrase span, both with their own explicit
-               color — this is just a sane fallback, not something
-               that actually paints. */
-            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            text-align: left;
             margin: 0;
         }
-        /* Stable 0.45 at rest — the color's own baked-in alpha wasn't
-           the readability problem by itself, but stacked with this
-           opacity it was reading as too faint to comfortably read the
-           whole sentence in one pass. */
+        /* Thin, italic, deliberately smaller and dimmer than the bold
+           caps below — the contrast IS the hierarchy: connectors read
+           as quiet connective tissue, phrases read as the statement.
+           +2px over the previous inline-flow size since each line now
+           stands alone rather than sharing a paragraph's rhythm. */
         .solutions-connector {
+            display: block;
+            font-family: 'DM Sans', sans-serif;
+            font-weight: 300;
+            font-style: italic;
+            font-size: clamp(19px, 1.7vw, 25px);
+            line-height: 1.4;
+            letter-spacing: 0.005em;
             color: #fff;
             opacity: 0.5;
+            margin: 0.6em 0 0 0;
             transition: opacity 0.4s ease;
             will-change: opacity;
         }
+        .solutions-connector--intro {
+            margin-top: 0;
+        }
+        /* Massive bold caps - the block's own visual anchor. Position
+           (margin-left) is corrected in JS per phrase so each one's
+           rendered center lands exactly on its assigned string, not
+           just wherever left-alignment happens to put it - see
+           measureSolutionPhrases(). Connectors are deliberately left
+           OUT of that correction and stay pinned to the column's left
+           edge, so the thin text reads as the stack's stable spine
+           while the bold phrases are the ones that float to their
+           string. */
         .solution-phrase {
-            display: inline-block;
+            display: block;
+            white-space: nowrap;
+            /* nowrap is load-bearing, not cosmetic: without it, a flex
+               item sized by content (align-items:flex-start) can wrap
+               onto two lines once its own margin-left correction below
+               eats into the remaining space - which then changes the
+               phrase's own width, which the correction was computed
+               FROM, creating a feedback loop that made every
+               measurement unstable (confirmed directly: the same
+               phrase measured 366px, then 429px, then 483px across
+               successive calls with no other state changing). A single
+               massive line is the intended read anyway. */
             font-family: 'Bricolage Grotesque', sans-serif;
             font-weight: 800;
-            font-size: 1.5em;
-            letter-spacing: 0;
+            font-size: clamp(34px, 3.6vw, 58px);
+            letter-spacing: 0.01em;
+            line-height: 1.05;
             color: #fff;
             /* Subtle at rest, not the full glow — the brief specifically
                frames the golden text-shadow as something a phrase
                "gets" on hover, so resting state stays close to plain
                white and .is-active is where it actually lights up. */
             text-shadow: 0 0 8px rgba(255, 176, 60, 0.22);
+            margin: 0.3em 0 0 0;
+            /* margin-left (the per-phrase string-axis correction below)
+               is deliberately NOT in this transition list - it's a
+               one-time resize/load correction, not part of the hover
+               loop, and should snap instantly rather than animate a
+               layout-triggering property. Every property that DOES
+               drive the 60fps hover interaction stays transform/opacity
+               only, per the brief. */
             transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), text-shadow 0.4s ease;
             transform: translate3d(0, 0, 0) scale(1);
             will-change: opacity, transform;
             cursor: default;
         }
         /* Strict hover focus: hovering ANY one phrase drags literally
-           everything else in the paragraph — every other phrase AND
-           every connector — down to 0.15, so only the hovered phrase
-           reads clearly. */
+           everything else in the stack — every other phrase AND every
+           connector — down to 0.12, so only the hovered phrase reads
+           clearly. */
         .solutions-paragraph.has-active .solutions-connector,
         .solutions-paragraph.has-active .solution-phrase {
-            opacity: 0.15;
+            opacity: 0.12;
         }
         .solutions-paragraph.has-active .solution-phrase.is-active {
             opacity: 1;
@@ -762,8 +798,12 @@
             }
             .solutions-col-left { background: none; }
             .solutions-manifesto { font-size: clamp(21px, 6vw, 28px); line-height: 1.25; }
-            .solutions-paragraph { font-size: clamp(14px, 3.6vw, 17px); line-height: 1.75; }
-            .solution-phrase { font-size: 1.4em; }
+            /* Brighter than desktop's 0.5 - thin italic text needs the
+               extra contrast to stay readable outdoors on a phone
+               screen, per the brief. */
+            .solutions-connector { font-size: clamp(14px, 3.8vw, 18px); opacity: 0.6; margin-top: 0.5em; }
+            .solutions-connector--intro { margin-top: 0; }
+            .solution-phrase { font-size: clamp(24px, 8vw, 34px); margin: 0.25em 0 0 0 !important; }
         }
     </style>
 </head>
@@ -859,7 +899,16 @@
                     <p class="solutions-manifesto">We pull your brand out of the dark. No templates. No limits. Just pure digital <span class="solutions-outline">dominance</span>.</p>
                 </div>
                 <div class="solutions-col-right">
-                    <p class="solutions-paragraph" id="solutions-paragraph"><span class="solutions-connector">We completely transform your business by delivering </span><span class="solution-phrase" data-phrase="0">DESIGN THAT SELLS</span><span class="solutions-connector"> through a fully independent </span><span class="solution-phrase" data-phrase="1">PREMIUM WEBSITE</span><span class="solutions-connector"> with </span><span class="solution-phrase" data-phrase="2">ULTRA-FAST LOADING</span><span class="solutions-connector"> and flawless </span><span class="solution-phrase" data-phrase="3">MOBILE INTERACTION</span><span class="solutions-connector">.</span></p>
+                    <div class="solutions-paragraph" id="solutions-paragraph">
+                        <span class="solutions-connector solutions-connector--intro">We completely transform your business by delivering:</span>
+                        <span class="solution-phrase" data-phrase="0">DESIGN THAT SELLS</span>
+                        <span class="solutions-connector">through a fully independent</span>
+                        <span class="solution-phrase" data-phrase="1">PREMIUM WEBSITE</span>
+                        <span class="solutions-connector">optimized for</span>
+                        <span class="solution-phrase" data-phrase="2">ULTRA-FAST LOADING</span>
+                        <span class="solutions-connector">and flawless</span>
+                        <span class="solution-phrase" data-phrase="3">MOBILE INTERACTION</span>
+                    </div>
                 </div>
             </div>
         </section>
@@ -3045,22 +3094,84 @@
         const solutionsParagraphEl = document.getElementById('solutions-paragraph');
         const solutionPhraseEls = Array.from(document.querySelectorAll('.solution-phrase'));
         const solutionsManifestoEl = document.querySelector('.solutions-manifesto');
+        const solutionsGridEl = document.querySelector('.solutions-grid');
 
-        // Each phrase's nearest string column - recomputed on load and
-        // resize, not a fixed assignment, since the paragraph is real
-        // flowing text and where each phrase actually lands depends on
-        // viewport width/font metrics, not a hardcoded slot.
+        // Each phrase gets its OWN distinct string, and is nudged
+        // (margin-left) so its rendered center lands exactly on that
+        // string's x - not just "whichever string happens to be
+        // nearby", which is what a shared-left-edge block stack would
+        // otherwise produce (all 4 phrases starting at the same left
+        // edge would mostly cluster on the same one or two strings).
+        // Recomputed on load and resize since where a string's own x
+        // and a phrase's own natural width land both depend on
+        // viewport size and font metrics, not a hardcoded slot.
+        // Connectors are deliberately left out of this correction (see
+        // the CSS comment on .solution-phrase) - they stay pinned to
+        // the column's left edge as the stack's stable spine.
         let solutionPhraseStringIndex = solutionPhraseEls.map(() => 0);
         function measureSolutionPhrases() {
-            solutionPhraseEls.forEach((el, i) => {
-                const r = el.getBoundingClientRect();
-                const cx = r.left + r.width / 2;
-                let bestD = Infinity, bestIdx = 0;
-                stringTargetX.forEach((sx, si) => {
-                    const d = Math.abs(cx - sx);
-                    if (d < bestD) { bestD = d; bestIdx = si; }
-                });
-                solutionPhraseStringIndex[i] = bestIdx;
+            solutionPhraseEls.forEach(el => { el.style.marginLeft = '0px'; });
+            // Safe bounds are NOT the right column's own edges - a
+            // phrase naturally starts flush against that edge (left-
+            // aligned, zero slack), so clamping the correction there
+            // would only ever allow it to shift right, never left,
+            // making roughly half of all string assignments
+            // unreachable in practice (confirmed directly: two of the
+            // four phrases clamped to 0 correction and landed 70-210px
+            // off their assigned string). The genuine limits are the
+            // manifesto column's own right edge on the left (so a
+            // shifted phrase can never crowd the other column's text)
+            // and the grid's right edge on the right.
+            // safeRight is the viewport's own edge, not the grid's -
+            // the grid's 6vw padding is sized for normal flow, but a
+            // phrase reaching for its string is a deliberate one-off
+            // break from that box (same idea as the connectors staying
+            // inside it as the stack's stable spine). Using the grid's
+            // own padded edge left several strings entirely unreachable
+            // for these phrase widths, confirmed directly (one phrase
+            // landing 165px off with nowhere left to go).
+            const safeLeft = solutionsManifestoEl.getBoundingClientRect().right + 24;
+            const safeRight = window.innerWidth - 24;
+            const n = solutionPhraseEls.length;
+
+            // Every phrase's own clamped position + error for every
+            // string, up front - a small (4 x STRING_COUNT) table.
+            const rects = solutionPhraseEls.map(el => el.getBoundingClientRect());
+            const table = rects.map(r => stringTargetX.map(sx => {
+                const desiredLeft = sx - r.width / 2;
+                const clampedLeft = Math.max(safeLeft, Math.min(safeRight - r.width, desiredLeft));
+                return { left: clampedLeft, err: Math.abs((clampedLeft + r.width / 2) - sx) };
+            }));
+
+            // Assigning each phrase greedily to its own nearest-so-far
+            // string produces a genuinely bad result in practice: an
+            // earlier phrase can claim the only string a LATER, wider
+            // phrase could actually reach, stranding it 150-200px off
+            // (confirmed directly on two separate greedy attempts).
+            // With only 4 phrases and up to 8 strings this is small
+            // enough to brute-force properly instead - try every
+            // ordered selection of 4 distinct strings (at most 8x7x6x5
+            // = 1680 combinations, a one-time cost on load/resize, not
+            // per frame) and keep whichever assignment minimizes total
+            // error across all four phrases at once.
+            let bestTotal = Infinity, bestAssignment = null;
+            (function search(chosen, remaining) {
+                if (chosen.length === n) {
+                    let total = 0;
+                    for (let i = 0; i < n; i++) total += table[i][chosen[i]].err;
+                    if (total < bestTotal) { bestTotal = total; bestAssignment = chosen.slice(); }
+                    return;
+                }
+                for (let k = 0; k < remaining.length; k++) {
+                    chosen.push(remaining[k]);
+                    search(chosen, remaining.slice(0, k).concat(remaining.slice(k + 1)));
+                    chosen.pop();
+                }
+            })([], stringTargetX.map((_, si) => si));
+
+            bestAssignment.forEach((si, i) => {
+                solutionPhraseStringIndex[i] = si;
+                solutionPhraseEls[i].style.marginLeft = `${table[i][si].left - rects[i].left}px`;
             });
         }
         measureSolutionPhrases();
