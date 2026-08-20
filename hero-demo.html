@@ -38,6 +38,21 @@
                since it's harmless and covers any plain, non-sticky
                anchor target. */
             scroll-padding-top: 100px;
+            /* proximity, not mandatory - only pulls the scroll the rest
+               of the way in when it's already about to come to rest
+               near a snap point (see #solutions' own scroll-snap-align
+               below), never fights a scroll gesture that's just passing
+               through. This is what stops a small scroll from Quiz
+               leaving Solutions sitting half-in-view, "crooked" against
+               its own centered composition - confirmed reported
+               directly. Deliberately plain browser-native snap, not
+               another hand-built JS lock: Problems' own bespoke lock is
+               exactly what produced this whole session's worst bugs
+               (stale rift state, stuck scroll interception, hijacked
+               nav clicks), and none of that risk applies to a CSS
+               property that only ever adjusts a resting scroll
+               position. */
+            scroll-snap-type: y proximity;
         }
         /* Capped and centered instead of always covering the raw
            viewport - at extreme browser zoom-out (e.g. 25%) the
@@ -674,6 +689,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            scroll-snap-align: start;
         }
         .solutions-kinetic {
             position: relative;
@@ -2709,10 +2725,10 @@
             // (soft overlapping radial blobs, slow angular drift, gentle
             // per-blob pulse so it doesn't breathe as one flat unit) but
             // its own palette and driven purely by quizPartT - the exact
-            // same continuous value that parts the strings, so the two
-            // rise together as one transition instead of drifting out of
-            // sync. Drawn this early so everything after it (particles,
-            // strings, text) layers naturally on top. ---
+            // same continuous value that fades the strings out, so the
+            // two happen together as one transition instead of drifting
+            // out of sync. Drawn this early so everything after it
+            // (particles, strings, text) layers naturally on top. ---
             if (quizPartT > 0.001) {
                 ctx.save();
                 ctx.globalCompositeOperation = 'screen';
@@ -3075,14 +3091,6 @@
                             const d = Math.abs(hx - stringTargetX[si]);
                             if (d < bestD) { bestD = d; nearestX = stringTargetX[si]; nearestIdx = si; }
                         }
-                        // Nearest-string SEARCH stays on the strings'
-                        // true positions (identity/topology shouldn't
-                        // change); only the final resting target shifts
-                        // outward, so a particle still docks onto the
-                        // same string it always would, just wherever
-                        // that string currently sits once Quiz starts
-                        // pulling it toward the edge.
-                        nearestX += quizStringOffset(nearestX, quizPartT);
                         targetY = p.targetYFrac * height;
                         px = hx + (nearestX - hx) * morphT2;
                         py = hy + (targetY - hy) * morphT2;
@@ -3160,7 +3168,12 @@
                     // a frozen static image.
                     const twinkle = morphT2 > 0.9 ? (0.85 + 0.15 * Math.sin(time * 0.002 + p.seed)) : 1;
                     const headingBoost = 1 + stringHeadingBoostByIndex[nearestIdx] * 0.8;
-                    const finalAlpha = Math.min(1, p.alpha * a * twinkle * brightnessBoost * headingBoost * gravDissolveOrbit * riftAlphaFade);
+                    // Fades out toward Quiz (was a positional shove
+                    // toward the edges - "curtains" pushing the dust
+                    // around, reported as looking wrong) rather than
+                    // moving anything. 1 everywhere except right at the
+                    // Quiz boundary, same as quizPartT itself.
+                    const finalAlpha = Math.min(1, p.alpha * a * twinkle * brightnessBoost * headingBoost * gravDissolveOrbit * riftAlphaFade) * (1 - quizPartT);
                     const finalRadius = p.radius * (1 + (brightnessBoost - 1) * 0.35);
                     ctx.beginPath();
                     ctx.arc(px, py, finalRadius, 0, Math.PI * 2);
@@ -3278,22 +3291,24 @@
                 // wave points — with no active touch, every point sits at
                 // 0 and it draws pixel-identical to a straight line.
                 if (morphT2 > 0.15) {
-                    const lineAlpha = Math.min(1, (morphT2 - 0.15) / 0.65) * 0.5 * Math.min(1.6, brightnessBoost);
+                    // Fades toward Quiz (1 - quizPartT) instead of the
+                    // strings physically parting toward the edges - the
+                    // "curtains" shoving particles around was reported
+                    // as looking wrong; a clean fade keeps the same
+                    // "clear the stage for Quiz" function without any
+                    // motion. 1 everywhere except right at the boundary.
+                    const lineAlpha = Math.min(1, (morphT2 - 0.15) / 0.65) * 0.5 * Math.min(1.6, brightnessBoost) * (1 - quizPartT);
                     ctx.save();
                     ctx.globalCompositeOperation = 'lighter';
                     stringTargetX.forEach((sx, i) => {
-                        // Same additive offset as the docking particles
-                        // above, so the crisp stroke never separates
-                        // from the dust that makes it up.
-                        const effSx = sx + quizStringOffset(sx, quizPartT);
                         const depth = i / (STRING_COUNT - 1);
                         const boosted = lineAlpha * (1 + stringHeadingBoostByIndex[i] * 0.8);
-                        const grad = ctx.createLinearGradient(effSx, 0, effSx, height);
+                        const grad = ctx.createLinearGradient(sx, 0, sx, height);
                         grad.addColorStop(0, `rgba(120, 60, 15, ${boosted})`);
                         grad.addColorStop(1, `rgba(255, 195, 80, ${boosted * (1 - depth * 0.4)})`);
                         ctx.strokeStyle = grad;
                         ctx.lineWidth = (1.6 - depth * 0.8) * (1 + dockFlash * 0.5);
-                        strokeStringBezier(i, effSx);
+                        strokeStringBezier(i, sx);
                     });
                     ctx.restore();
                 }
@@ -3307,12 +3322,11 @@
                 // nothing shows before docking begins. Speed halved and
                 // radius scaled 1.5x from the first pass — a slow, lazy,
                 // hypnotic drift rather than a quick flicker.
-                const dockEnergy = Math.max(0, Math.min(1, (morphT2 - 0.7) / 0.3));
+                const dockEnergy = Math.max(0, Math.min(1, (morphT2 - 0.7) / 0.3)) * (1 - quizPartT);
                 if (dockEnergy > 0.01) {
                     ctx.save();
                     ctx.globalCompositeOperation = 'lighter';
                     stringTargetX.forEach((sx, i) => {
-                        const effSx = sx + quizStringOffset(sx, quizPartT);
                         const depth = i / (STRING_COUNT - 1);
                         const speed = (0.00042 + depth * 0.00008) / 2;
                         for (let pulseI = 0; pulseI < 2; pulseI++) {
@@ -3320,12 +3334,12 @@
                             const py = phase * height;
                             const fade = Math.sin(phase * Math.PI); // soft appear/disappear at both ends of the run
                             const glowR = 24 * 1.5;
-                            const grad = ctx.createRadialGradient(effSx, py, 0, effSx, py, glowR);
+                            const grad = ctx.createRadialGradient(sx, py, 0, sx, py, glowR);
                             const alpha = dockEnergy * fade * 0.5 * (1 + stringHeadingBoostByIndex[i] * 0.8);
                             grad.addColorStop(0, `rgba(255, 228, 180, ${alpha})`);
                             grad.addColorStop(1, `rgba(255, 160, 40, 0)`);
                             ctx.beginPath();
-                            ctx.arc(effSx, py, glowR, 0, Math.PI * 2);
+                            ctx.arc(sx, py, glowR, 0, Math.PI * 2);
                             ctx.fillStyle = grad;
                             ctx.fill();
                         }
@@ -3911,31 +3925,24 @@
             // Stays at 0 through all of Solutions (which sits exactly
             // one viewport tall right before this) - starts only as
             // Quiz's own reveal trigger approaches ('top 60%', roughly
-            // quizTopCached - height*0.6) so the strings hold still for
-            // the entire time someone is reading Solutions, and only
-            // begin departing once Quiz itself is actually arriving.
-            // end stops exactly AT quizTopCached, not past it - Quiz is
-            // the last section on the page and exactly one viewport
-            // tall, so quizTopCached IS the page's true max scroll
-            // position; anything past it is simply unreachable by a
-            // real user and the raw value would permanently plateau
-            // below 1 (confirmed directly: scrolling to the intended
-            // "past quiz" target left quizPartT stuck at 0.61, strings
-            // never actually clearing the screen). The graceful-glide
-            // feel comes from quizPartSmoothed's time-based lerp above,
-            // not from stretching this window further.
+            // quizTopCached - height*0.6) so the strings stay at full
+            // opacity for the entire time someone is reading Solutions,
+            // and only begin fading once Quiz itself is actually
+            // arriving. end stops exactly AT quizTopCached, not past
+            // it - Quiz is the last section on the page and exactly one
+            // viewport tall, so quizTopCached IS the page's true max
+            // scroll position; anything past it is simply unreachable
+            // by a real user and the raw value would permanently
+            // plateau below 1 (confirmed directly: scrolling to the
+            // intended "past quiz" target left quizPartT stuck at 0.61,
+            // strings never actually fully fading out). The graceful-
+            // glide feel comes from quizPartSmoothed's time-based lerp
+            // above, not from stretching this window further.
             const start = quizTopCached - height * 0.55;
             const end = quizTopCached;
             if (end <= start) return 0;
             return Math.max(0, Math.min(1, (window.scrollY - start) / (end - start)));
         }
-        function quizStringOffset(sx, t) {
-            if (t <= 0) return 0;
-            const eased = t * t * (3 - 2 * t); // smoothstep - no mechanical linear sweep
-            const dir = sx < width / 2 ? -1 : 1;
-            return dir * eased * width * 0.9;
-        }
-
         function updateQuizProgress() {
             quizProgressSegs.forEach((seg, i) => seg.classList.toggle('filled', i <= quizCurrentStep));
         }
