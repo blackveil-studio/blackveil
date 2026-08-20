@@ -1300,6 +1300,17 @@
         const particles = [];
         const nebulaClouds = [];
         const quizNebulaClouds = [];
+        // Persistent, frame-rate-independent smoothing (same lerp
+        // idiom as solutionsWordBoostT elsewhere in this file) applied
+        // to quizPartAmount()'s raw scroll-driven value. Quiz is the
+        // LAST section and exactly one viewport tall, so the scroll
+        // distance actually available for the parting transition is
+        // hard-capped at quizTopCached itself - there's no room past
+        // it to widen the window into. Smoothing the value in TIME
+        // instead means the same short scroll window still reads as a
+        // graceful glide even on a fast flick, instead of snapping to
+        // match scroll speed 1:1.
+        let quizPartSmoothed = 0;
         const shootingStars = []; // additive-only feature — own array, own draw pass, touches nothing else
         let shootingCooldown = 200;
 
@@ -1345,23 +1356,34 @@
         // driver), loosely clustered behind where the quiz text sits
         // rather than scattered edge to edge. Re-seeded on resize since
         // baseX/baseY are fractions of width/height.
+        // Kept strictly on the R>B (crimson/rose/ember) side of the
+        // wheel, deliberately away from anything blue-leaning - Hero's
+        // own palette (violet 138,43,226 and blue 0,71,255) both have
+        // B at or above R, which is what made the first pass read as
+        // "Hero again" despite the different exact RGB values. Nothing
+        // here has B higher than about half of R.
         const quizCloudColors = [
-            { r: 168, g: 32,  b: 92  },  // deep rose/crimson
-            { r: 130, g: 24,  b: 150 },  // magenta-violet
-            { r: 90,  g: 16,  b: 60  },  // wine/burgundy
-            { r: 200, g: 70,  b: 130 }   // warm pink-violet highlight
+            { r: 182, g: 28,  b: 68  },  // crimson rose
+            { r: 138, g: 16,  b: 42  },  // deep wine
+            { r: 214, g: 64,  b: 104 },  // warm magenta-pink
+            { r: 208, g: 96,  b: 54  }   // ember rose-gold - bridges toward Solutions' own amber
         ];
         function initQuizNebulaClouds() {
             quizNebulaClouds.length = 0;
-            for (let i = 0; i < 7; i++) {
+            for (let i = 0; i < 9; i++) {
                 const c = quizCloudColors[Math.floor(Math.random() * quizCloudColors.length)];
                 quizNebulaClouds.push({
-                    baseX: width * (0.24 + Math.random() * 0.52),
-                    baseY: height * (0.28 + Math.random() * 0.44),
+                    // Wider, less centered spread than a single "glow
+                    // ball" - reads as a loose wispy cluster instead of
+                    // one dominant blob, which is its own visual
+                    // signature distinct from Hero's own more evenly-
+                    // filled field.
+                    baseX: width * (0.1 + Math.random() * 0.8),
+                    baseY: height * (0.16 + Math.random() * 0.62),
                     x: 0, y: 0,
-                    radius: Math.random() * 200 + 240,
+                    radius: Math.random() * 150 + 170,
                     r: c.r, g: c.g, b: c.b,
-                    baseAlpha: Math.random() * 0.16 + 0.12,
+                    baseAlpha: Math.random() * 0.14 + 0.1,
                     angle: Math.random() * Math.PI * 2,
                     speed: (Math.random() * 0.0012 + 0.0004) / 3,
                     pulsePhase: Math.random() * Math.PI * 2,
@@ -2442,7 +2464,8 @@
             // Zero everywhere except right at the Quiz boundary, so
             // nothing about the existing Problems->Solutions morph
             // changes.
-            const quizPartT = quizPartAmount();
+            quizPartSmoothed += (quizPartAmount() - quizPartSmoothed) * 0.06;
+            const quizPartT = quizPartSmoothed;
 
             // Energy decays every single frame, independent of whether a scroll
             // event ever arrives again — this is what lets the streaks keep
@@ -3662,8 +3685,18 @@
             // quizTopCached - height*0.6) so the strings hold still for
             // the entire time someone is reading Solutions, and only
             // begin departing once Quiz itself is actually arriving.
+            // end stops exactly AT quizTopCached, not past it - Quiz is
+            // the last section on the page and exactly one viewport
+            // tall, so quizTopCached IS the page's true max scroll
+            // position; anything past it is simply unreachable by a
+            // real user and the raw value would permanently plateau
+            // below 1 (confirmed directly: scrolling to the intended
+            // "past quiz" target left quizPartT stuck at 0.61, strings
+            // never actually clearing the screen). The graceful-glide
+            // feel comes from quizPartSmoothed's time-based lerp above,
+            // not from stretching this window further.
             const start = quizTopCached - height * 0.55;
-            const end = quizTopCached - height * 0.05;
+            const end = quizTopCached;
             if (end <= start) return 0;
             return Math.max(0, Math.min(1, (window.scrollY - start) / (end - start)));
         }
