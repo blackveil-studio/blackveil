@@ -666,12 +666,40 @@
             text-align: center;
         }
         .solutions-headline-full {
+            position: relative;
             margin: 0;
             user-select: none;
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: clamp(10px, 2vw, 22px);
+        }
+        /* Per-line occlusion masks, not one shared mask behind the
+           whole composition. A single ellipse covering all three
+           stacked lines was tried first and measured directly: opacity
+           stayed strong near the block's own center but fell to
+           ~0.25-0.3 at the left/right edges of the outer two lines,
+           because those edges sit far enough from the shared center
+           (both horizontally AND vertically) that no amount of
+           widening helped without also washing out the gaps between
+           lines. Each line owning its own mask, sized relative to its
+           own box, gets uniform ~0.8-0.9 opacity across its ENTIRE
+           width regardless of how wide that particular line is -
+           "dominance" (hollow-outline, empty inside each letter, the
+           worst case since a string shows straight through with no
+           backdrop at all) gets the same strong coverage as the short
+           static lines either side of it. */
+        .headline-static-solutions,
+        .dynamic-word-row-solutions {
+            position: relative;
+        }
+        .headline-static-solutions::before,
+        .dynamic-word-row-solutions::before {
+            content: '';
+            position: absolute;
+            inset: -40% -18%;
+            z-index: -1;
+            background: radial-gradient(ellipse 115% 100% at 50% 50%, rgba(3, 3, 12, 0.92) 0%, rgba(3, 3, 12, 0.92) 55%, rgba(3, 3, 12, 0.55) 80%, rgba(3, 3, 12, 0) 100%);
         }
         /* Same size/weight as Problems' own headline-static - genuine
            parity, not an approximation, since these two blocks are now
@@ -701,17 +729,6 @@
             line-height: 1.05;
             min-height: 1.15em;
             position: relative;
-        }
-        /* Occlusion mask, same principle as Problems' own rift-glow
-           backdrop - a string passing directly behind this now-full-
-           width-centered word dims to a soft glow instead of visibly
-           slicing the letters. */
-        .dynamic-word-row-solutions::before {
-            content: '';
-            position: absolute;
-            inset: -0.05em -0.25em;
-            z-index: -1;
-            background: radial-gradient(ellipse 70% 85% at 50% 50%, rgba(3, 3, 12, 0.72) 0%, rgba(3, 3, 12, 0.38) 55%, rgba(3, 3, 12, 0) 85%);
         }
         .dynamic-word-solutions {
             display: inline-block;
