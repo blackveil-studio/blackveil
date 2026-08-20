@@ -634,34 +634,22 @@
            turquoise for this block specifically - see render()'s
            three-stage color comment.
            ============================================================ */
-        /* Genuinely taller than one viewport (not the old exactly-100vh
-           footprint) and its visible content pinned via ScrollTrigger,
-           trigger on this outer element but pin the shorter inner
-           .solutions-pin-viewport instead (see the JS) - standard
-           GSAP pattern for "pin a fixed-height visual while scrubbing
-           content across a taller scroll distance". This is load-
-           bearing, not decorative polish: confirmed directly that
-           without it, Solutions (the LAST, exactly-100vh section on
-           the page) has NO scrollable distance of its own to scrub
-           across at all - the only "extra" scroll distance available
-           at that point in the page belongs to Problems' own 0.7s
-           auto-animated exit transition, so a scrub tied to a plain
-           100vh Solutions would silently finish its entire 4-phrase
-           cycle DURING that system-driven tween, before the reader
-           ever gets to scroll through it themselves.
-           200vh of actual scroll distance (300vh height - 100vh
-           viewport) gives roughly half a screen of scrolling per
-           phrase band - unhurried without dragging. */
+        /* Deliberately back to a plain 100vh section, no pin, no scrub,
+           no custom wheel/touch interception anywhere in this block -
+           a previous round's scroll-scrubbed "Gravity Core" required
+           genuinely restructuring this into a tall (300vh) pinned
+           section to give the scrub something to scrub across, but
+           that entire mechanic is now gone: the whole point of this
+           redesign is content the client sees complete and immediately
+           on arrival, not something that reveals itself as they scroll
+           or hover. A plain onEnter/onEnterBack fade (see the JS) is
+           the only scroll-linked behavior left - simple enough that
+           there's no symmetric-scroll bug left to have. */
         #solutions {
             position: relative;
             width: 100%;
-            height: 300vh;
-            background: transparent;
-        }
-        .solutions-pin-viewport {
-            position: relative;
-            width: 100%;
             height: 100vh;
+            background: transparent;
             overflow: hidden;
             display: flex;
             align-items: center;
@@ -711,50 +699,69 @@
             flex: 0 0 59%;
             max-width: 59%;
         }
-        /* "The Gravity Core" - a single fixed centerpiece, not a list.
-           No hover anywhere in this mechanic; everything is driven by
-           scroll progress (see the scrub ScrollTrigger in JS). */
+        /* "Signal Points" - four short words, all visible at once, no
+           hover, no scroll-driven reveal to wait for. Each one hangs
+           from a small glowing node threaded exactly onto its own
+           string, connected by a short vertical stem - a map-pin /
+           spec-label motif, not a paragraph. This is what lets text
+           and strings share space "elegantly" without either fighting
+           the other: the STRING never has to bend or dodge anything
+           (it's a plain unbroken vertical line, its full established
+           identity untouched), and the WORD never has to fight for an
+           exact x-position either (only the tiny node needs to land
+           precisely on a string; the word just reads naturally beneath
+           it, per the JS comment on why that's the one thing every
+           earlier round's "make wide text hit an exact string x" logic
+           kept failing at). */
         .solutions-paragraph {
-            display: flex;
-            align-items: center;
-            justify-content: center;
             width: 100%;
             margin: 0;
         }
-        .gravity-core {
-            position: relative;
+        .signal-row {
             display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            padding: 30px 46px;
-            box-sizing: border-box;
-            /* min-width/min-height are set once in JS to the widest/
-               tallest of the four phrases, so switching between them
-               (different lengths) never resizes this box or shifts
-               the manifesto beside it - the brief's "fixed bounds,
-               can never fly off screen" requirement, structural rather
-               than just visual. */
-            /* Occlusion mask, same principle as the manifesto's own
-               (.solutions-col-left) and reused again here - the whole
-               point of this mechanic is strings pulling INWARD toward
-               this exact point as the user scrolls, so without a
-               backdrop they'd end up passing directly behind (and
-               through) the crystal-white text at the moment they
-               converge. */
-            background: radial-gradient(ellipse 100% 100% at 50% 50%, rgba(3, 3, 12, 0.78) 0%, rgba(3, 3, 12, 0.45) 50%, rgba(3, 3, 12, 0) 84%);
+            justify-content: space-between;
+            align-items: flex-start;
+            width: 100%;
         }
-        .gravity-core-text {
+        .signal-point {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 0 0 auto;
+        }
+        /* Small, precise, its own soft glow regardless of anything
+           else (box-shadow, not canvas, so it stays crisp above the
+           DOM text layer) - a slow, gentle pulse reads as "alive"
+           without competing for attention with the word beneath it. */
+        .signal-node {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #fff 0%, rgba(255, 205, 130, 0.95) 45%, rgba(255, 150, 40, 0.6) 100%);
+            box-shadow: 0 0 9px rgba(255, 190, 90, 0.85), 0 0 20px rgba(255, 150, 40, 0.38);
+            animation: signalNodePulse 3.6s ease-in-out infinite;
+        }
+        @keyframes signalNodePulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.7; }
+        }
+        .signal-stem {
+            width: 1.5px;
+            height: 30px;
+            margin-top: 3px;
+            background: linear-gradient(to bottom, rgba(255, 190, 90, 0.75), rgba(255, 150, 40, 0));
+        }
+        .signal-word {
+            margin-top: 16px;
             display: inline-block;
             font-family: 'Bricolage Grotesque', sans-serif;
-            font-weight: 800;
-            font-size: clamp(30px, 3.4vw, 54px);
-            letter-spacing: 0.02em;
-            line-height: 1.1;
+            font-weight: 700;
+            font-size: clamp(19px, 1.7vw, 28px);
+            letter-spacing: 0.1em;
             color: #fff;
             white-space: nowrap;
-            text-shadow: 0 0 22px rgba(255, 190, 90, 0.35), 0 0 48px rgba(255, 140, 30, 0.18);
-            transform: translate3d(0, 0, 0) scaleX(1);
+            text-shadow: 0 0 16px rgba(255, 176, 60, 0.2);
+            transform: translate3d(0, 0, 0);
             will-change: opacity, transform;
         }
         @media (max-width: 768px) {
@@ -771,13 +778,21 @@
             }
             .solutions-col-left { background: none; }
             .solutions-manifesto { font-size: clamp(21px, 6vw, 28px); line-height: 1.25; }
-            /* Same mechanic, same scrub - it works identically from
-               touch-scroll with no special-casing needed (there's no
-               custom wheel/touch interception left in this section at
-               all anymore, see the JS comment). Only the amplitude of
-               the string pull and the text size actually change here. */
-            .gravity-core { padding: 22px 30px; }
-            .gravity-core-text { font-size: clamp(22px, 7vw, 34px); }
+            /* A single horizontal row of four words has no room to
+               breathe on a phone screen - becomes one centered column
+               instead, evenly spaced, all four still visible without
+               scrolling within the section itself. The per-point
+               string-snap offset (JS) is dropped here for the same
+               reason it was dropped for prior rounds' mobile layouts:
+               a horizontal nudge tuned for a wide desktop row doesn't
+               mean anything once everything is stacked in one column. */
+            .signal-row {
+                flex-direction: column;
+                align-items: center;
+                gap: 30px;
+            }
+            .signal-point { margin-left: 0 !important; }
+            .signal-word { font-size: clamp(20px, 6vw, 26px); }
         }
     </style>
 </head>
@@ -868,15 +883,32 @@
         </section>
 
         <section id="solutions">
-            <div class="solutions-pin-viewport">
-                <div class="solutions-grid">
-                    <div class="solutions-col-left">
-                        <p class="solutions-manifesto">We pull your brand out of the dark. No templates. No limits. Just pure digital <span class="solutions-outline">dominance</span>.</p>
-                    </div>
-                    <div class="solutions-col-right">
-                        <div class="solutions-paragraph" id="solutions-paragraph">
-                            <div class="gravity-core">
-                                <span class="gravity-core-text" id="gravity-core-text">BESPOKE DESIGN</span>
+            <div class="solutions-grid">
+                <div class="solutions-col-left">
+                    <p class="solutions-manifesto">We pull your brand out of the dark. No templates. No limits. Just pure digital <span class="solutions-outline">dominance</span>.</p>
+                </div>
+                <div class="solutions-col-right">
+                    <div class="solutions-paragraph" id="solutions-paragraph">
+                        <div class="signal-row">
+                            <div class="signal-point">
+                                <span class="signal-node"></span>
+                                <span class="signal-stem"></span>
+                                <span class="signal-word">DESIGN</span>
+                            </div>
+                            <div class="signal-point">
+                                <span class="signal-node"></span>
+                                <span class="signal-stem"></span>
+                                <span class="signal-word">PLATFORM</span>
+                            </div>
+                            <div class="signal-point">
+                                <span class="signal-node"></span>
+                                <span class="signal-stem"></span>
+                                <span class="signal-word">SPEED</span>
+                            </div>
+                            <div class="signal-point">
+                                <span class="signal-node"></span>
+                                <span class="signal-stem"></span>
+                                <span class="signal-word">MOBILE</span>
                             </div>
                         </div>
                     </div>
@@ -967,7 +999,7 @@
         // synchronous initial cache and the settled layout in testing,
         // small enough to never break the effect but still worth
         // correcting since it's nearly free.
-        window.addEventListener('load', () => { cacheGravityButtons(); measureGravityCore(); });
+        window.addEventListener('load', () => { cacheGravityButtons(); measureSignalPoints(); });
 
         function currentButtonRect(b) {
             if (b.kind === 'fixed') return b;
@@ -2079,7 +2111,7 @@
             cacheProblemsGeometry();
             computeStringTargets();
             cacheSolutionsGeometry();
-            measureGravityCore();
+            measureSignalPoints();
             cacheGravityButtons();
             measureDynamicWord();
         });
@@ -2429,25 +2461,18 @@
 
                 // Per-string cursor physics — cursor proximity to a
                 // string's own X is the ONLY trigger; no heading/text
-                // involvement anywhere in this file drives the strings.
-                // Only live once the strings are a recognizable thing to
-                // touch (morphT2 > 0.6 — the OLD gate was releaseAmount,
-                // which now just means "horizon formed", not "strings
-                // formed"); stepped every frame regardless so residual
-                // energy keeps decaying properly. updateGravityPull runs
-                // AFTER stepStringWaves (unlike the old hover-driven
-                // excitation, which injected velocity BEFORE the
-                // integrator's own step) because it directly SETS the
-                // target shape rather than injecting an impulse - if it
-                // ran first, the integrator's own spring force would
-                // partially pull the just-set values back toward their
-                // neighbors before this frame ever renders, fighting the
-                // deterministic scroll-driven target instead of just
-                // applying it.
+                // involvement anywhere in this file drives the strings
+                // (Solutions' own "Signal Points" design deliberately
+                // leaves every string exactly as-is - see that block's
+                // own comment for why). Only live once the strings are
+                // a recognizable thing to touch (morphT2 > 0.6 — the
+                // OLD gate was releaseAmount, which now just means
+                // "horizon formed", not "strings formed"); stepped
+                // every frame regardless so residual energy keeps
+                // decaying properly.
                 if (morphT2 > 0.6) {
                     exciteStrings();
                     stepStringWaves();
-                    updateGravityPull(solutionsScrubProgress);
                 }
 
                 ctx.save();
@@ -3048,23 +3073,19 @@
         requestAnimationFrame(render);
 
         // ============================================================
-        // Block 4 - Solutions: "The Gravity Core"
+        // Block 4 - Solutions: "Signal Points"
         // ============================================================
-        // A genuine architectural break from every previous version of
-        // this block: no hover anywhere, no page-snap lock, no custom
-        // wheel/touch interception at all. Everything is driven by one
-        // scrubbed ScrollTrigger reading the section's own natural
-        // scroll progress - native scroll IS the interaction, which
-        // structurally removes the whole class of lock/overlap bugs
-        // earlier rounds kept finding and re-fixing (there's simply
-        // nothing left here to intercept or get stuck). Strings are
-        // drawn by render() above (part of the shared orbitParticles
-        // morph, amber/gold for this block - see that function's
-        // three-stage color comment); this block just reads the
-        // section's scroll progress and (1) pulls the central strings
-        // toward the Core, releasing them at the true entry/exit edges,
-        // and (2) switches the Core's own text across four 25%-wide
-        // progress bands.
+        // Four short words, all visible at once - no hover to guess,
+        // no scroll-scrub to wait through, no lock. Strings are drawn
+        // by render() above (part of the shared orbitParticles morph,
+        // amber/gold for this block - see that function's three-stage
+        // color comment) and are left COMPLETELY untouched by this
+        // block - no bending, no pulling, no per-frame driving of any
+        // kind. The only thing tying text to strings is a tiny node
+        // threaded onto each string's own x (see measureSignalPoints
+        // below) with a short stem dropping to its word - the string
+        // itself stays exactly what it already is everywhere else on
+        // the page.
         const solutionsSection = document.getElementById('solutions');
         let solutionsTopCached = 0;
         function cacheSolutionsGeometry() {
@@ -3074,166 +3095,94 @@
 
         const solutionsParagraphEl = document.getElementById('solutions-paragraph');
         const solutionsManifestoEl = document.querySelector('.solutions-manifesto');
-        const gravityCoreEl = document.querySelector('.gravity-core');
-        const gravityCoreTextEl = document.getElementById('gravity-core-text');
-
-        const GRAVITY_PHRASES = ['BESPOKE DESIGN', 'OWNED PLATFORM', 'ZERO-LAG SPEED', 'MOBILE ARCHITECTURE'];
-        let gravityPhraseIndex = 0;
+        const signalPointEls = Array.from(document.querySelectorAll('.signal-point'));
 
         // render()'s particle/line/pulse loops still read this array
         // (a page-wide brightness-boost mechanism, not Solutions-
-        // specific) - this mechanic doesn't drive it (no hover to
-        // boost from anymore), so it just stays declared at a flat
+        // specific) - nothing in this design drives it (no hover, no
+        // scrub to boost from), so it just stays declared at a flat
         // zero rather than removing render()'s own read-sites, which
         // would mean touching that large shared function for a boost
         // this round never asked for.
         const stringHeadingBoostByIndex = stringTargetX.map(() => 0);
 
-        // Reserves the Core's own box at the widest/tallest of the
-        // four phrases, measured directly rather than assumed, so
-        // switching between them (different lengths) can never resize
-        // the box or shift the manifesto beside it - swapping the
-        // live element's own text synchronously (no rAF yield in
-        // between reading each measurement) means the browser never
-        // gets a chance to paint the intermediate states, so this
-        // causes no visible flicker despite mutating the real node.
-        function measureGravityCore() {
-            const originalText = gravityCoreTextEl.textContent;
-            let maxW = 0, maxH = 0;
-            GRAVITY_PHRASES.forEach(text => {
-                gravityCoreTextEl.textContent = text;
-                const r = gravityCoreTextEl.getBoundingClientRect();
-                maxW = Math.max(maxW, r.width);
-                maxH = Math.max(maxH, r.height);
-            });
-            gravityCoreTextEl.textContent = originalText;
-            gravityCoreEl.style.minWidth = `${Math.ceil(maxW)}px`;
-            gravityCoreEl.style.minHeight = `${Math.ceil(maxH)}px`;
-        }
-        measureGravityCore();
-
-        // Fast, soft fade + a light horizontal squeeze (scaleX, GPU-
-        // only) reading as the word "compressing" out and the next one
-        // "decompressing" in - sequential, not a simultaneous crossfade
-        // of two separate elements, since only one phrase is ever
-        // meant to be on screen. Guarded so it only ever fires on an
-        // actual band change, not every scrub tick.
-        function updateGravityCoreText(progress) {
-            const idx = Math.min(GRAVITY_PHRASES.length - 1, Math.max(0, Math.floor(progress * GRAVITY_PHRASES.length)));
-            if (idx === gravityPhraseIndex) return;
-            gravityPhraseIndex = idx;
-            gsap.killTweensOf(gravityCoreTextEl);
-            gsap.timeline()
-                .to(gravityCoreTextEl, { opacity: 0, scaleX: 0.82, duration: 0.16, ease: 'power2.in', force3D: true })
-                .call(() => { gravityCoreTextEl.textContent = GRAVITY_PHRASES[idx]; })
-                .to(gravityCoreTextEl, { opacity: 1, scaleX: 1, duration: 0.22, ease: 'power2.out', force3D: true });
-        }
-
-        // Pull envelope over the section's own scroll progress (0-1
-        // across the full 'top bottom' -> 'bottom top' scrub range,
-        // see the ScrollTrigger below): ramps in over the first 12%,
-        // holds at full strength through the middle, ramps back out
-        // over the last 12% - strings stay drawn in for the whole time
-        // the reader is actually in the section, only releasing right
-        // at the true entry/exit edges, matching "при выходе из блока
-        // они плавно выпрямляются обратно" rather than fluctuating for
-        // each of the four text bands.
-        function gravityPullEnvelope(p) {
-            if (p <= 0 || p >= 1) return 0;
-            if (p < 0.12) return p / 0.12;
-            if (p > 0.88) return (1 - p) / 0.12;
-            return 1;
-        }
-
-        // Directly SETS the target shape each frame (both stringWaveY
-        // and its own Prev buffer, so the Verlet integrator in
-        // stepStringWaves() sees zero residual velocity and never
-        // fights this or springs back on its own) rather than
-        // injecting an impulse the way the old hover-driven excitation
-        // did - progress is already smoothed by the scrub's own
-        // duration (1.25s), so a direct, deterministic target is more
-        // predictable here than layering a second spring system on top
-        // of an already-smoothed input. Only strings within ~340px of
-        // the Core's own (CURRENT, re-measured every call since the
-        // Core's viewport Y genuinely moves as the page scrolls - this
-        // isn't pinned) center are touched at all; the pull is
-        // localized vertically around the Core's own Y with a cosine
-        // falloff across a handful of segments, reading as a "waist"
-        // pinched toward one point rather than the whole string
-        // shifting sideways.
-        const GRAVITY_ZONE_PX = 340;
-        function updateGravityPull(progress) {
-            const envelope = gravityPullEnvelope(progress);
-            const coreRect = gravityCoreEl.getBoundingClientRect();
-            const coreX = coreRect.left + coreRect.width / 2;
-            const coreY = coreRect.top + coreRect.height / 2;
-            const centerSeg = Math.round((coreY / height) * STRING_SEGMENTS);
-            const mobileScale = IS_MOBILE ? (1 / 3) : 1;
-
-            stringTargetX.forEach((sx, si) => {
-                const dist = Math.abs(sx - coreX);
-                if (dist > GRAVITY_ZONE_PX) return; // outside the central zone - left fully untouched
-                const proximity = 1 - dist / GRAVITY_ZONE_PX; // 1 at the core's own x, fading to 0 at the zone edge
-                const dx = coreX - sx;
-                const pullPx = Math.min(Math.abs(dx) * 0.3, 70) * Math.sign(dx) * proximity * envelope * mobileScale;
-                for (let dj = -8; dj <= 8; dj++) {
-                    const jj = centerSeg + dj;
-                    if (jj <= 0 || jj >= STRING_SEGMENTS) continue;
-                    const falloff = Math.cos(Math.min(1, Math.abs(dj) / 8) * Math.PI / 2);
-                    const v = pullPx * falloff;
-                    stringWaveY[si][jj] = v;
-                    stringWaveYPrev[si][jj] = v;
-                }
+        // Snaps each point's own node onto its nearest string - a
+        // GENTLE nudge (capped at 40px), not the earlier rounds' full
+        // "reach whatever string is assigned, however far" correction.
+        // That distinction is the actual fix for the recurring "wide
+        // text vs narrow string spacing" failure mode from every prior
+        // round: a single short word (these are 5-8 characters, not a
+        // full commercial phrase) was never the problem - forcing it
+        // to travel far to chase a specific string was. With the
+        // natural space-between distribution already putting each
+        // point close to a string most of the time, a small capped
+        // nudge is enough to read as "threaded on this exact string"
+        // without ever risking a word overlapping its neighbor.
+        // Recomputed on load/resize.
+        const SIGNAL_SNAP_CAP_PX = 40;
+        function measureSignalPoints() {
+            signalPointEls.forEach(el => { el.style.marginLeft = '0px'; });
+            const usedStrings = new Set();
+            signalPointEls.forEach(el => {
+                const node = el.querySelector('.signal-node');
+                const r = node.getBoundingClientRect();
+                const cx = r.left + r.width / 2;
+                let bestD = Infinity, bestIdx = -1;
+                stringTargetX.forEach((sx, si) => {
+                    if (usedStrings.has(si)) return; // each point gets its own distinct string
+                    const d = Math.abs(cx - sx);
+                    if (d < bestD) { bestD = d; bestIdx = si; }
+                });
+                if (bestIdx === -1) return;
+                usedStrings.add(bestIdx);
+                const delta = Math.max(-SIGNAL_SNAP_CAP_PX, Math.min(SIGNAL_SNAP_CAP_PX, stringTargetX[bestIdx] - cx));
+                el.style.marginLeft = `${delta}px`;
             });
         }
+        measureSignalPoints();
 
-        // Entrance/exit - opacity+y only (transform/opacity, GPU). A
-        // plain one-shot fade on first crossing into/out of view, not
-        // tied to any lock or settle - the scrub itself starts
-        // immediately at the same trigger boundary, so both begin
-        // together. Starts hidden via an inline style set only once
-        // GSAP is confirmed available below, same reasoning as
-        // #problems: a failed CDN load shouldn't leave this content
-        // permanently invisible.
+        // Entrance - opacity+y only (transform/opacity, GPU), staggered
+        // per point so the row lights up left to right rather than
+        // popping in all at once. A plain one-shot fade on crossing
+        // into/out of view - no lock, no settle, no scroll interception
+        // of any kind, which is what makes this symmetric by
+        // construction: onEnterBack runs the identical tween onEnter
+        // does, nothing here can get "stuck" the way the old page-snap
+        // locks repeatedly did in earlier rounds of this section.
+        // Starts hidden via an inline style set only once GSAP is
+        // confirmed available below, same reasoning as #problems: a
+        // failed CDN load shouldn't leave this content permanently
+        // invisible.
         function revealSolutions() {
-            gsap.killTweensOf([solutionsManifestoEl, gravityCoreEl]);
-            gsap.to([solutionsManifestoEl, gravityCoreEl],
-                { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out', stagger: 0.15, force3D: true });
+            gsap.killTweensOf([solutionsManifestoEl, ...signalPointEls]);
+            gsap.to(solutionsManifestoEl, { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out', force3D: true });
+            gsap.to(signalPointEls, { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out', stagger: 0.08, delay: 0.15, force3D: true });
         }
         function hideSolutionsInstantly() {
-            gsap.killTweensOf([solutionsManifestoEl, gravityCoreEl, gravityCoreTextEl]);
-            gsap.set([solutionsManifestoEl, gravityCoreEl], { opacity: 0, y: 24 });
+            gsap.killTweensOf([solutionsManifestoEl, ...signalPointEls]);
+            gsap.set([solutionsManifestoEl, ...signalPointEls], { opacity: 0, y: 24 });
         }
 
-        const solutionsPinViewportEl = document.querySelector('.solutions-pin-viewport');
-
-        let solutionsScrubProgress = 0;
         if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
-            gsap.set([solutionsManifestoEl, gravityCoreEl], { opacity: 0, y: 24 });
+            gsap.set([solutionsManifestoEl, ...signalPointEls], { opacity: 0, y: 24 });
 
-            // trigger is the TALL (300vh, see CSS) outer section, which
-            // defines the timing/scroll-distance; pin is the shorter
-            // 100vh inner wrapper that actually gets visually fixed in
-            // place - standard split for "pin a fixed-height visual
-            // while scrubbing across a taller scroll distance" (see the
-            // CSS comment on #solutions for why this section needs
-            // that extra height at all: it's the LAST, otherwise-
-            // exactly-100vh section on the page, so without it there's
-            // no scrollable distance within the section itself to
-            // scrub across - confirmed directly, the whole 4-phrase
-            // cycle would silently finish during Problems' own 0.7s
-            // auto-animated exit transition instead of responding to
-            // the reader's own scrolling).
+            // start: 'top 60%' deliberately matches Problems' own end
+            // ('bottom 60%', see settleIntoProblems' comment) rather
+            // than an arbitrary percentage - confirmed directly that a
+            // casual 'top 70%' here reintroduces the exact trigger-
+            // range overlap an earlier round spent a full pass fixing:
+            // Problems' lock engaged and its own settle tween kept
+            // dragging scrollY back toward problemsTopCached mid-test,
+            // because its end (problemsTop + 0.4*height) landed AFTER
+            // this section's start (problemsTop + 0.3*height at 70%)
+            // instead of at the same point. Matching thresholds keeps
+            // the two crossing at the identical scrollY, so neither
+            // section's trigger can catch the page while the other is
+            // still settling.
             ScrollTrigger.create({
                 trigger: solutionsSection,
-                pin: solutionsPinViewportEl,
-                start: 'top top',
-                end: 'bottom bottom',
-                scrub: 1.25,
-                onUpdate: (self) => {
-                    solutionsScrubProgress = self.progress;
-                    updateGravityCoreText(solutionsScrubProgress);
-                },
+                start: 'top 60%',
+                end: 'bottom 60%',
                 onEnter: revealSolutions,
                 onEnterBack: revealSolutions,
                 onLeave: hideSolutionsInstantly,
