@@ -740,7 +740,7 @@
             text-transform: uppercase;
             color: #fff;
             text-shadow: 0 0 20px rgba(255, 180, 60, 0.5), 0 0 52px rgba(255, 140, 30, 0.26);
-            will-change: transform, opacity;
+            will-change: transform, opacity, filter;
             transform-origin: center center;
         }
         /* "dominance" - hollow outline in this block's own amber,
@@ -3144,16 +3144,22 @@
             const next = (solutionsWordIndex + 1) % SOLUTIONS_WORDS.length;
             const applyNew = () => applySolutionsWordAt(next);
             if (typeof gsap === 'undefined') { applyNew(); return; }
-            // Old word flies up and fades, new word rises fast from
-            // below with a Y-squash that snaps past 1 - identical
-            // motion to Problems' own cycleDynamicWord, just in this
-            // block's own amber palette.
+            // Deliberately NOT Problems' motion. Problems' words crash
+            // in on the Y axis with a squash-and-overshoot bounce -
+            // right for something breaking/landing. Solutions is the
+            // answer, not another impact, so it moves on the depth
+            // axis instead: the old word disperses outward (scales up,
+            // softens, fades - like it's dissolving into light), the
+            // new one arrives already-diffuse and RESOLVES into sharp
+            // focus (scales down to size, blur clears to 0, no
+            // overshoot). No Y movement at all, no bounce - the word
+            // settles into clarity rather than lands with impact.
             gsap.timeline({ defaults: { force3D: true } })
-                .to(solutionsDynamicWordEl, { duration: 0.18, y: -40, opacity: 0, ease: 'power3.in' })
+                .to(solutionsDynamicWordEl, { duration: 0.2, scale: 1.08, filter: 'blur(10px)', opacity: 0, ease: 'power2.in' })
                 .call(applyNew)
                 .fromTo(solutionsDynamicWordEl,
-                    { y: 40, scaleY: 0.35, opacity: 0 },
-                    { duration: 0.42, y: 0, scaleY: 1, opacity: 1, ease: 'back.out(1.7)' });
+                    { scale: 1.16, filter: 'blur(16px)', opacity: 0 },
+                    { duration: 0.5, scale: 1, filter: 'blur(0px)', opacity: 1, ease: 'power3.out' });
         }
 
         const SOLUTIONS_WORD_CYCLE_MS = 2200;
@@ -3163,9 +3169,12 @@
             if (solutionsWordTimer || !solutionsDynamicWordEl) return;
             applySolutionsWordAt(solutionsWordIndex);
             gsap.killTweensOf(solutionsDynamicWordEl);
+            // Same converge-to-focus language as cycleSolutionsWord's
+            // own entrance, so the section's first word appearance
+            // doesn't contradict every cycle after it.
             gsap.fromTo(solutionsDynamicWordEl,
-                { y: 30, opacity: 0, scaleY: 0.6 },
-                { y: 0, opacity: 1, scaleY: 1, duration: 0.5, ease: 'back.out(1.6)', force3D: true });
+                { scale: 1.16, filter: 'blur(16px)', opacity: 0 },
+                { scale: 1, filter: 'blur(0px)', opacity: 1, duration: 0.55, ease: 'power3.out', force3D: true });
             solutionsWordTimer = setInterval(cycleSolutionsWord, SOLUTIONS_WORD_CYCLE_MS);
         }
 
@@ -3176,7 +3185,7 @@
             if (solutionsWordTimer) { clearInterval(solutionsWordTimer); solutionsWordTimer = null; }
             if (solutionsDynamicWordEl) {
                 gsap.killTweensOf(solutionsDynamicWordEl);
-                gsap.set(solutionsDynamicWordEl, { opacity: 0, y: 0, scaleY: 1 });
+                gsap.set(solutionsDynamicWordEl, { opacity: 0, scale: 1, filter: 'blur(0px)' });
             }
             solutionsWordBoostTargets = [];
         }
