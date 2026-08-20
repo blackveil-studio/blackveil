@@ -624,27 +624,27 @@
         }
 
         /* ============================================================
-           Block 4 - Solutions. A monolithic visual statement, not a
-           list: no enumeration, no bullets, no numbering anywhere.
-           Fully static (no pin, no scroll-jack in the CSS sense) -
-           same page-snap lock ARCHITECTURE as #problems (see the JS
-           block), reusing the pattern but not the code (each lock is
-           self-contained; see that JS comment for why). Same shared
-           canvas underneath, its strings now amber/gold instead of
-           turquoise for this block specifically - see render()'s
-           three-stage color comment.
-           ============================================================ */
-        /* Deliberately back to a plain 100vh section, no pin, no scrub,
-           no custom wheel/touch interception anywhere in this block -
-           a previous round's scroll-scrubbed "Gravity Core" required
-           genuinely restructuring this into a tall (300vh) pinned
-           section to give the scrub something to scrub across, but
-           that entire mechanic is now gone: the whole point of this
-           redesign is content the client sees complete and immediately
-           on arrival, not something that reveals itself as they scroll
-           or hover. A plain onEnter/onEnterBack fade (see the JS) is
-           the only scroll-linked behavior left - simple enough that
-           there's no symmetric-scroll bug left to have. */
+           Block 4 - Solutions. A genuine structural mirror of #problems
+           now, not just a shared word-cycle mechanic borrowed into a
+           different layout: full-width, centered, one composition -
+           not a two-column fight between a large static manifesto and
+           a small dynamic answer. That two-column version kept reading
+           as unbalanced no matter how the sizes/alignment were tuned
+           (confirmed across two separate rebalancing passes) because
+           the actual problem was never the ratio - it was having TWO
+           competing text masses at all. Problems asks its question as
+           one full-width centered statement; Solutions now answers the
+           same way. The manifesto's own essential phrase ("pure digital
+           dominance", with its signature hollow-outline treatment on
+           "dominance") is folded directly into this one composition as
+           its closing line, rather than living in a separate block
+           that had to compete with it for attention. Same shared canvas
+           underneath, strings now amber/gold instead of turquoise for
+           this block specifically - see render()'s three-stage color
+           comment. Fully static (no pin, no scroll-jack) - a plain
+           onEnter/onEnterBack fade (see the JS) is the only scroll-
+           linked behavior left, simple enough that there's no
+           symmetric-scroll bug left to have. */
         #solutions {
             position: relative;
             width: 100%;
@@ -655,136 +655,63 @@
             align-items: center;
             justify-content: center;
         }
-        .solutions-grid {
+        .solutions-kinetic {
             position: relative;
             z-index: 2;
             width: 100%;
-            max-width: 1560px;
+            max-width: 1200px;
             margin: 0 auto;
             padding: 0 6vw;
             box-sizing: border-box;
-            display: flex;
-            /* flex-start, not center - centering two columns of very
-               different heights independently was the actual cause of
-               the manifesto reading as an afterthought: with the right
-               column's own 2-line headline shorter than the
-               manifesto's 4 lines, centering both put the glowing
-               kinetic word smack in the manifesto's own visual middle,
-               cutting across it. Top-aligning both reads as one
-               deliberate composition instead - a taller primary column
-               and a shorter secondary one starting from the same line,
-               the standard editorial two-column relationship. */
-            align-items: flex-start;
-            gap: 3vw;
+            text-align: center;
         }
-        .solutions-col-left {
-            /* Widened from 38% and the right column narrowed to match
-               (was 59%) - the manifesto needed more of the column's
-               own real estate to read as "monumental" rather than
-               visually squeezed next to the now-large kinetic word. */
-            flex: 0 0 41%;
-            max-width: 41%;
-            /* Occlusion mask, same principle as #problems's own -
-               painted directly on the column so it sits above the
-               canvas (z-index:1) but below this column's own text -
-               keeps the manifesto legible regardless of an amber
-               string passing behind it. */
-            background: radial-gradient(ellipse 78% 70% at 38% 50%, rgba(3, 3, 12, 0.85) 0%, rgba(3, 3, 12, 0.5) 45%, rgba(3, 3, 12, 0) 76%);
-        }
-        .solutions-manifesto {
-            font-family: 'Bricolage Grotesque', sans-serif;
-            font-weight: 700;
-            /* Raised substantially (was clamp(26px,2.9vw,44px)) - at
-               the old size this was nearly half the kinetic word's own
-               scale, which is why the word visually dominated a
-               "monumental" manifesto instead of the other way around.
-               The two are still visually distinct (manifesto stays
-               plain white, no glow; the word carries the gold glow),
-               but now comparable in weight rather than one dwarfing
-               the other. */
-            font-size: clamp(30px, 3.4vw, 54px);
-            line-height: 1.3;
-            letter-spacing: -0.01em;
-            color: #fff;
+        .solutions-headline-full {
             margin: 0;
             user-select: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: clamp(10px, 2vw, 22px);
         }
-        /* "dominance" - hollow outline in the block's own amber, not
-           the Problems block's white, so the one contoured word here
-           reads as tied to THIS block's identity. */
-        .solutions-manifesto .solutions-outline {
-            color: transparent;
-            -webkit-text-stroke: 2px rgba(255, 197, 120, 0.92);
-        }
-        .solutions-col-right {
-            position: relative;
-            flex: 0 0 56%;
-            max-width: 56%;
-        }
-        /* Kinetic headline, mirroring #problems' own dynamic-word
-           mechanic exactly (same pattern, separate elements/colors -
-           see the JS comment on why this isn't literally shared code).
-           Problems asks a question with a cycling negative word;
-           Solutions answers it with a cycling positive one - the same
-           proven, already-debugged motion language used as the design
-           statement itself, instead of inventing a sixth new mechanic.
-           One word on screen at a time means there's no "4 elements
-           each need their own x" problem to solve at all - the single
-           word just sits in its own generous open space, strings
-           passing behind it as pure ambient texture (see the JS for
-           the one deliberately safe touch that DOES connect them: a
-           brightness-only pulse on whichever strings the current word
-           happens to pass near, reusing the page's own existing
-           stringHeadingBoostByIndex mechanism - no bending, no
-           position changes, nothing that has ever caused a bug in this
-           block). */
-        .solutions-paragraph {
-            width: 100%;
-            margin: 0;
-        }
-        .solutions-headline {
-            margin: 0;
-            text-align: left;
-        }
+        /* Same size/weight as Problems' own headline-static - genuine
+           parity, not an approximation, since these two blocks are now
+           meant to read as one call-and-response pair. */
         .headline-static-solutions {
             display: block;
+            min-width: 0;
             font-family: 'Bricolage Grotesque', sans-serif;
             font-weight: 600;
-            font-size: clamp(18px, 1.7vw, 25px);
+            font-size: clamp(19px, 2.6vw, 34px);
             line-height: 1.3;
             letter-spacing: -0.005em;
-            color: rgba(255, 255, 255, 0.68);
-            margin-bottom: 0.15em;
+            color: rgba(255, 255, 255, 0.78);
         }
-        /* Fixed-height reserve, same reasoning as Problems' own row:
-           the tallest word (PLATFORM) never causes a jump relative to
-           the shortest (SPEED) since all four simply center inside
-           this same box vertically. */
+        /* Same scale as Problems' own dynamic-word-row (clamp(36px,
+           7.2vw,92px)) - the previous version capped this at 68px
+           specifically to avoid overwhelming the manifesto sitting
+           next to it; with that manifesto gone from this block
+           entirely, the word can (and should) command the same full
+           presence Problems' own dynamic word does. */
         .dynamic-word-row-solutions {
             display: flex;
             align-items: center;
-            justify-content: flex-start;
-            min-height: 1.2em;
-            /* Trimmed slightly (was clamp(44px,4.6vw,78px)) to meet
-               the now-larger manifesto partway, rather than the
-               manifesto alone doing all the work of closing the size
-               gap between the two columns. */
-            font-size: clamp(42px, 4.2vw, 68px);
+            justify-content: center;
+            min-width: 0;
+            font-size: clamp(36px, 7.2vw, 92px);
             line-height: 1.05;
-            margin-top: 0.05em;
+            min-height: 1.15em;
             position: relative;
-            /* Occlusion mask, same principle as the manifesto's own
-               (.solutions-col-left) - a string passing behind this
-               word dims to a soft glow instead of visibly slicing the
-               letters. */
-            padding: 0.12em 0.3em 0.12em 0;
         }
+        /* Occlusion mask, same principle as Problems' own rift-glow
+           backdrop - a string passing directly behind this now-full-
+           width-centered word dims to a soft glow instead of visibly
+           slicing the letters. */
         .dynamic-word-row-solutions::before {
             content: '';
             position: absolute;
-            inset: 0;
+            inset: -0.05em -0.25em;
             z-index: -1;
-            background: radial-gradient(ellipse 85% 90% at 30% 50%, rgba(3, 3, 12, 0.7) 0%, rgba(3, 3, 12, 0.36) 55%, rgba(3, 3, 12, 0) 85%);
+            background: radial-gradient(ellipse 70% 85% at 50% 50%, rgba(3, 3, 12, 0.72) 0%, rgba(3, 3, 12, 0.38) 55%, rgba(3, 3, 12, 0) 85%);
         }
         .dynamic-word-solutions {
             display: inline-block;
@@ -792,29 +719,26 @@
             font-weight: 800;
             font-size: inherit;
             line-height: inherit;
-            letter-spacing: 0.005em;
+            letter-spacing: -0.005em;
             text-transform: uppercase;
             color: #fff;
-            text-shadow: 0 0 18px rgba(255, 180, 60, 0.5), 0 0 46px rgba(255, 140, 30, 0.24);
+            text-shadow: 0 0 20px rgba(255, 180, 60, 0.5), 0 0 52px rgba(255, 140, 30, 0.26);
             will-change: transform, opacity;
-            transform-origin: center left;
+            transform-origin: center center;
+        }
+        /* "dominance" - hollow outline in this block's own amber,
+           carried over from the old manifesto's identical treatment so
+           the one signature contoured word on the page survives the
+           restructure, just now as this composition's own closing
+           beat instead of living in a separate competing block. */
+        .solutions-outline {
+            color: transparent;
+            -webkit-text-stroke: 2px rgba(255, 197, 120, 0.92);
         }
         @media (max-width: 768px) {
-            .solutions-grid {
-                flex-direction: column;
-                align-items: flex-start;
-                justify-content: center;
-                gap: 3.5vh;
-                padding: 96px 6vw 32px;
-            }
-            .solutions-col-left, .solutions-col-right {
-                flex: none;
-                max-width: 100%;
-            }
-            .solutions-col-left { background: none; }
-            .solutions-manifesto { font-size: clamp(21px, 6vw, 28px); line-height: 1.25; }
-            .headline-static-solutions { font-size: clamp(15px, 4vw, 19px); }
-            .dynamic-word-row-solutions { font-size: clamp(32px, 11vw, 50px); min-height: 1.3em; }
+            .solutions-kinetic { padding: 0 7vw; }
+            .headline-static-solutions { font-size: clamp(15px, 4vw, 20px); }
+            .dynamic-word-row-solutions { font-size: clamp(26px, 9vw, 42px); min-height: 1.3em; }
         }
     </style>
 </head>
@@ -905,18 +829,12 @@
         </section>
 
         <section id="solutions">
-            <div class="solutions-grid">
-                <div class="solutions-col-left">
-                    <p class="solutions-manifesto">We pull your brand out of the dark. No templates. No limits. Just pure digital <span class="solutions-outline">dominance</span>.</p>
-                </div>
-                <div class="solutions-col-right">
-                    <div class="solutions-paragraph" id="solutions-paragraph">
-                        <p class="solutions-headline">
-                            <span class="headline-static-solutions">No more problems. Just</span>
-                            <span class="dynamic-word-row-solutions"><span class="dynamic-word-solutions" id="solutions-dynamic-word">DESIGN</span></span>
-                        </p>
-                    </div>
-                </div>
+            <div class="solutions-kinetic">
+                <h2 class="solutions-headline-full" id="solutions-paragraph">
+                    <span class="headline-static-solutions">No more problems. Just</span>
+                    <span class="dynamic-word-row-solutions"><span class="dynamic-word-solutions" id="solutions-dynamic-word">DESIGN</span></span>
+                    <span class="headline-static-solutions">— pure digital <span class="solutions-outline">dominance</span>.</span>
+                </h2>
             </div>
         </section>
     </div>
@@ -3145,8 +3063,12 @@
         }
         cacheSolutionsGeometry();
 
+        // solutionsParagraphEl is now the WHOLE headline (id carried
+        // over from the old two-column version for continuity) - there
+        // is no longer a separate manifesto element to track; its own
+        // essential phrase moved into this headline's own closing
+        // static line (see the HTML).
         const solutionsParagraphEl = document.getElementById('solutions-paragraph');
-        const solutionsManifestoEl = document.querySelector('.solutions-manifesto');
         const solutionsDynamicWordEl = document.getElementById('solutions-dynamic-word');
 
         // render()'s particle/line/pulse loops read this array (a
@@ -3251,18 +3173,18 @@
         // does, nothing here can get "stuck" the way the old page-snap
         // locks repeatedly did in earlier rounds of this section.
         function revealSolutions() {
-            gsap.killTweensOf(solutionsManifestoEl);
-            gsap.to(solutionsManifestoEl, { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out', force3D: true });
+            gsap.killTweensOf(solutionsParagraphEl);
+            gsap.to(solutionsParagraphEl, { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out', force3D: true });
             igniteSolutionsWordCycle();
         }
         function hideSolutionsInstantly() {
-            gsap.killTweensOf(solutionsManifestoEl);
-            gsap.set(solutionsManifestoEl, { opacity: 0, y: 24 });
+            gsap.killTweensOf(solutionsParagraphEl);
+            gsap.set(solutionsParagraphEl, { opacity: 0, y: 24 });
             haltSolutionsWordCycle();
         }
 
         if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
-            gsap.set(solutionsManifestoEl, { opacity: 0, y: 24 });
+            gsap.set(solutionsParagraphEl, { opacity: 0, y: 24 });
             gsap.set(solutionsDynamicWordEl, { opacity: 0 });
 
             // start: 'top 60%' deliberately matches Problems' own end
@@ -3283,24 +3205,6 @@
                 onEnterBack: revealSolutions,
                 onLeave: hideSolutionsInstantly,
                 onLeaveBack: hideSolutionsInstantly,
-            });
-        }
-
-        // Cursor-following 3D tilt on the manifesto - a small, "едва
-        // заметный" touch matching the equivalent effect this file
-        // used to give the old Expertise headings.
-        if (solutionsManifestoEl) {
-            solutionsManifestoEl.addEventListener('mousemove', (e) => {
-                const rect = solutionsManifestoEl.getBoundingClientRect();
-                const relX = (e.clientX - rect.left) / rect.width - 0.5;
-                const relY = (e.clientY - rect.top) / rect.height - 0.5;
-                const maxTilt = 4;
-                const rotateY = relX * maxTilt * 2;
-                const rotateX = -relY * maxTilt;
-                solutionsManifestoEl.style.transform = `perspective(1000px) rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg)`;
-            });
-            solutionsManifestoEl.addEventListener('mouseleave', () => {
-                solutionsManifestoEl.style.transform = '';
             });
         }
 
