@@ -699,70 +699,78 @@
             flex: 0 0 59%;
             max-width: 59%;
         }
-        /* "Signal Points" - four short words, all visible at once, no
-           hover, no scroll-driven reveal to wait for. Each one hangs
-           from a small glowing node threaded exactly onto its own
-           string, connected by a short vertical stem - a map-pin /
-           spec-label motif, not a paragraph. This is what lets text
-           and strings share space "elegantly" without either fighting
-           the other: the STRING never has to bend or dodge anything
-           (it's a plain unbroken vertical line, its full established
-           identity untouched), and the WORD never has to fight for an
-           exact x-position either (only the tiny node needs to land
-           precisely on a string; the word just reads naturally beneath
-           it, per the JS comment on why that's the one thing every
-           earlier round's "make wide text hit an exact string x" logic
-           kept failing at). */
+        /* Kinetic headline, mirroring #problems' own dynamic-word
+           mechanic exactly (same pattern, separate elements/colors -
+           see the JS comment on why this isn't literally shared code).
+           Problems asks a question with a cycling negative word;
+           Solutions answers it with a cycling positive one - the same
+           proven, already-debugged motion language used as the design
+           statement itself, instead of inventing a sixth new mechanic.
+           One word on screen at a time means there's no "4 elements
+           each need their own x" problem to solve at all - the single
+           word just sits in its own generous open space, strings
+           passing behind it as pure ambient texture (see the JS for
+           the one deliberately safe touch that DOES connect them: a
+           brightness-only pulse on whichever strings the current word
+           happens to pass near, reusing the page's own existing
+           stringHeadingBoostByIndex mechanism - no bending, no
+           position changes, nothing that has ever caused a bug in this
+           block). */
         .solutions-paragraph {
             width: 100%;
             margin: 0;
         }
-        .signal-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-            width: 100%;
+        .solutions-headline {
+            margin: 0;
+            text-align: left;
         }
-        .signal-point {
+        .headline-static-solutions {
+            display: block;
+            font-family: 'Bricolage Grotesque', sans-serif;
+            font-weight: 600;
+            font-size: clamp(18px, 1.7vw, 25px);
+            line-height: 1.3;
+            letter-spacing: -0.005em;
+            color: rgba(255, 255, 255, 0.68);
+            margin-bottom: 0.15em;
+        }
+        /* Fixed-height reserve, same reasoning as Problems' own row:
+           the tallest word (PLATFORM) never causes a jump relative to
+           the shortest (SPEED) since all four simply center inside
+           this same box vertically. */
+        .dynamic-word-row-solutions {
             display: flex;
-            flex-direction: column;
             align-items: center;
-            flex: 0 0 auto;
+            justify-content: flex-start;
+            min-height: 1.2em;
+            font-size: clamp(44px, 4.6vw, 78px);
+            line-height: 1.05;
+            position: relative;
+            /* Occlusion mask, same principle as the manifesto's own
+               (.solutions-col-left) - a string passing behind this
+               word dims to a soft glow instead of visibly slicing the
+               letters. */
+            padding: 0.12em 0.3em 0.12em 0;
         }
-        /* Small, precise, its own soft glow regardless of anything
-           else (box-shadow, not canvas, so it stays crisp above the
-           DOM text layer) - a slow, gentle pulse reads as "alive"
-           without competing for attention with the word beneath it. */
-        .signal-node {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: radial-gradient(circle, #fff 0%, rgba(255, 205, 130, 0.95) 45%, rgba(255, 150, 40, 0.6) 100%);
-            box-shadow: 0 0 9px rgba(255, 190, 90, 0.85), 0 0 20px rgba(255, 150, 40, 0.38);
-            animation: signalNodePulse 3.6s ease-in-out infinite;
+        .dynamic-word-row-solutions::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            background: radial-gradient(ellipse 85% 90% at 30% 50%, rgba(3, 3, 12, 0.7) 0%, rgba(3, 3, 12, 0.36) 55%, rgba(3, 3, 12, 0) 85%);
         }
-        @keyframes signalNodePulse {
-            0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.3); opacity: 0.7; }
-        }
-        .signal-stem {
-            width: 1.5px;
-            height: 30px;
-            margin-top: 3px;
-            background: linear-gradient(to bottom, rgba(255, 190, 90, 0.75), rgba(255, 150, 40, 0));
-        }
-        .signal-word {
-            margin-top: 16px;
+        .dynamic-word-solutions {
             display: inline-block;
             font-family: 'Bricolage Grotesque', sans-serif;
-            font-weight: 700;
-            font-size: clamp(19px, 1.7vw, 28px);
-            letter-spacing: 0.1em;
+            font-weight: 800;
+            font-size: inherit;
+            line-height: inherit;
+            letter-spacing: 0.005em;
+            text-transform: uppercase;
             color: #fff;
-            white-space: nowrap;
-            text-shadow: 0 0 16px rgba(255, 176, 60, 0.2);
-            transform: translate3d(0, 0, 0);
-            will-change: opacity, transform;
+            text-shadow: 0 0 18px rgba(255, 180, 60, 0.5), 0 0 46px rgba(255, 140, 30, 0.24);
+            will-change: transform, opacity;
+            transform-origin: center left;
         }
         @media (max-width: 768px) {
             .solutions-grid {
@@ -778,21 +786,8 @@
             }
             .solutions-col-left { background: none; }
             .solutions-manifesto { font-size: clamp(21px, 6vw, 28px); line-height: 1.25; }
-            /* A single horizontal row of four words has no room to
-               breathe on a phone screen - becomes one centered column
-               instead, evenly spaced, all four still visible without
-               scrolling within the section itself. The per-point
-               string-snap offset (JS) is dropped here for the same
-               reason it was dropped for prior rounds' mobile layouts:
-               a horizontal nudge tuned for a wide desktop row doesn't
-               mean anything once everything is stacked in one column. */
-            .signal-row {
-                flex-direction: column;
-                align-items: center;
-                gap: 30px;
-            }
-            .signal-point { margin-left: 0 !important; }
-            .signal-word { font-size: clamp(20px, 6vw, 26px); }
+            .headline-static-solutions { font-size: clamp(15px, 4vw, 19px); }
+            .dynamic-word-row-solutions { font-size: clamp(32px, 11vw, 50px); min-height: 1.3em; }
         }
     </style>
 </head>
@@ -889,28 +884,10 @@
                 </div>
                 <div class="solutions-col-right">
                     <div class="solutions-paragraph" id="solutions-paragraph">
-                        <div class="signal-row">
-                            <div class="signal-point">
-                                <span class="signal-node"></span>
-                                <span class="signal-stem"></span>
-                                <span class="signal-word">DESIGN</span>
-                            </div>
-                            <div class="signal-point">
-                                <span class="signal-node"></span>
-                                <span class="signal-stem"></span>
-                                <span class="signal-word">PLATFORM</span>
-                            </div>
-                            <div class="signal-point">
-                                <span class="signal-node"></span>
-                                <span class="signal-stem"></span>
-                                <span class="signal-word">SPEED</span>
-                            </div>
-                            <div class="signal-point">
-                                <span class="signal-node"></span>
-                                <span class="signal-stem"></span>
-                                <span class="signal-word">MOBILE</span>
-                            </div>
-                        </div>
+                        <p class="solutions-headline">
+                            <span class="headline-static-solutions">No more problems. Just</span>
+                            <span class="dynamic-word-row-solutions"><span class="dynamic-word-solutions" id="solutions-dynamic-word">DESIGN</span></span>
+                        </p>
                     </div>
                 </div>
             </div>
@@ -999,7 +976,7 @@
         // synchronous initial cache and the settled layout in testing,
         // small enough to never break the effect but still worth
         // correcting since it's nearly free.
-        window.addEventListener('load', () => { cacheGravityButtons(); measureSignalPoints(); });
+        window.addEventListener('load', () => { cacheGravityButtons(); if (solutionsDynamicWordEl.textContent) updateSolutionsWordStringTargets(); });
 
         function currentButtonRect(b) {
             if (b.kind === 'fixed') return b;
@@ -2111,7 +2088,7 @@
             cacheProblemsGeometry();
             computeStringTargets();
             cacheSolutionsGeometry();
-            measureSignalPoints();
+            if (solutionsDynamicWordEl.textContent) updateSolutionsWordStringTargets();
             cacheGravityButtons();
             measureDynamicWord();
         });
@@ -2252,6 +2229,7 @@
             const releaseAmount = Math.max(0, Math.min(1, (scrollY - portfolioTopCached - releaseStartPx) / RELEASE_WINDOW_PX));
             const flyOffsetPx = releaseAmount * height;
             portfolioStickyZone.style.transform = flyOffsetPx > 0 ? `translateY(${-flyOffsetPx}px)` : '';
+            updateSolutionsWordBoost();
             updateButtonHover();
 
             // --- nebula clouds — Hero-only now. Swells through the first half
@@ -3073,19 +3051,27 @@
         requestAnimationFrame(render);
 
         // ============================================================
-        // Block 4 - Solutions: "Signal Points"
+        // Block 4 - Solutions: kinetic answer to Problems' own question
         // ============================================================
-        // Four short words, all visible at once - no hover to guess,
-        // no scroll-scrub to wait through, no lock. Strings are drawn
-        // by render() above (part of the shared orbitParticles morph,
-        // amber/gold for this block - see that function's three-stage
-        // color comment) and are left COMPLETELY untouched by this
-        // block - no bending, no pulling, no per-frame driving of any
-        // kind. The only thing tying text to strings is a tiny node
-        // threaded onto each string's own x (see measureSignalPoints
-        // below) with a short stem dropping to its word - the string
-        // itself stays exactly what it already is everywhere else on
-        // the page.
+        // Problems asks its question with a static lead + a cycling
+        // NEGATIVE word ("In a digital space full of noise, INVISIBLE
+        // businesses fade away."). This mirrors that exact mechanic -
+        // same code shape, own elements/colors, deliberately not
+        // literally shared functions (each block's lock/cycle stays
+        // self-contained, matching this file's own established
+        // philosophy) - with a static lead + a cycling POSITIVE word
+        // ("No more problems. Just DESIGN.") as the answer. Every
+        // previous version of this block invented a NEW mechanic to
+        // show 4 things at once and found a new way to break; this one
+        // shows exactly ONE thing at a time, using a mechanic already
+        // proven bug-free elsewhere on this same page. Strings are
+        // drawn by render() above (part of the shared orbitParticles
+        // morph, amber/gold for this block) and are never bent, moved,
+        // or pulled by this block - the only connection to them is a
+        // brightness-only pulse (see updateSolutionsWordBoost) on
+        // whichever strings the current word happens to sit near,
+        // reusing the page's own existing stringHeadingBoostByIndex
+        // mechanism rather than inventing new physics.
         const solutionsSection = document.getElementById('solutions');
         let solutionsTopCached = 0;
         function cacheSolutionsGeometry() {
@@ -3095,90 +3081,134 @@
 
         const solutionsParagraphEl = document.getElementById('solutions-paragraph');
         const solutionsManifestoEl = document.querySelector('.solutions-manifesto');
-        const signalPointEls = Array.from(document.querySelectorAll('.signal-point'));
+        const solutionsDynamicWordEl = document.getElementById('solutions-dynamic-word');
 
-        // render()'s particle/line/pulse loops still read this array
-        // (a page-wide brightness-boost mechanism, not Solutions-
-        // specific) - nothing in this design drives it (no hover, no
-        // scrub to boost from), so it just stays declared at a flat
-        // zero rather than removing render()'s own read-sites, which
-        // would mean touching that large shared function for a boost
-        // this round never asked for.
+        // render()'s particle/line/pulse loops read this array (a
+        // page-wide brightness-boost mechanism already used for
+        // Problems' own strings too) - driven here by
+        // updateSolutionsWordBoost below, time-synced to the word
+        // cycle rather than hover.
         const stringHeadingBoostByIndex = stringTargetX.map(() => 0);
 
-        // Snaps each point's own node onto its nearest string - a
-        // GENTLE nudge (capped at 40px), not the earlier rounds' full
-        // "reach whatever string is assigned, however far" correction.
-        // That distinction is the actual fix for the recurring "wide
-        // text vs narrow string spacing" failure mode from every prior
-        // round: a single short word (these are 5-8 characters, not a
-        // full commercial phrase) was never the problem - forcing it
-        // to travel far to chase a specific string was. With the
-        // natural space-between distribution already putting each
-        // point close to a string most of the time, a small capped
-        // nudge is enough to read as "threaded on this exact string"
-        // without ever risking a word overlapping its neighbor.
-        // Recomputed on load/resize.
-        const SIGNAL_SNAP_CAP_PX = 40;
-        function measureSignalPoints() {
-            signalPointEls.forEach(el => { el.style.marginLeft = '0px'; });
-            const usedStrings = new Set();
-            signalPointEls.forEach(el => {
-                const node = el.querySelector('.signal-node');
-                const r = node.getBoundingClientRect();
-                const cx = r.left + r.width / 2;
-                let bestD = Infinity, bestIdx = -1;
-                stringTargetX.forEach((sx, si) => {
-                    if (usedStrings.has(si)) return; // each point gets its own distinct string
-                    const d = Math.abs(cx - sx);
-                    if (d < bestD) { bestD = d; bestIdx = si; }
-                });
-                if (bestIdx === -1) return;
-                usedStrings.add(bestIdx);
-                const delta = Math.max(-SIGNAL_SNAP_CAP_PX, Math.min(SIGNAL_SNAP_CAP_PX, stringTargetX[bestIdx] - cx));
-                el.style.marginLeft = `${delta}px`;
+        const SOLUTIONS_WORDS = ['DESIGN', 'PLATFORM', 'SPEED', 'MOBILE'];
+        let solutionsWordIndex = 0;
+
+        // Which strings the CURRENT word's own rendered span passes
+        // near - re-measured every time the word changes (its width
+        // varies: PLATFORM vs SPEED), not cached once, since the
+        // column's own left-aligned text naturally lands at a
+        // different right edge each time.
+        let solutionsWordBoostTargets = [];
+        function updateSolutionsWordStringTargets() {
+            const r = solutionsDynamicWordEl.getBoundingClientRect();
+            const inSpan = stringTargetX
+                .map((sx, si) => ({ sx, si }))
+                .filter(c => c.sx > r.left - 12 && c.sx < r.right + 12)
+                .map(c => c.si);
+            if (inSpan.length > 0) { solutionsWordBoostTargets = inSpan; return; }
+            // Fallback for a narrow word with no string directly
+            // beneath it (e.g. SPEED on a wide desktop layout) -
+            // boost whichever single string is nearest instead of
+            // leaving nothing lit at all.
+            const cx = r.left + r.width / 2;
+            let bestD = Infinity, bestIdx = 0;
+            stringTargetX.forEach((sx, si) => { const d = Math.abs(sx - cx); if (d < bestD) { bestD = d; bestIdx = si; } });
+            solutionsWordBoostTargets = [bestIdx];
+        }
+
+        // Called every frame (see render()'s call site) - a slow
+        // lerp toward 1 for the current word's own strings and back
+        // toward 0 for everything else reads as a gentle glow-pulse
+        // synced to the word cycle, not an abrupt flash.
+        let solutionsWordBoostT = stringTargetX.map(() => 0);
+        function updateSolutionsWordBoost() {
+            stringTargetX.forEach((sx, si) => {
+                const target = solutionsWordBoostTargets.includes(si) ? 1 : 0;
+                solutionsWordBoostT[si] += (target - solutionsWordBoostT[si]) * 0.05;
+                stringHeadingBoostByIndex[si] = solutionsWordBoostT[si];
             });
         }
-        measureSignalPoints();
 
-        // Entrance - opacity+y only (transform/opacity, GPU), staggered
-        // per point so the row lights up left to right rather than
-        // popping in all at once. A plain one-shot fade on crossing
+        function applySolutionsWordAt(index) {
+            solutionsDynamicWordEl.textContent = SOLUTIONS_WORDS[index];
+            solutionsWordIndex = index;
+            updateSolutionsWordStringTargets();
+        }
+
+        function cycleSolutionsWord() {
+            const next = (solutionsWordIndex + 1) % SOLUTIONS_WORDS.length;
+            const applyNew = () => applySolutionsWordAt(next);
+            if (typeof gsap === 'undefined') { applyNew(); return; }
+            // Old word flies up and fades, new word rises fast from
+            // below with a Y-squash that snaps past 1 - identical
+            // motion to Problems' own cycleDynamicWord, just in this
+            // block's own amber palette.
+            gsap.timeline({ defaults: { force3D: true } })
+                .to(solutionsDynamicWordEl, { duration: 0.18, y: -40, opacity: 0, ease: 'power3.in' })
+                .call(applyNew)
+                .fromTo(solutionsDynamicWordEl,
+                    { y: 40, scaleY: 0.35, opacity: 0 },
+                    { duration: 0.42, y: 0, scaleY: 1, opacity: 1, ease: 'back.out(1.7)' });
+        }
+
+        const SOLUTIONS_WORD_CYCLE_MS = 2200;
+        let solutionsWordTimer = null;
+
+        function igniteSolutionsWordCycle() {
+            if (solutionsWordTimer || !solutionsDynamicWordEl) return;
+            applySolutionsWordAt(solutionsWordIndex);
+            gsap.killTweensOf(solutionsDynamicWordEl);
+            gsap.fromTo(solutionsDynamicWordEl,
+                { y: 30, opacity: 0, scaleY: 0.6 },
+                { y: 0, opacity: 1, scaleY: 1, duration: 0.5, ease: 'back.out(1.6)', force3D: true });
+            solutionsWordTimer = setInterval(cycleSolutionsWord, SOLUTIONS_WORD_CYCLE_MS);
+        }
+
+        // Hard reset, same reasoning as Problems' own hideWordInstantly
+        // - killTweensOf first so a still-running cycle tween can't
+        // silently undo this a frame later.
+        function haltSolutionsWordCycle() {
+            if (solutionsWordTimer) { clearInterval(solutionsWordTimer); solutionsWordTimer = null; }
+            if (solutionsDynamicWordEl) {
+                gsap.killTweensOf(solutionsDynamicWordEl);
+                gsap.set(solutionsDynamicWordEl, { opacity: 0, y: 0, scaleY: 1 });
+            }
+            solutionsWordBoostTargets = [];
+        }
+
+        // Entrance - opacity+y only (transform/opacity, GPU) for the
+        // static lead line; the word itself gets its own pop via
+        // igniteSolutionsWordCycle. A plain one-shot fade on crossing
         // into/out of view - no lock, no settle, no scroll interception
         // of any kind, which is what makes this symmetric by
-        // construction: onEnterBack runs the identical tween onEnter
+        // construction: onEnterBack runs the identical path onEnter
         // does, nothing here can get "stuck" the way the old page-snap
         // locks repeatedly did in earlier rounds of this section.
-        // Starts hidden via an inline style set only once GSAP is
-        // confirmed available below, same reasoning as #problems: a
-        // failed CDN load shouldn't leave this content permanently
-        // invisible.
         function revealSolutions() {
-            gsap.killTweensOf([solutionsManifestoEl, ...signalPointEls]);
+            gsap.killTweensOf(solutionsManifestoEl);
             gsap.to(solutionsManifestoEl, { opacity: 1, y: 0, duration: 0.8, ease: 'power3.out', force3D: true });
-            gsap.to(signalPointEls, { opacity: 1, y: 0, duration: 0.7, ease: 'power3.out', stagger: 0.08, delay: 0.15, force3D: true });
+            igniteSolutionsWordCycle();
         }
         function hideSolutionsInstantly() {
-            gsap.killTweensOf([solutionsManifestoEl, ...signalPointEls]);
-            gsap.set([solutionsManifestoEl, ...signalPointEls], { opacity: 0, y: 24 });
+            gsap.killTweensOf(solutionsManifestoEl);
+            gsap.set(solutionsManifestoEl, { opacity: 0, y: 24 });
+            haltSolutionsWordCycle();
         }
 
         if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
-            gsap.set([solutionsManifestoEl, ...signalPointEls], { opacity: 0, y: 24 });
+            gsap.set(solutionsManifestoEl, { opacity: 0, y: 24 });
+            gsap.set(solutionsDynamicWordEl, { opacity: 0 });
 
             // start: 'top 60%' deliberately matches Problems' own end
             // ('bottom 60%', see settleIntoProblems' comment) rather
-            // than an arbitrary percentage - confirmed directly that a
-            // casual 'top 70%' here reintroduces the exact trigger-
-            // range overlap an earlier round spent a full pass fixing:
-            // Problems' lock engaged and its own settle tween kept
-            // dragging scrollY back toward problemsTopCached mid-test,
-            // because its end (problemsTop + 0.4*height) landed AFTER
-            // this section's start (problemsTop + 0.3*height at 70%)
-            // instead of at the same point. Matching thresholds keeps
-            // the two crossing at the identical scrollY, so neither
-            // section's trigger can catch the page while the other is
-            // still settling.
+            // than an arbitrary percentage - a previous round confirmed
+            // directly that a casual mismatch here reintroduces the
+            // exact trigger-range overlap an earlier round spent a full
+            // pass fixing (Problems' lock re-engaging and its settle
+            // tween dragging scrollY backward mid-transition). Matching
+            // thresholds keeps the two crossing at the identical
+            // scrollY, so neither section's trigger can catch the page
+            // while the other is still settling.
             ScrollTrigger.create({
                 trigger: solutionsSection,
                 start: 'top 60%',
