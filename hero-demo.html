@@ -38,21 +38,6 @@
                since it's harmless and covers any plain, non-sticky
                anchor target. */
             scroll-padding-top: 100px;
-            /* proximity, not mandatory - only pulls the scroll the rest
-               of the way in when it's already about to come to rest
-               near a snap point (see #solutions' own scroll-snap-align
-               below), never fights a scroll gesture that's just passing
-               through. This is what stops a small scroll from Quiz
-               leaving Solutions sitting half-in-view, "crooked" against
-               its own centered composition - confirmed reported
-               directly. Deliberately plain browser-native snap, not
-               another hand-built JS lock: Problems' own bespoke lock is
-               exactly what produced this whole session's worst bugs
-               (stale rift state, stuck scroll interception, hijacked
-               nav clicks), and none of that risk applies to a CSS
-               property that only ever adjusts a resting scroll
-               position. */
-            scroll-snap-type: y proximity;
         }
         /* Capped and centered instead of always covering the raw
            viewport - at extreme browser zoom-out (e.g. 25%) the
@@ -689,7 +674,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            scroll-snap-align: start;
         }
         .solutions-kinetic {
             position: relative;
@@ -1413,7 +1397,7 @@
         const quizStars = [];
         function initQuizStars() {
             quizStars.length = 0;
-            for (let i = 0; i < 180; i++) {
+            for (let i = 0; i < 270; i++) {
                 quizStars.push({
                     x: Math.random() * width,
                     y: Math.random() * height,
@@ -2215,50 +2199,25 @@
             gsap.to(riftState, { t: 0, duration: 0.4, ease: 'power2.inOut' });
         }
 
-        // Safety net for exactly the same class of bypass hideWordInstantly
-        // already exists to catch (see its own onLeave/onLeaveBack comment
-        // below) - but covering riftState.t AND problemsLocked, not just
-        // the word. Two things only the locked exit-gesture flow
-        // (exitProblems -> closeRift) was ever responsible for undoing: (1)
-        // morphT2 (horizon line vs strings) is deliberately SUPPRESSED
-        // while riftState.t is open, so a stale-open rift bleeds Problems'
-        // own horizon line into whatever section the page actually landed
-        // on - confirmed directly; (2) problemsLocked gates wheel/touch
-        // preventDefault - if it's never cleared, scrolling stays
-        // incorrectly intercepted even after leaving Problems entirely.
-        // A big jump that skips the lock (nav link, fast flick, keyboard)
-        // never runs exitProblems, so neither ever gets cleaned up.
-        //
-        // Guarded by problemsSettling alone, not problemsLocked or
-        // isProblemsInteractionBlocked - those both read problemsLocked,
-        // and the whole point here is to correct problemsLocked when IT
-        // is the stale value. problemsSettling is the one flag that
-        // means "a tween I must not interrupt is actively in flight right
-        // now" (the entry settle only) - onLeave/onLeaveBack can only
-        // fire here at all once scroll has left Problems' own zone, which
-        // a genuinely-intercepted lock could never let happen, so by
-        // construction this never fires mid-way through the legitimate
-        // exit flow.
-        //
-        // riftState.t tweens smoothly to 0 (closeRift's own easing), not
-        // an instant gsap.set - this fires for BOTH a genuine bypass
-        // (rift stale from long ago, nothing on screen to show it
-        // either way - smooth vs instant looks identical) AND a
-        // perfectly normal reverse scroll where revealProblemsPlain
-        // just opened the rift for real moments earlier and the user
-        // kept scrolling on up out of Problems' own zone. Confirmed
-        // directly by tracing riftState.t through a real reverse scroll
-        // (Quiz -> Hero): it reached a genuine 1.0 (rift fully, visibly
-        // open) and then SNAPPED to 0 in a single frame the instant
-        // onLeaveBack fired - exactly the jarring "everything flies
-        // apart" look reported on reverse scroll. A smooth tween here
-        // fixes the real case without weakening the safety net at all.
-        function forceCleanProblemsStateIfStale() {
-            if (problemsSettling) return;
-            gsap.killTweensOf(riftState);
-            gsap.to(riftState, { t: 0, duration: 0.4, ease: 'power2.inOut' });
-            problemsLocked = false;
-        }
+        // Problems used to have its own hand-built page-snap lock here:
+        // a forced scrollTo tween to center it exactly, wheel/touch
+        // interception, a gesture-threshold exit, momentum-kill overflow
+        // toggling - a lot of machinery, all in service of one cinematic
+        // "settle into an exact centered frame" effect. It kept producing
+        // new edge cases round after round (stale state bleeding into
+        // Solutions/Quiz, hijacked nav clicks, an instant pop on reverse
+        // scroll, reported jitter on a light scroll) - each one
+        // individually fixable, but the pattern itself (forcing scroll
+        // position, intercepting native input) was the actual source of
+        // risk, not any single bug in it. Removed entirely, deliberately,
+        // per direct request rather than patching it again: Problems now
+        // uses the exact same minimal reveal-on-scroll pattern already
+        // proven bug-free on Solutions and Quiz all along - no lock, no
+        // forced scroll, nothing to go stale. The trade being made is
+        // explicit: no more forced perfect centering, in exchange for a
+        // transition that's smooth and correct at any scroll speed or
+        // direction by construction, because there's no longer any
+        // state machine for a fast or jerky scroll to catch out of sync.
 
         function igniteWordCycle() {
             if (dynamicWordTimer || !dynamicWordEl) return;
@@ -2292,332 +2251,28 @@
             }
         }
 
-        // Full-screen page snap — a genuine architectural change, not
-        // another patch on the same scroll-linked idea. Two earlier
-        // approaches each failed differently: ScrollTrigger's own
-        // pin:true caused real lag/jank in production (it inserts a
-        // spacer and toggles position:fixed on every engage/
-        // disengage), and plain scrub let the rift's width freeze at
-        // any fractional value wherever the user happened to stop —
-        // confirmed on video as the line reconnecting and cutting
-        // through the text mid-scroll.
-        //
-        // This is a hand-built lock instead, not ScrollTrigger's pin:
-        // the DOM never moves and nothing ever becomes position:fixed
-        // — only the browser's native scroll input gets intercepted.
-        // Sequence: a plain threshold-sensor ScrollTrigger (no pin, no
-        // scrub) notices the section coming into range and calls
-        // settleIntoProblems(), which auto-scrolls (GSAP ScrollTo) to
-        // the exact position where #problems fills 100% of the
-        // viewport. Only once that settle finishes does the lock
-        // engage — wheel/touchmove get preventDefault()'d for as long
-        // as problemsLocked is true, so no amount of small scrolling
-        // can move the page at all, and the rift only opens once
-        // locked. A single strong wheel tick or touch swipe past
-        // EXIT_GESTURE_PX is the only thing that can end it: text
-        // hides instantly, the line reconnects, and only after that
-        // finishes does the page smoothly continue on its own.
-        //
-        // Known scope limit, disclosed rather than silently ignored:
-        // this intercepts wheel and touch, not keyboard scrolling
-        // (PageDown/Space/arrows). A keyboard scroll can still slip
-        // scrollY past the section without going through this lock —
-        // the plain ScrollTrigger's onLeave/onLeaveBack below stay
-        // wired to hideWordInstantly specifically as a safety net for
-        // that case, so a bypass can never leave stale text behind
-        // even though it would skip the intended lock/reconnect feel.
-        //
-        // Momentum kill: the reported "flies straight through and
-        // hangs below" bug wasn't from reacting to wheel events too
-        // slowly — it's that a fast trackpad/touch flick keeps
-        // animating scrollY via the BROWSER's own native momentum,
-        // entirely independent of further wheel events, so
-        // preventDefault() on NEW events can't stop motion that's
-        // already in flight. Toggling documentElement's overflow to
-        // hidden for the duration of the settle is the standard fix
-        // — verified directly that gsap's ScrollToPlugin (and plain
-        // window.scrollTo) still work fine to drive the page
-        // programmatically while overflow is hidden, so this blocks
-        // exactly the thing it needs to (native/user-driven scroll)
-        // without blocking our own controlled animation. That native-
-        // momentum overshoot is also what the reported "curved arc"
-        // on scroll-up actually was: overshooting scrollY made it all
-        // the way back up into Portfolio's own release window, where
-        // releaseAmount genuinely (correctly) isn't 1 yet, so its
-        // galaxy-ring geometry was legitimately still blending in —
-        // not a stale variable, an honestly-wrong scroll position.
-        // Fixing the overshoot fixes this by construction. riftState.t
-        // still gets an explicit hard reset in openRift() below as
-        // defense in depth, per the brief.
-        let problemsLocked = false;
-        let problemsSettling = false;
-        // On reload, the browser restores scroll position BEFORE this
-        // script runs, so by the time ScrollTrigger.create() below
-        // evaluates the Problems trigger against that already-restored
-        // position, it sees a range that's already been "passed" and
-        // fires onEnter as part of its own initial sync - even though
-        // no real user scroll ever crossed it. settleIntoProblems()
-        // then forces scroll to Problems' own top, which is exactly
-        // why reloading anywhere below Problems always snapped back
-        // there instead of staying put. This flag suppresses that one
-        // synthetic initial firing; cleared right after setup so every
-        // REAL scroll-driven crossing afterward still locks normally.
-        let pageInitialLoad = true;
-        let problemsGestureAccum = 0;
-        let problemsLastWheelTime = 0;
-        let problemsTouchStartY = null;
-        let problemsHardBlockUntil = 0;
-        const EXIT_GESTURE_PX = 90;
-        // Now specifically guards the window right after the settle
-        // completes (see settleIntoProblems' own comment on why it's
-        // set there, not before) - generous enough to comfortably
-        // absorb a delayed momentum catch-up jump.
-        const ENTRY_HARD_BLOCK_MS = 600;
-
-        // Overflow:hidden on BOTH html and body, not just html - a
-        // single element has a documented cross-browser gap for
-        // momentum/inertial scrolling that's ALREADY in flight the
-        // instant overflow gets hidden: some browsers (Chromium in
-        // particular) can "replay"/catch up a scroll delta that was
-        // suppressed at the compositor level, applying it as a jump
-        // the moment overflow is restored rather than actually
-        // discarding it. This is almost certainly the real cause of
-        // the reported "doesn't stop on Problems, keeps scrolling
-        // past it" bug: it only needs a strong enough trackpad fling
-        // to have leftover momentum queued when the lock engages,
-        // which is exactly why it's intermittent (a slow scroll never
-        // triggers it) and was invisible to this whole session's own
-        // testing (GSAP virtual-time jumps don't simulate real OS
-        // momentum physics at all - there was never a way this class
-        // of bug could have shown up in any test run here). The
-        // restore function re-asserts the exact scrollY one more time
-        // right as overflow clears, specifically to preempt that
-        // catch-up jump at the one moment it's most likely to fire.
-        function killScrollMomentum() {
-            gsap.killTweensOf(window);
-            const htmlEl = document.documentElement;
-            const bodyEl = document.body;
-            const frozenY = window.scrollY;
-            htmlEl.style.overflow = 'hidden';
-            bodyEl.style.overflow = 'hidden';
-            window.scrollTo(0, frozenY);
-            return () => {
-                htmlEl.style.overflow = '';
-                bodyEl.style.overflow = '';
-                window.scrollTo(0, window.scrollY);
-            };
-        }
-
-        function isProblemsInteractionBlocked() {
-            return problemsSettling || problemsLocked || performance.now() < problemsHardBlockUntil;
-        }
-
-        // A previous round added an "escape hatch" here — any upward
-        // wheel/touch tick unconditionally killed this lock's tweens,
-        // to defend against Problems' and Solutions' ScrollTrigger
-        // ranges overlapping (Problems' own 'bottom 40%' end sat past
-        // Solutions' own 'top 60%' start by ~0.2 viewport-heights of
-        // scrollY, so a single scroll motion could engage both locks
-        // at once). That defense had a real cost, confirmed on video:
-        // it also fired on EVERY wheel tick during a legitimate
-        // onEnterBack settle (entering from Solutions below), killing
-        // the settle tween before it could ever complete — the exact
-        // "auto-settle doesn't work, page judders" bug reported this
-        // round. The actual fix is below, at this section's own
-        // ScrollTrigger: 'bottom 40%' -> 'bottom 60%' makes Problems'
-        // end and Solutions' start cross at the identical scrollY, so
-        // the two ranges can no longer overlap at all — removing the
-        // need for a reactive kill-switch instead of tuning it.
-        function settleIntoProblems() {
-            if (pageInitialLoad || problemsLocked || problemsSettling) return;
-            problemsSettling = true;
-            resetStringWaves(); // clear any bend left over from hovering a Solutions phrase before it can bleed into the docking-transition particles
-            const restoreOverflow = killScrollMomentum();
-            gsap.to(window, {
-                duration: 0.6,
-                scrollTo: { y: problemsTopCached, autoKill: false },
-                ease: 'power2.inOut',
-                onComplete: () => {
-                    restoreOverflow(); // we're now exactly at the target, so this can't cause a visible jump
-                    problemsSettling = false;
-                    problemsLocked = true;
-                    problemsGestureAccum = 0;
-                    // Set the hard-block window HERE, not before the
-                    // tween started - problemsSettling already covers
-                    // the whole 0.6s settle itself, so a block set
-                    // before it began was actually protecting nothing
-                    // new and, worse, could EXPIRE before this exact
-                    // instant (500ms block vs a 600ms tween). This is
-                    // precisely the moment restoreOverflow() runs and
-                    // any suppressed momentum is most likely to catch
-                    // up (see killScrollMomentum's own comment) - the
-                    // fresh window here is what actually absorbs that.
-                    problemsHardBlockUntil = performance.now() + ENTRY_HARD_BLOCK_MS;
-                    openRift();
-                },
-                // A single instant jump (no scroll-behavior:smooth is set
-                // anywhere, so the nav bar's #solutions link is a plain
-                // one-shot native jump) can cross Problems' AND Solutions'
-                // entire trigger ranges in one native scroll event, firing
-                // both onEnters back to back. The second settle's own
-                // killScrollMomentum() then kills THIS tween via the
-                // shared gsap.killTweensOf(window) before onComplete ever
-                // runs, which would otherwise leave problemsSettling
-                // stuck true forever (nothing else clears it) and
-                // permanently swallow every wheel/touch event in this
-                // section. onInterrupt fires whenever a tween is killed
-                // before completing, so it's the correct place to
-                // guarantee the flag always gets cleared, not just on the
-                // happy path. restoreOverflow() is safe to call twice
-                // (the second settle already reset overflow itself via
-                // its own killScrollMomentum, but this keeps the pair
-                // self-contained regardless of ordering).
-                onInterrupt: () => {
-                    restoreOverflow();
-                    problemsSettling = false;
-                }
-            });
-        }
-
-        // A native anchor jump (any nav-link click) or a single fast
-        // flick can cross Problems' entire onEnter range in one native
-        // scroll event, exactly like the "single instant jump" case
-        // already documented above for onEnterBack. Confirmed directly:
-        // clicking the Quiz nav link from the top of the page fired
-        // onEnter mid-flight and settleIntoProblems() then forced
-        // scroll back to Problems' own top, hijacking the click's real
-        // destination - this is the "the header menu breaks the site"
-        // report. Deferring the decision by one short beat and only
-        // actually settling if the ScrollTrigger instance is STILL
-        // active at that point (self.isActive) tells apart "the user's
-        // scroll genuinely came to rest inside Problems" from "this
-        // was just a waypoint on a much larger jump" - a real
-        // incremental scroll into Problems is unaffected (its own
-        // deceleration already keeps it here well past 120ms), while a
-        // jump headed further has already moved on by the time this
-        // fires, so it correctly skips the hijack.
-        let problemsEnterCheckTimer = null;
-        function maybeSettleIntoProblems(self) {
-            if (problemsEnterCheckTimer) clearTimeout(problemsEnterCheckTimer);
-            problemsEnterCheckTimer = setTimeout(() => {
-                problemsEnterCheckTimer = null;
-                if (self.isActive) {
-                    settleIntoProblems();
-                } else {
-                    // Passing through, not staying - belt and braces
-                    // alongside onLeave's own forceCleanProblemsStateIfStale
-                    // below, in case this particular jump doesn't
-                    // register as a clean onLeave crossing.
-                    forceCleanProblemsStateIfStale();
-                }
-            }, 120);
-        }
-
-        // Re-entering Problems from BELOW (scrolling up out of
-        // Solutions) no longer force-scrolls or re-engages the hard
-        // lock at all - it's now a plain reveal, the same minimal
-        // pattern Solutions/Quiz already use. Two real reports drove
-        // this: (1) forcing a hard snap-to-exact-top on ANY upward
-        // crossing, however small, meant the slightest nudge triggered
-        // the full settle tween + rift-reopen + word pop-in sequence,
-        // which is what read as ugly "sticks" flashing in; (2) because
-        // that same forced scrollTo can itself cross back OUT of
-        // Solutions' own range while completing, a fast scroll up from
-        // Quiz would get caught by Problems' snap before the user ever
-        // got to experience Solutions, reading as "it skips straight
-        // to Problems." Removing the force here fixes both at once:
-        // scrolling up now glides through Solutions and into Problems
-        // exactly as it visually should, with the word/rift simply
-        // fading back in along the way instead of yanking the page.
-        function revealProblemsPlain() {
-            if (problemsLocked || problemsSettling) return; // already mid-lock via the forward path - don't fight it
+        // Minimal threshold-sensor ScrollTrigger — no pin, no scrub, no
+        // forced scroll, no lock. Same pattern Solutions and Quiz already
+        // use: crossing into the section opens the rift, crossing out
+        // closes it, both tweens (openRift/closeRift above) already run
+        // smoothly to completion regardless of scroll speed or direction.
+        function revealProblems() {
             resetStringWaves();
             openRift();
-        }
-
-        function exitProblems(direction) {
-            if (!problemsLocked) return;
-            problemsLocked = false;
-            problemsHardBlockUntil = performance.now() + 400 + 700 + 200; // covers closeRift's 0.4s + the 0.7s scroll-to-next + a small buffer
-            closeRift();
-            gsap.delayedCall(0.4, () => {
-                const restoreOverflow = killScrollMomentum(); // same overshoot risk on the way out — kill any residual momentum before taking over
-                const targetY = direction === 'forward'
-                    ? solutionsSection.offsetTop
-                    : Math.max(0, problemsTopCached - height);
-                gsap.to(window, {
-                    duration: 0.7,
-                    scrollTo: { y: targetY, autoKill: true },
-                    ease: 'power2.inOut',
-                    onComplete: restoreOverflow
-                });
-            });
         }
 
         if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
             gsap.set(dynamicWordEl, { opacity: 0 }); // hidden until openRift's reveal runs — only when the system is actually active, so a failed CDN load doesn't leave the word permanently invisible
             gsap.registerPlugin(ScrollTrigger, ScrollToPlugin);
 
-            window.addEventListener('wheel', (e) => {
-                if (!isProblemsInteractionBlocked()) return; // normal scrolling everywhere else on the page, completely untouched
-                e.preventDefault();
-                if (!problemsLocked || performance.now() < problemsHardBlockUntil) return; // still settling / still inside the hard debounce window — swallow silently, no gesture accounting yet
-                const now = performance.now();
-                if (now - problemsLastWheelTime > 300) problemsGestureAccum = 0; // gap since the last tick — this is a fresh gesture, not a continuation
-                problemsLastWheelTime = now;
-                problemsGestureAccum += e.deltaY;
-                if (Math.abs(problemsGestureAccum) > EXIT_GESTURE_PX) {
-                    exitProblems(problemsGestureAccum > 0 ? 'forward' : 'backward');
-                    problemsGestureAccum = 0;
-                }
-            }, { passive: false });
-
-            window.addEventListener('touchstart', (e) => {
-                problemsTouchStartY = e.touches[0].clientY;
-            }, { passive: true });
-            window.addEventListener('touchmove', (e) => {
-                if (!isProblemsInteractionBlocked()) return;
-                e.preventDefault();
-                if (!problemsLocked || performance.now() < problemsHardBlockUntil) return;
-                if (problemsTouchStartY === null) return;
-                const dy = problemsTouchStartY - e.touches[0].clientY;
-                if (Math.abs(dy) > EXIT_GESTURE_PX) {
-                    exitProblems(dy > 0 ? 'forward' : 'backward');
-                    problemsTouchStartY = null;
-                }
-            }, { passive: false });
-            window.addEventListener('touchend', () => { problemsTouchStartY = null; }, { passive: true });
-
-            // The one and only ScrollTrigger for this section — a pure
-            // threshold sensor, no pin, no scrub. onEnter/onEnterBack
-            // hand off to the settle+lock sequence above, identically
-            // in both directions; onLeave/onLeaveBack are the keyboard-
-            // bypass safety net described above (exitProblems already
-            // calls hideWordInstantly for the normal wheel/touch path,
-            // so this is redundant there — cheap insurance, not the
-            // primary mechanism).
-            //
-            // end: 'bottom 60%' — deliberately matches Solutions' own
-            // start: 'top 60%' below. With zero-gap adjacent 100vh
-            // sections, this trigger's bottom edge IS the next
-            // section's top edge, so the two ScrollTriggers now cross
-            // that shared line at the exact same scrollY instead of
-            // 'bottom 40%' vs 'top 60%' leaving a ~0.2-viewport-height
-            // window where both were simultaneously "active" — that
-            // overlap was the root cause of a dead-lock two rounds ago
-            // (whichever lock ended up holding preventDefault()), and
-            // more recently of onEnterBack settles getting killed
-            // mid-flight by the reactive fix for that (see the comment
-            // on settleIntoProblems above). Matching thresholds removes
-            // the overlap at its source instead of patching around it.
             ScrollTrigger.create({
                 trigger: problemsSection,
                 start: 'top 60%',
                 end: 'bottom 60%',
-                onEnter: maybeSettleIntoProblems,
-                onEnterBack: revealProblemsPlain,
-                onLeave: () => { hideWordInstantly(); forceCleanProblemsStateIfStale(); },
-                onLeaveBack: () => { hideWordInstantly(); forceCleanProblemsStateIfStale(); },
+                onEnter: revealProblems,
+                onEnterBack: revealProblems,
+                onLeave: closeRift,
+                onLeaveBack: closeRift,
             });
         } else {
             // Fallback if GSAP/ScrollTrigger fails to load: no lock,
@@ -3957,15 +3612,9 @@
             gsap.set(solutionsDynamicWordEl, { opacity: 0 });
 
             // start: 'top 60%' deliberately matches Problems' own end
-            // ('bottom 60%', see settleIntoProblems' comment) rather
-            // than an arbitrary percentage - a previous round confirmed
-            // directly that a casual mismatch here reintroduces the
-            // exact trigger-range overlap an earlier round spent a full
-            // pass fixing (Problems' lock re-engaging and its settle
-            // tween dragging scrollY backward mid-transition). Matching
-            // thresholds keeps the two crossing at the identical
-            // scrollY, so neither section's trigger can catch the page
-            // while the other is still settling.
+            // ('bottom 60%') rather than an arbitrary percentage, so
+            // both sections' triggers cross at the identical scrollY
+            // with no overlap or gap between them.
             ScrollTrigger.create({
                 trigger: solutionsSection,
                 start: 'top 60%',
@@ -4140,14 +3789,6 @@
                 onLeaveBack: hideQuizInstantly,
             });
         }
-
-        // Clears pageInitialLoad once ScrollTrigger's own initial sync
-        // pass (which happens synchronously above, but GSAP can also
-        // defer a follow-up refresh to the next tick while fonts/images
-        // settle) has had time to run its course, so a reload's
-        // synthetic onEnter firings are suppressed but any real scroll
-        // the user makes shortly after load still locks normally.
-        setTimeout(() => { pageInitialLoad = false; }, 200);
 
         // Capabilities/Quiz nav links land exactly on their section's
         // own top instead of the native anchor jump, which fell short
