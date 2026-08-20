@@ -3028,12 +3028,28 @@
                             ctx.fillRect(riftCenterX - riftGlowR, riftCenterY - riftGlowR, riftGlowR * 2, riftGlowR * 2);
                         }
 
-                        const glowGrad = ctx.createLinearGradient(0, riftCenterY - bandHalfH, 0, riftCenterY + bandHalfH);
-                        glowGrad.addColorStop(0, 'rgba(0, 229, 255, 0)');
-                        glowGrad.addColorStop(0.5, `rgba(0, 229, 255, ${horizonAlphaLocal * 0.16})`);
+                        // Wide soft ELLIPSE instead of a flat rect - a
+                        // rect filled with only a vertical gradient has
+                        // hard LEFT/RIGHT edges wherever it's clipped
+                        // (was lineX0/lineX1, visibly a "container" with
+                        // plain dark background past it - confirmed
+                        // directly on a screenshot). A radial gradient
+                        // stretched into an ellipse via ctx.scale fades
+                        // smoothly on every side by construction, all
+                        // the way toward the true screen edges, with no
+                        // hard boundary anywhere.
+                        ctx.save();
+                        ctx.translate(width / 2, riftCenterY);
+                        ctx.scale((width * 0.64) / bandHalfH, 1);
+                        const glowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, bandHalfH);
+                        glowGrad.addColorStop(0, `rgba(0, 229, 255, ${horizonAlphaLocal * 0.16})`);
+                        glowGrad.addColorStop(0.55, `rgba(0, 229, 255, ${horizonAlphaLocal * 0.1})`);
                         glowGrad.addColorStop(1, 'rgba(0, 229, 255, 0)');
                         ctx.fillStyle = glowGrad;
-                        ctx.fillRect(lineX0, riftCenterY - bandHalfH, lineX1 - lineX0, bandHalfH * 2);
+                        ctx.beginPath();
+                        ctx.arc(0, 0, bandHalfH, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
 
                         // On mobile the line stays one continuous path
                         // and the gap is simulated by dipping this
